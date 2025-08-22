@@ -42,3 +42,5 @@ important invariants: protocol stays solvent, specifying an input amount/output 
 
 known issue:
 call to registerUser() from markets has the protocol as msg.sender, either delegate call or forward the actual caller
+
+registeruser in getamountsin/getamounts out is duplicate and unnecessary, already handled in market
