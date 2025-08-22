@@ -1,8 +1,6 @@
-Crystal.sol contains router, launchpad, referral manager (not important), settings, 3 factories for 3 different market types which are largely the same code (static tick without amm, dynamic tick with amm, dynamic tick with amm, creator fee split, and pre-initialization of liquidity by launchpad)
+all user interaction goes through Crystal which delegatecalls the markets, the one exception is interacting with launchpad tokens and AMM LP tokens which are regular ERC-20 tokens
 
-all user interaction goes through Crystal.sol which delegatecalls the markets, the one exception is interacting with launchpad tokens and AMM LP tokens which are regular ERC-20 tokens
-
-CrystalVault.sol contains vault factory + user operated vaults, deposits/withdrawals should go through the vault factory
+vault deposits/withdrawals should go through the vault factory
 
 deposits into user operated vaults are non-transferable ERC-20s, the use of totalShares currently is incorrect
 
