@@ -20,3 +20,6 @@ MMs are expected to interact through the fallback endpoint
 Integrations are expected to interact through the default function endpoints
 Users are expected to interact through the router endpoints
 important invariants: protocol stays solvent, specifying an input amount/output amount expends/yields the exact specified amount, price time priority, interacting with one market should never affect other markets, rounding dust towards the protocol is acceptable
+
+known issue:
+call to registerUser() from markets has the protocol as msg.sender, either delegate call or forward the actual caller
