@@ -45,7 +45,7 @@ describe("CrystalTests", function () {
     const CrystalFactory2 = await ethers.getContractFactory("CrystalMarket2Factory");
     crystalfactory2 = await CrystalFactory2.deploy();
     const Crystal = await ethers.getContractFactory("Crystal");
-    crystal = await Crystal.deploy(base.target, owner.address, owner.address, 10, 10, 86400, [crystalfactory0.target, crystalfactory1.target, crystalfactory2.target], [1000000000000000000000n, 100n, 5n, 1000000000000000000n, 99920, 99990, 40]);
+    crystal = await Crystal.deploy(base.target, owner.address, owner.address, 10, 10, 86400, [crystalfactory0.target, crystalfactory1.target, crystalfactory2.target], [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]);
     // price * base amount * base decimals = quote amount * quote decimals * scale factor
     // price factor = quote amount * scale factor / base amount
     // scale factor = real world max price * price factor * 10 ** quote decimals
@@ -70,11 +70,11 @@ describe("CrystalTests", function () {
     await quote.connect(maker).approve(crystal.target, 115792089237316195423570985008687907853269984665640564039457584007913129639935n);
     await base.connect(maker).approve(crystal.target, 115792089237316195423570985008687907853269984665640564039457584007913129639935n);
     
-    await crystal.connect(maker).registerUser();
+    await crystal.connect(maker).registerUser(maker);
     await quote.connect(taker).approve(crystal.target, 115792089237316195423570985008687907853269984665640564039457584007913129639935n);
     await base.connect(taker).approve(crystal.target, 115792089237316195423570985008687907853269984665640564039457584007913129639935n);
     
-    await crystal.connect(taker).registerUser();
+    await crystal.connect(taker).registerUser(taker);
 
     const dummyParams1 = [
       false,

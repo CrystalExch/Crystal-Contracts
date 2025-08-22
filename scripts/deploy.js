@@ -73,7 +73,7 @@ async function main() {
     10,
     86400,
     [crystalfactory0Result.address, crystalfactory1Result.address, crystalfactory2Result.address],
-    [1000000000000000000000n, 100n, 5n, 1000000000000000000n, 99920, 99990, 40]
+    [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
   );
 
   // Helper function for contract calls
