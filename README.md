@@ -44,3 +44,5 @@ known issue:
 call to registerUser() from markets has the protocol as msg.sender, either delegate call or forward the actual caller
 
 registeruser in getamountsin/getamounts out is duplicate and unnecessary, already handled in market
+
+on batch cancel options needs to let you specify whether to use internal balance for quotetoken basetoken and maybe input output not just input output
