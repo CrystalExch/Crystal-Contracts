@@ -1,54 +1,24 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
-import "hardhat/console.sol";
 
 import {IERC20} from '../interfaces/IERC20.sol';
 import {IWETH} from '../interfaces/IWETH.sol';
 import {ICrystalVault} from '../interfaces/ICrystalVault.sol';
 import {CrystalVault} from './CrystalVault.sol';
+import {ICrystalVaultFactory} from '../interfaces/ICrystalVaultFactory.sol';
 
 contract CrystalVaultFactory {
-    struct Vault {
-        address vault;
-        address quoteAsset;
-        address baseAsset;
-        address owner;
-        uint256 totalShares;
-        uint256 maxShares;
-        uint40 lockup;
-        bool locked;
-        bool closed;
-        VaultMetaData metadata;
-    }
-
-    struct VaultMetaData {
-        string name;
-        string description;
-        string social1;
-        string social2;
-        string social3;  
-    }
-
     address public immutable weth; 
     address public immutable eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
     address public gov;
     address public crystal;
     address[] public allVaults;
-    mapping (address => Vault) public getVault;
+    mapping (address => ICrystalVaultFactory.Vault) public getVault;
     mapping (address => uint256) public minSize;
     uint256 public defaultQuoteMin; // min deposit, is already divided by deciamls
     uint256 public defaultBaseMin; // anti rounding error, raw value
     uint16 public maxOrderCap;
     uint40 public maxLockup;
-
-    event VaultDeployed(address indexed vault, address quoteAsset, address baseAsset, address owner, string name, string desc, string social1, string social2, string social3);
-    event Deposit(address indexed vault, address indexed sender, uint256 shares, uint256 quoteAmount, uint256 baseAmount);
-    event Withdraw(address indexed vault, address indexed sender, uint256 shares, uint256 quoteAmount, uint256 baseAmount);
-    event MaxSharesChanged(address indexed vault, uint256 maxShares);
-    event LockupChanged(address indexed vault, uint256 lockup);
-    event Locked(address indexed vault);
-    event Unlocked(address indexed vault);
-    event Closed(address indexed vault);
 
     constructor(address _crystal, address _gov, address _weth, uint256 _defaultQuoteMin, uint256 _defaultBaseMin, uint256 _maxOrderCap, uint256 _lockup) {
         crystal = _crystal;
@@ -63,12 +33,11 @@ contract CrystalVaultFactory {
     function _createVault(
         address quoteAsset,
         address baseAsset,
-        string memory name,
+        uint256 maxShares,
+        uint40 lockup,
+        bool decreaseOnWithdraw,
         string memory symbol,
-        string memory description,
-        string memory social1,
-        string memory social2,
-        string memory social3
+        ICrystalVault.VaultMetaData memory metadata
     ) private returns (address vault) {
         require(quoteAsset != address(0));
         vault = address(new CrystalVault(
@@ -76,18 +45,21 @@ contract CrystalVaultFactory {
             quoteAsset,
             baseAsset,
             msg.sender,
-            name,
             symbol,
-            description,
-            social1,
-            social2,
-            social3
+            metadata
         ));
         IERC20(quoteAsset).approve(vault, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
         IERC20(baseAsset).approve(vault, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
-        getVault[vault] = Vault(vault, quoteAsset, baseAsset, msg.sender, 0, 0, maxLockup, false, false, VaultMetaData(name, description, social1, social2, social3));
+        if (lockup != 0) {
+            ICrystalVault(vault).changeLockup(lockup);
+            getVault[vault].lockup = lockup;
+        }
+        else {
+            lockup = maxLockup;
+        }
+        getVault[vault] = ICrystalVaultFactory.Vault(quoteAsset, baseAsset, msg.sender, 0, maxShares, lockup, decreaseOnWithdraw, false, false, metadata);
         allVaults.push(vault);
-        emit VaultDeployed(vault, quoteAsset, baseAsset, msg.sender, name, description, social1, social2, social3);
+        emit ICrystalVaultFactory.VaultDeployed(vault, quoteAsset, baseAsset, msg.sender, maxShares, lockup, decreaseOnWithdraw, metadata);
     }
 
     function changeGov(address newGov) external {
@@ -110,7 +82,7 @@ contract CrystalVaultFactory {
         minSize[token] = newMinSize;
     }
 
-    function deploy(address quoteAsset, address baseAsset, uint256 amountQuote, uint256 amountBase, string memory name, string memory description, string memory social1, string memory social2, string memory social3) external payable returns (address vault) {
+    function deploy(address quoteAsset, address baseAsset, uint256 amountQuote, uint256 amountBase, uint256 maxShares, uint256 lockup, bool decreaseOnWithdraw, ICrystalVault.VaultMetaData memory metadata) external payable returns (address vault) {
         if (minSize[quoteAsset == eth ? weth : quoteAsset] != 0) { // make sure first deposit isn't dust
             require(amountQuote > minSize[quoteAsset == eth ? weth : quoteAsset]);
         } else {
@@ -124,7 +96,7 @@ contract CrystalVaultFactory {
         }
         string memory symbol = string.concat("CLV-", IERC20(baseAsset).symbol(), IERC20(quoteAsset == eth ? weth : quoteAsset).symbol());
 
-        vault = _createVault(quoteAsset == eth ? weth : quoteAsset, baseAsset == eth ? weth : baseAsset, name, symbol, description, social1, social2, social3);
+        vault = _createVault(quoteAsset == eth ? weth : quoteAsset, baseAsset == eth ? weth : baseAsset, maxShares, uint40(lockup), decreaseOnWithdraw, symbol, metadata);
 
         deposit(vault, quoteAsset, baseAsset, amountQuote, amountBase, 0, 0);
     }
@@ -178,7 +150,7 @@ contract CrystalVaultFactory {
             IERC20(baseAsset).transfer(msg.sender, amountBaseDesired - amountBase);
         }
         getVault[vault].totalShares += shares;
-        emit Deposit(vault, msg.sender, shares, amountQuote, amountBase);
+        emit ICrystalVaultFactory.Deposit(vault, msg.sender, shares, amountQuote, amountBase);
         assembly {
             tstore(0x0, 0)
         }
@@ -189,7 +161,8 @@ contract CrystalVaultFactory {
             if tload(0x0) { revert(0, 0) }
             tstore(0x0, 1)
         }
-        require(getVault[vault].quoteAsset == (quoteAsset == eth ? weth : quoteAsset) && getVault[vault].baseAsset == (baseAsset == eth ? weth : baseAsset));
+        ICrystalVaultFactory.Vault storage vaultInfo = getVault[vault];
+        require(vaultInfo.quoteAsset == (quoteAsset == eth ? weth : quoteAsset) && vaultInfo.baseAsset == (baseAsset == eth ? weth : baseAsset));
         (amountQuote, amountBase) = ICrystalVault(vault).withdraw(msg.sender, shares, amountQuoteMin, amountBaseMin);
         if (quoteAsset == eth) {
             IWETH(weth).withdraw(amountQuote);
@@ -206,16 +179,16 @@ contract CrystalVaultFactory {
             IERC20(baseAsset).transfer(msg.sender, amountBase);
         }
         uint256 totalShares = ICrystalVault(vault).totalSupply();
-        if (totalShares == 0 && !getVault[vault].closed) { // has to be owner full withdraw causing vault to close
-            if (!getVault[vault].locked) {
-                getVault[vault].locked = true;
-                emit Locked(vault);
+        if (totalShares == 0 && !vaultInfo.closed) { // has to be owner full withdraw causing vault to close
+            if (!vaultInfo.locked) {
+                vaultInfo.locked = true;
+                emit ICrystalVaultFactory.Locked(vault);
             }
-            getVault[vault].closed = true;
-            emit Closed(vault);
+            vaultInfo.closed = true;
+            emit ICrystalVaultFactory.Closed(vault);
         }
-        getVault[vault].totalShares = totalShares;
-        emit Withdraw(vault, msg.sender, shares, amountQuote, amountBase);
+        vaultInfo.totalShares = totalShares;
+        emit ICrystalVaultFactory.Withdraw(vault, msg.sender, shares, amountQuote, amountBase);
         assembly {
             tstore(0x0, 0)
         }
@@ -225,48 +198,48 @@ contract CrystalVaultFactory {
         require(msg.sender == ICrystalVault(vault).owner());
         ICrystalVault(vault).lock();
         getVault[vault].locked = true;
-        emit Locked(vault);
+        emit ICrystalVaultFactory.Locked(vault);
     }
 
     function unlock(address vault) external {
         require(msg.sender == ICrystalVault(vault).owner());
         ICrystalVault(vault).unlock();
         getVault[vault].locked = false;
-        emit Unlocked(vault);
+        emit ICrystalVaultFactory.Unlocked(vault);
     }
 
     function close(address vault) external returns (uint256 amountQuote, uint256 amountBase) {
         require(msg.sender == ICrystalVault(vault).owner());
-        Vault memory vaultInfo = getVault[vault];
+        ICrystalVaultFactory.Vault storage vaultInfo = getVault[vault];
         uint256 shares = ICrystalVault(vault).balanceOf(msg.sender);
         (amountQuote, amountBase) = ICrystalVault(vault).withdraw(msg.sender, shares, 0, 0);
         IERC20(vaultInfo.quoteAsset).transfer(msg.sender, amountQuote);
         IERC20(vaultInfo.baseAsset).transfer(msg.sender, amountBase);
         uint256 totalShares = ICrystalVault(vault).totalSupply();
-        if (totalShares == 0 && !getVault[vault].closed) { // has to be owner full withdraw causing vault to close
-            if (!getVault[vault].locked) {
-                getVault[vault].locked = true;
-                emit Locked(vault);
+        if (totalShares == 0 && !vaultInfo.closed) { // has to be owner full withdraw causing vault to close
+            if (!vaultInfo.locked) {
+                vaultInfo.locked = true;
+                emit ICrystalVaultFactory.Locked(vault);
             }
-            getVault[vault].closed = true;
-            emit Closed(vault);
+            vaultInfo.closed = true;
+            emit ICrystalVaultFactory.Closed(vault);
         }
-        getVault[vault].totalShares = totalShares;
-        emit Withdraw(vault, msg.sender, shares, amountQuote, amountBase);
+        vaultInfo.totalShares = totalShares;
+        emit ICrystalVaultFactory.Withdraw(vault, msg.sender, shares, amountQuote, amountBase);
     }
 
     function changeMaxShares(address vault, uint256 newMaxShares) external {
         require(msg.sender == ICrystalVault(vault).owner());
         ICrystalVault(vault).changeMaxShares(newMaxShares);
         getVault[vault].maxShares = newMaxShares;
-        emit MaxSharesChanged(vault, newMaxShares);
+        emit ICrystalVaultFactory.MaxSharesChanged(vault, newMaxShares);
     }
 
     function changeLockup(address vault, uint40 newLockup) external {
         require(msg.sender == ICrystalVault(vault).owner());
         ICrystalVault(vault).changeLockup(newLockup);
         getVault[vault].lockup = newLockup;
-        emit LockupChanged(vault, newLockup);
+        emit ICrystalVaultFactory.LockupChanged(vault, newLockup);
     }
 
     function changeOrderCap(address vault, uint16 newCap) external {
@@ -277,11 +250,12 @@ contract CrystalVaultFactory {
     function changeDecreaseOnWithdraw(address vault, bool newDecrease) external {
         require(msg.sender == ICrystalVault(vault).owner());
         ICrystalVault(vault).changeDecreaseOnWithdraw(newDecrease);
+        emit ICrystalVaultFactory.DecreaseOnWithdrawChanged(vault, newDecrease);
     }
 
-    function changeMarket(address vault, address newMarket) external {
+    function changeMarket(address vault) external {
         require(msg.sender == ICrystalVault(vault).owner());
-        ICrystalVault(vault).changeMarket(newMarket);
+        ICrystalVault(vault).changeMarket();
     }
 
     function claimFees(address vault) external {

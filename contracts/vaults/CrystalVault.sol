@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
-import "hardhat/console.sol";
 
 import {IERC20} from '../interfaces/IERC20.sol';
 import {ICrystal} from '../interfaces/ICrystal.sol';
+import {ICrystalVault} from '../interfaces/ICrystalVault.sol';
 import {ICrystalVaultFactory} from '../interfaces/ICrystalVaultFactory.sol';
 
 contract ERC20 {
@@ -15,7 +15,6 @@ contract ERC20 {
     mapping(address => mapping(address => uint256)) public allowance;
 
     bytes32 public DOMAIN_SEPARATOR;
-    // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
     bytes32 public constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
     mapping(address => uint256) public nonces;
 
@@ -82,7 +81,7 @@ contract ERC20 {
     }
 
     function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external {
-        require(deadline >= block.timestamp, 'UniswapV2: EXPIRED');
+        require(deadline >= block.timestamp, 'expired');
         bytes32 digest = keccak256(
             abi.encodePacked(
                 '\x19\x01',
@@ -91,49 +90,30 @@ contract ERC20 {
             )
         );
         address recoveredAddress = ecrecover(digest, v, r, s);
-        require(recoveredAddress != address(0) && recoveredAddress == owner, 'UniswapV2: INVALID_SIGNATURE');
+        require(recoveredAddress != address(0) && recoveredAddress == owner, 'invalid signature');
         _approve(owner, spender, value);
     }
 }
 
 contract CrystalVault is ERC20 {
-    struct Action {
-        bool requireSuccess;
-        uint256 action;
-        uint256 param1; // price
-        uint256 param2; // size/id
-        uint256 cloid; // cloid
-    }
-
-    struct VaultMetaData {
-        string name;
-        string description;
-        string social1;
-        string social2;
-        string social3;  
-    }
-
     mapping(address => uint) public lastDepositTimestamp;
     uint256 public maxShares;
-
     address public market;
     uint40 public lockup;
     uint16 public orderCap;
     bool public decrease;
     bool public locked;
     bool public closed;
-
-    VaultMetaData public metadata;
-
+    ICrystalVault.VaultMetaData public metadata;
     address public immutable crystal;
     address public immutable quoteAsset;
     address public immutable baseAsset;
     address public immutable owner;
     address public immutable factory;
 
-    constructor(address _crystal, address _quoteAsset, address _baseAsset, address _owner, string memory _name, string memory _symbol, string memory _description, string memory _social1, string memory _social2, string memory _social3) ERC20(_name, _symbol) {
+    constructor(address _crystal, address _quoteAsset, address _baseAsset, address _owner, string memory _symbol, ICrystalVault.VaultMetaData memory _metadata) ERC20(_metadata.name, _symbol) {
         crystal = _crystal;
-        metadata = VaultMetaData(_name, _description, _social1, _social2, _social3);
+        metadata = _metadata;
         market = ICrystal(crystal).getMarketByTokens(_quoteAsset, _baseAsset);
         require(ICrystal(crystal).getMarket(market).quoteAsset == _quoteAsset); // min owner deposit is enforced in factory, valid market is enforced here aswell
         quoteAsset = _quoteAsset;
@@ -194,11 +174,11 @@ contract CrystalVault is ERC20 {
         maxShares = _maxShares;
     }
 
-    function changeMarket(address newMarket) external {
+    function changeMarket() external {
         require(factory == msg.sender);
-        ICrystal.MarketInfo memory _market = ICrystal(crystal).getMarket(newMarket);
-        require(_market.quoteAsset == quoteAsset && _market.baseAsset == baseAsset);
         cancelAll();
+        address newMarket = ICrystal(crystal).getMarketByTokens(quoteAsset, baseAsset);
+        require(ICrystal(crystal).getMarket(market).quoteAsset == quoteAsset); // min owner deposit is enforced in factory, valid market is enforced here aswell
         market = newMarket;
     }
 
@@ -414,11 +394,11 @@ contract CrystalVault is ERC20 {
         }
     }
 
-    function execute(Action[] calldata actions) external {
-        require(msg.sender == owner && actions.length < 10000 && !closed);
+    function execute(ICrystalVault.Action[] calldata actions) external payable {
+        require(msg.sender == owner && actions.length < 0xFFF && !closed && msg.value < 0xFFFFFFFFFFFFFFFFFFFF);
         bytes32[] memory data = new bytes32[](actions.length + 1);
-        Action memory action;
-        data[0] = bytes32(1 << 252 | actions.length << 160 | uint160(market));
+        ICrystalVault.Action memory action;
+        data[0] = bytes32(1 << 252 | msg.value << 172 | actions.length << 160 | uint160(market));
         for (uint256 i; i < actions.length; ++i) {
             action = actions[i];
             if (
@@ -435,7 +415,7 @@ contract CrystalVault is ERC20 {
                 ((action.param1 & 0xFFFFFFFFFFFFFFFFFFFF) << 112) |
                 action.param2 & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
         }
-        (bool success, bytes memory returnData) = crystal.call(abi.encodePacked(data));
+        (bool success, bytes memory returnData) = crystal.call{value: msg.value}(abi.encodePacked(data));
         if (!success) {
             assembly {
                 revert(add(returnData, 32), mload(returnData))

@@ -25,7 +25,6 @@ contract CrystalToken {
     mapping(address => mapping(address => uint256)) public allowance;
 
     bytes32 public DOMAIN_SEPARATOR;
-    // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
     bytes32 public constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
     mapping(address => uint256) public nonces;
 
@@ -46,17 +45,21 @@ contract CrystalToken {
         name = _name;
         symbol = _symbol;
         metadata = TokenMetaData(_name, _symbol, _metadataCID, _description, _social1, _social2, _social3);
-        _mint(_crystal, totalSupply);
-    }
-
-    function _mint(address to, uint256 value) internal {
-        balanceOf[to] += value;
-        emit Transfer(address(0), to, value);
-    }
-
-    function _burn(address from, uint256 value) internal {
-        balanceOf[from] -= value;
-        emit Transfer(from, address(0), value);
+        balanceOf[_crystal] += totalSupply;
+        emit Transfer(address(0), _crystal, totalSupply);
+        uint256 chainId;
+        assembly {
+            chainId := chainid()
+        }
+        DOMAIN_SEPARATOR = keccak256(
+            abi.encode(
+                keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)'),
+                keccak256(bytes(name)),
+                keccak256(bytes('1')),
+                chainId,
+                address(this)
+            )
+        );
     }
 
     function _approve(address owner, address spender, uint256 value) private {
@@ -81,7 +84,7 @@ contract CrystalToken {
     }
 
     function transferFrom(address from, address to, uint256 value) external returns (bool) {
-        if (allowance[from][msg.sender] != type(uint256).max && to != crystal) {
+        if (allowance[from][msg.sender] != type(uint256).max && msg.sender != crystal) {
             allowance[from][msg.sender] -= value;
         }
         _transfer(from, to, value);
@@ -89,7 +92,7 @@ contract CrystalToken {
     }
 
     function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s) external {
-        require(deadline >= block.timestamp, 'UniswapV2: EXPIRED');
+        require(deadline >= block.timestamp, 'expired');
         bytes32 digest = keccak256(
             abi.encodePacked(
                 '\x19\x01',
@@ -98,7 +101,7 @@ contract CrystalToken {
             )
         );
         address recoveredAddress = ecrecover(digest, v, r, s);
-        require(recoveredAddress != address(0) && recoveredAddress == owner, 'UniswapV2: INVALID_SIGNATURE');
+        require(recoveredAddress != address(0) && recoveredAddress == owner, 'invalid signature');
         _approve(owner, spender, value);
     }
 }

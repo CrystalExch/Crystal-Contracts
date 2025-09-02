@@ -1,5 +1,6 @@
 const { ethers: hardhatEthers } = require("hardhat");
 const { ethers } = require("ethers");
+require("dotenv").config()
 
 async function main() {
   // Get the transaction data from Hardhat (without sending)
@@ -48,21 +49,7 @@ async function main() {
     };
   }
 
-  // Deploy factory contracts
-  console.log("Deploying CrystalMarket0Factory...");
-  const CrystalFactory0 = await hardhatEthers.getContractFactory("CrystalMarket0Factory");
-  const crystalfactory0Result = await deployWithEthers(CrystalFactory0);
-
-  console.log("Deploying CrystalMarket1Factory...");
-  const CrystalFactory1 = await hardhatEthers.getContractFactory("CrystalMarket1Factory");
-  const crystalfactory1Result = await deployWithEthers(CrystalFactory1);
-
-  console.log("Deploying CrystalMarket2Factory...");
-  const CrystalFactory2 = await hardhatEthers.getContractFactory("CrystalMarket2Factory");
-  const crystalfactory2Result = await deployWithEthers(CrystalFactory2);
-
   // Deploy main Crystal contract
-  console.log("Deploying Crystal...");
   const Crystal = await hardhatEthers.getContractFactory("Crystal");
   const crystalResult = await deployWithEthers(
     Crystal,
@@ -72,7 +59,6 @@ async function main() {
     10,
     10,
     86400,
-    [crystalfactory0Result.address, crystalfactory1Result.address, crystalfactory2Result.address],
     [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
   );
 
@@ -95,14 +81,13 @@ async function main() {
 
     const signedTx = await wallet.signTransaction(tx);
     const response = await provider.broadcastTransaction(signedTx);
-    console.log(`${methodName} transaction sent: ${response.hash}`);
     
     const receipt = await response.wait();
     return receipt;
   }
-
+  const markets = []
   // Deploy markets using the Crystal contract
-  const dummyParams = [
+  let dummyParams = [
     true,
     quoteAddr,
     baseAddr,
@@ -115,16 +100,15 @@ async function main() {
     99_990,
   ];
 
-  console.log("Creating market1...");
   // First get the address that will be deployed
-  const marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);
-  console.log("Market1 will be deployed to:", marketAddr);
+  let marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);
+  console.log("Market will be deployed to:", marketAddr);
+  markets.push(marketAddr)
   
   // Then actually deploy
   await callWithEthers(crystalResult.contract, "deploy", dummyParams);
-  const market = new ethers.Contract(marketAddr, (await hardhatEthers.getContractFactory("CrystalMarket1")).interface, wallet);
 
-  const dummyParams1 = [
+  dummyParams = [
     false,
     quoteAddr,
     baseAddr,
@@ -137,15 +121,203 @@ async function main() {
     99_990,
   ];
 
-  console.log("Creating market0...");
-  const marketAddr1 = await crystalResult.contract["deploy"].staticCall(...dummyParams1);
-  console.log("Market0 will be deployed to:", marketAddr1);
+  marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);
+  console.log("Market will be deployed to:", marketAddr);
+  markets.push(marketAddr)
   
-  await callWithEthers(crystalResult.contract, "deploy", dummyParams1);
-  const market1 = new ethers.Contract(marketAddr1, (await hardhatEthers.getContractFactory("CrystalMarket0")).interface, wallet);
+  await callWithEthers(crystalResult.contract, "deploy", dummyParams);
 
+  dummyParams = [
+    true,
+    quoteAddr,
+    '0xB5a30b0FDc5EA94A52fDc42e3E9760Cb8449Fb37',
+    0,
+    13,
+    1,
+    1_000_000,
+    1_000_000,
+    99_970,
+    99_990,
+  ];
+
+  marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);
+  console.log("Market will be deployed to:", marketAddr);
+  markets.push(marketAddr)
+  
+  await callWithEthers(crystalResult.contract, "deploy", dummyParams);
+
+  dummyParams = [
+    true,
+    quoteAddr,
+    '0xcf5a6076cfa32686c0Df13aBaDa2b40dec133F1d',
+    0,
+    2,
+    1,
+    1_000_000,
+    1_000_000,
+    99_970,
+    99_990,
+  ];
+
+  marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);
+  console.log("Market will be deployed to:", marketAddr);
+  markets.push(marketAddr)
+  
+  await callWithEthers(crystalResult.contract, "deploy", dummyParams);
+
+  dummyParams = [
+    true,
+    quoteAddr,
+    '0x5387C85A4965769f6B0Df430638a1388493486F1',
+    0,
+    5,
+    1,
+    1_000_000,
+    1_000_000,
+    99_970,
+    99_990,
+  ];
+
+  marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);
+  console.log("Market will be deployed to:", marketAddr);
+  markets.push(marketAddr)
+  
+  await callWithEthers(crystalResult.contract, "deploy", dummyParams);
+
+  dummyParams = [
+    true,
+    quoteAddr,
+    '0x88b8E2161DEDC77EF4ab7585569D2415a1C1055D',
+    0,
+    4,
+    1,
+    100000,
+    1000000,
+    99_990,
+    100_000,
+  ];
+
+  marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);
+  console.log("Market will be deployed to:", marketAddr);
+  markets.push(marketAddr)
+  
+  await callWithEthers(crystalResult.contract, "deploy", dummyParams);
+
+  dummyParams = [
+    true,
+    baseAddr,
+    '0xe1d2439b75fb9746E7Bc6cB777Ae10AA7f7ef9c5',
+    0,
+    4,
+    1,
+    100000,
+    100000000000000000n,
+    99_990,
+    100_000,
+  ];
+
+  marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);
+  console.log("Market will be deployed to:", marketAddr);
+  markets.push(marketAddr)
+  
+  await callWithEthers(crystalResult.contract, "deploy", dummyParams);
+  
+  dummyParams = [
+    true,
+    baseAddr,
+    '0xb2f82D0f38dc453D596Ad40A37799446Cc89274A',
+    0,
+    4,
+    1,
+    100000,
+    100000000000000000n,
+    99_990,
+    100_000,
+  ];
+
+  marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);
+  console.log("Market will be deployed to:", marketAddr);
+  markets.push(marketAddr)
+  
+  await callWithEthers(crystalResult.contract, "deploy", dummyParams);
+  
+  dummyParams = [
+    true,
+    baseAddr,
+    '0x3a98250F98Dd388C211206983453837C8365BDc1',
+    0,
+    4,
+    1,
+    100000,
+    100000000000000000n,
+    99_990,
+    100_000,
+  ];
+
+  marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);
+  console.log("Market will be deployed to:", marketAddr);
+  markets.push(marketAddr)
+  
+  await callWithEthers(crystalResult.contract, "deploy", dummyParams);
+  
+  dummyParams = [
+    true,
+    baseAddr,
+    '0x0F0BDEbF0F83cD1EE3974779Bcb7315f9808c714',
+    2,
+    4,
+    1,
+    1_000_000_000_000_000,
+    100000000000000000n,
+    99_970,
+    99_990,
+  ];
+
+  marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);
+  console.log("Market will be deployed to:", marketAddr);
+  markets.push(marketAddr)
+  
+  await callWithEthers(crystalResult.contract, "deploy", dummyParams);
+  
+  dummyParams = [
+    true,
+    baseAddr,
+    '0xE0590015A873bF326bd645c3E1266d4db41C4E6B',
+    2,
+    5,
+    1,
+    1_000_000_000_000_000,
+    100000000000000000n,
+    99_970,
+    99_990,
+  ];
+
+  marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);
+  console.log("Market will be deployed to:", marketAddr);
+  markets.push(marketAddr)
+  
+  await callWithEthers(crystalResult.contract, "deploy", dummyParams);
+  
+  dummyParams = [
+    true,
+    baseAddr,
+    '0xfe140e1dCe99Be9F4F15d657CD9b7BF622270C50',
+    2,
+    6,
+    1,
+    1_000_000_000_000_000,
+    100000000000000000n,
+    99_970,
+    99_990,
+  ];
+
+  marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);
+  console.log("Market will be deployed to:", marketAddr);
+  markets.push(marketAddr)
+  
+  await callWithEthers(crystalResult.contract, "deploy", dummyParams);
+  
   // Deploy vault factory
-  console.log("Deploying CrystalVaultFactory...");
   const CrystalVaultFactory = await hardhatEthers.getContractFactory("CrystalVaultFactory");
   const vaultfactoryResult = await deployWithEthers(
     CrystalVaultFactory,
@@ -158,13 +330,18 @@ async function main() {
     0n
   );
 
+  // deploy ref helper
+  const CrystalHelper = await hardhatEthers.getContractFactory("CrystalReferralManager");
+  const CrystalHelperResult = await deployWithEthers(
+    CrystalHelper,
+    wallet.address
+  );
+
   console.log("\n=== Deployment Summary ===");
-  console.log("Quote token:", quoteAddr);
-  console.log("Base token:", baseAddr);
   console.log("Crystal:", crystalResult.address);
-  console.log("Market1:", marketAddr);
-  console.log("Market0:", marketAddr1);
   console.log("VaultFactory:", vaultfactoryResult.address);
+  console.log("Helper:", CrystalHelperResult.address)
+  console.log("Markets:", markets);
 }
 
 main().catch((error) => {

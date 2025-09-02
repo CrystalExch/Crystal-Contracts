@@ -38,14 +38,8 @@ describe("CrystalTests", function () {
     await quote.mint(depositer.address, ethers.parseEther("1000000000000000000000000000000"));
     await base.connect(depositer).deposit({value: ethers.parseEther("1000000000000000000000000000000")});
 
-    const CrystalFactory0 = await ethers.getContractFactory("CrystalMarket0Factory");
-    crystalfactory0 = await CrystalFactory0.deploy();
-    const CrystalFactory1 = await ethers.getContractFactory("CrystalMarket1Factory");
-    crystalfactory1 = await CrystalFactory1.deploy();
-    const CrystalFactory2 = await ethers.getContractFactory("CrystalMarket2Factory");
-    crystalfactory2 = await CrystalFactory2.deploy();
     const Crystal = await ethers.getContractFactory("Crystal");
-    crystal = await Crystal.deploy(base.target, owner.address, owner.address, 10, 10, 86400, [crystalfactory0.target, crystalfactory1.target, crystalfactory2.target], [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]);
+    crystal = await Crystal.deploy(base.target, owner.address, owner.address, 10, 10, 86400, [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]);
     // price * base amount * base decimals = quote amount * quote decimals * scale factor
     // price factor = quote amount * scale factor / base amount
     // scale factor = real world max price * price factor * 10 ** quote decimals
@@ -65,7 +59,7 @@ describe("CrystalTests", function () {
     const marketAddr = await crystal.deploy.staticCall(...dummyParams);
     const deployReceipt = await (await crystal.connect(owner).deploy(...dummyParams)).wait();
 
-    market = await ethers.getContractAt("CrystalMarket1", marketAddr);
+    market = await ethers.getContractAt("CrystalMarket", marketAddr);
 
     await quote.connect(maker).approve(crystal.target, 115792089237316195423570985008687907853269984665640564039457584007913129639935n);
     await base.connect(maker).approve(crystal.target, 115792089237316195423570985008687907853269984665640564039457584007913129639935n);
@@ -91,7 +85,7 @@ describe("CrystalTests", function () {
     const marketAddr1 = await crystal.deploy.staticCall(...dummyParams1);
     await crystal.connect(owner).deploy(...dummyParams1);
 
-    market1 = await ethers.getContractAt("CrystalMarket0", marketAddr1);
+    market1 = await ethers.getContractAt("CrystalMarket", marketAddr1);
 
     const CrystalVaultFactory = await ethers.getContractFactory("CrystalVaultFactory");
 
@@ -115,11 +109,14 @@ describe("CrystalTests", function () {
       base.target,
       amountQuote,
       amountBase,
-      vaultName,
+      0,
+      0,
+      true,
+      [vaultName,
       vaultDescription,
       'crystal.exchange',
       'x.com/crystalexch',
-      'telegram'
+      'telegram']
     );
     const receipt = await vaultTx.wait();
     const vaultDeployedEvent = receipt.logs.map(log => {
@@ -177,11 +174,11 @@ describe("CrystalTests", function () {
     const orderId = await crystal
       .connect(maker)
       .limitOrder
-      .staticCall(market.target, true, 0, priceParam, sizeParam);
+      .staticCall(market.target, true, 0, priceParam, sizeParam, maker);
 
       await expect(
       crystal.connect(maker).limitOrder(
-        market.target, true, 0, priceParam, sizeParam
+        market.target, true, 0, priceParam, sizeParam, maker
       )
     ).to.emit(crystal, "OrdersUpdated");
 
@@ -205,18 +202,18 @@ describe("CrystalTests", function () {
     const orderId = await crystal
       .connect(maker)
       .limitOrder
-      .staticCall(market.target, true, 0, priceParam, sizeParam);
+      .staticCall(market.target, true, 0, priceParam, sizeParam, maker);
 
     await expect(
       crystal.connect(maker).limitOrder(
-        market.target, true, 0, priceParam, sizeParam
+        market.target, true, 0, priceParam, sizeParam, maker
       )
     ).to.emit(crystal, "OrdersUpdated");
 
     expect(orderId).to.equal(1n);
 
     const tx = await crystal.connect(maker).cancelOrder(
-      market.target, 0, priceParam, orderId
+      market.target, 0, priceParam, orderId, maker
     );
     
     const receipt = await tx.wait();
@@ -271,12 +268,12 @@ describe("CrystalTests", function () {
       const nextOrderId = await crystal
         .connect(maker)
         .limitOrder
-        .staticCall(market.target, true, 0, priceParam, sizeParam);
+        .staticCall(market.target, true, 0, priceParam, sizeParam, maker);
       
       expect(nextOrderId).to.equal(2n);
       
       const cancelledSize = await crystal.connect(maker).cancelOrder.staticCall(
-        market.target, 0, priceParam, 1n
+        market.target, 0, priceParam, 1n, maker
       );
 
       expect(BigInt(cancelledSize.toString())).to.equal(sizeParam);
@@ -324,11 +321,11 @@ describe("CrystalTests", function () {
       const nextOrderId = await crystal
         .connect(maker)
         .limitOrder
-        .staticCall(market.target, true, 0, priceParam, sizeParam);
+        .staticCall(market.target, true, 0, priceParam, sizeParam, maker);
       expect(nextOrderId).to.equal(4n);
       
       const firstOrderSize = await crystal.connect(maker).cancelOrder.staticCall(
-        market.target, 0, priceParam, 1n
+        market.target, 0, priceParam, 1n, maker
       );
       expect(firstOrderSize).to.be.greaterThan(0n);
       
@@ -343,7 +340,7 @@ describe("CrystalTests", function () {
       cancelGas = BigInt(cancelReceipt.gasUsed);
       
       const firstOrderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
-        market.target, 0, priceParam, 1n
+        market.target, 0, priceParam, 1n, maker
       );
       expect(firstOrderSizeAfter).to.equal(0n);
       
@@ -398,7 +395,7 @@ describe("CrystalTests", function () {
       const nextOrderId = await crystal
         .connect(maker)
         .limitOrder
-        .staticCall(market.target, false, 0, priceParam, sizeParam);
+        .staticCall(market.target, false, 0, priceParam, sizeParam, maker);
       expect(nextOrderId).to.equal(3n);
       
       const buySize = BigInt(rawSize) * 6n;
@@ -414,7 +411,7 @@ describe("CrystalTests", function () {
       // console.log("Gas used for 1 fills:", fillsReceipt.gasUsed.toString());
       // console.log(fillsReceipt.logs.length);
       const orderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
-        market.target, 0, priceParam, 1n
+        market.target, 0, priceParam, 1n, maker
       );
       expect(orderSizeAfter).to.equal(0n);
       sellChunk = encodeAction(3, priceParam, sizeParam, 1n);
@@ -500,7 +497,7 @@ describe("CrystalTests", function () {
       const nextOrderId = await crystal
         .connect(maker)
         .limitOrder
-        .staticCall(market.target, false, 0, priceParam, sizeParam);
+        .staticCall(market.target, false, 0, priceParam, sizeParam, maker);
       expect(nextOrderId).to.equal(4n);
       
       let buySize = BigInt(rawSize) * 6n;
@@ -516,7 +513,7 @@ describe("CrystalTests", function () {
       // console.log("Gas used for 1 fills:", fillsReceipt.gasUsed.toString());
       // console.log(fillsReceipt.logs.length);
       const orderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
-        market.target, 0, priceParam, 1n
+        market.target, 0, priceParam, 1n, maker
       );
       expect(orderSizeAfter).to.equal(0n);
       sellChunk = encodeAction(3, priceParam, sizeParam, 1n);
@@ -652,7 +649,7 @@ describe("CrystalTests", function () {
       const nextOrderId = await crystal
         .connect(maker)
         .limitOrder
-        .staticCall(market.target, false, 0, priceParam, sizeParam);
+        .staticCall(market.target, false, 0, priceParam, sizeParam, maker);
       expect(nextOrderId).to.equal(6n);
       
       const buySize = BigInt(rawSize) * 1n;
@@ -668,7 +665,7 @@ describe("CrystalTests", function () {
       console.log("Gas used for 1 fills:", fillsReceipt.gasUsed.toString());
       console.log(fillsReceipt.logs.length);
       const orderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
-        market.target, 0, priceParam, 1n
+        market.target, 0, priceParam, 1n, maker
       );
       expect(orderSizeAfter).to.equal(0n);
     } catch (error) {
@@ -708,7 +705,7 @@ describe("CrystalTests", function () {
       const nextOrderId = await crystal
         .connect(maker)
         .limitOrder
-        .staticCall(market.target, false, 0, priceParam, sizeParam);
+        .staticCall(market.target, false, 0, priceParam, sizeParam, maker);
       expect(nextOrderId).to.equal(51n);
       
       const buySize = BigInt(rawSize) * 10n;
@@ -724,7 +721,7 @@ describe("CrystalTests", function () {
       console.log("Gas used for 10 fills:", fillsReceipt.gasUsed.toString());
       console.log(fillsReceipt.logs.length);
       const orderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
-        market.target, 0, priceParam, 1n
+        market.target, 0, priceParam, 1n, maker
       );
       expect(orderSizeAfter).to.equal(0n);
     } catch (error) {
@@ -764,7 +761,7 @@ describe("CrystalTests", function () {
       const nextOrderId = await crystal
         .connect(maker)
         .limitOrder
-        .staticCall(market.target, false, 0, priceParam, sizeParam);
+        .staticCall(market.target, false, 0, priceParam, sizeParam, maker);
       expect(nextOrderId).to.equal(501n);
       
       const buySize = BigInt(rawSize) * 100n;
@@ -780,7 +777,7 @@ describe("CrystalTests", function () {
       console.log("Gas used for 100 fills:", fillsReceipt.gasUsed.toString());
       console.log(fillsReceipt.logs.length);
       const orderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
-        market.target, 0, priceParam, 1n
+        market.target, 0, priceParam, 1n, maker
       );
       expect(orderSizeAfter).to.equal(0n);
     } catch (error) {
@@ -820,7 +817,7 @@ describe("CrystalTests", function () {
       const nextOrderId = await crystal
         .connect(maker)
         .limitOrder
-        .staticCall(market.target, false, 0, priceParam, sizeParam);
+        .staticCall(market.target, false, 0, priceParam, sizeParam, maker);
       expect(nextOrderId).to.equal(5001n);
       
       const buySize = BigInt(rawSize) * 1000n;
@@ -836,7 +833,7 @@ describe("CrystalTests", function () {
       console.log("Gas used for 1000 fills:", fillsReceipt.gasUsed.toString());
       console.log(fillsReceipt.logs.length);
       const orderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
-        market.target, 0, priceParam, 1n
+        market.target, 0, priceParam, 1n, maker
       );
       expect(orderSizeAfter).to.equal(0n);
     } catch (error) {
@@ -887,11 +884,11 @@ describe("CrystalTests", function () {
       const nextOrderId = await crystal
         .connect(maker)
         .limitOrder
-        .staticCall(market1.target, true, 0, priceParam, sizeParam);
+        .staticCall(market1.target, true, 0, priceParam, sizeParam, maker);
       expect(nextOrderId).to.equal(4n);
       
       const firstOrderSize = await crystal.connect(maker).cancelOrder.staticCall(
-        market1.target, 0, priceParam, 1n
+        market1.target, 0, priceParam, 1n, maker
       );
       expect(firstOrderSize).to.be.greaterThan(0n);
       
@@ -906,7 +903,7 @@ describe("CrystalTests", function () {
       cancelGas = BigInt(cancelReceipt.gasUsed);
       
       const firstOrderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
-        market1.target, 0, priceParam, 1n
+        market1.target, 0, priceParam, 1n, maker
       );
       expect(firstOrderSizeAfter).to.equal(0n);
       let sellSize = BigInt(rawSize) * 100n * scaleFactor / priceParam;
@@ -979,11 +976,11 @@ describe("CrystalTests", function () {
       const nextOrderId = await crystal
         .connect(maker)
         .limitOrder
-        .staticCall(market1.target, true, 0, priceParam, sizeParam);
+        .staticCall(market1.target, true, 0, priceParam, sizeParam, maker);
       expect(nextOrderId).to.equal(4n);
       
       const firstOrderSize = await crystal.connect(maker).cancelOrder.staticCall(
-        market1.target, 0, priceParam, 1n
+        market1.target, 0, priceParam, 1n, maker
       );
       expect(firstOrderSize).to.be.greaterThan(0n);
       
@@ -998,7 +995,7 @@ describe("CrystalTests", function () {
       cancelGas = BigInt(cancelReceipt.gasUsed);
       
       const firstOrderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
-        market1.target, 0, priceParam, 1n
+        market1.target, 0, priceParam, 1n, maker
       );
       expect(firstOrderSizeAfter).to.equal(0n);
       const sellSize = BigInt(rawSize) * 99n * scaleFactor / priceParam;
@@ -1071,7 +1068,7 @@ describe("CrystalTests", function () {
       const nextOrderId = await crystal
         .connect(maker)
         .limitOrder
-        .staticCall(market1.target, false, 0, priceParam, sizeParam);
+        .staticCall(market1.target, false, 0, priceParam, sizeParam, maker);
       expect(nextOrderId).to.equal(5001n);
       
       const buySize = BigInt(rawSize) * 1000n;
@@ -1088,7 +1085,7 @@ describe("CrystalTests", function () {
       console.log("Gas used for 1000 cancels:", cancelGas.toString(), "avg:", (cancelGas/1000n).toString());
       console.log("Gas used for 1000 fills:", fillsReceipt.gasUsed.toString(), "avg:", (fillsReceipt.gasUsed/1000n).toString());
       const orderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
-        market.target, 0, priceParam, 1n
+        market.target, 0, priceParam, 1n, maker
       );
       expect(orderSizeAfter).to.equal(0n);
     } catch (error) {
@@ -1115,99 +1112,105 @@ describe("CrystalTests", function () {
     const sellHeader = makeHeader(marketAddr, 1);
     let sellChunk = encodeAction(3, priceParam, sizeParam);
     const makerBuyHeader = makeHeader(marketAddr, 1);
-    let makerBuyChunk = encodeAction(2, BigInt(4.84 * Number(priceFactor)), 1289392n);
+    let makerBuyChunk = encodeAction(2, BigInt(4.5 * Number(priceFactor)), 1289392n);
     try {
-      let tx = await (await crystal.connect(maker).addLiquidityETH(market.target, maker, 4500n * 10n ** BigInt(await quote.decimals()), 1000n * 10n ** BigInt(await base.decimals()), 0, 0, {value: 1000n * 10n ** BigInt(await base.decimals())})).wait()
+      let tx = await (await crystal.connect(maker).addLiquidity(market.target, maker, 4500n * 10n ** BigInt(await quote.decimals()), 1000n * 10n ** BigInt(await base.decimals()), 0, 0, {value: 1000n * 10n ** BigInt(await base.decimals())})).wait()
       console.log(tx.gasUsed)
 
       console.log("normal:") // add balances too
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, sizeParam * priceParam / scaleFactor, 100000000000000000n, maker))[0]).to.equal(sizeParam * priceParam / scaleFactor)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, sizeParam * priceParam / scaleFactor, 100000000000000000n, maker, taker))[0]).to.equal(sizeParam * priceParam / scaleFactor)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, sizeParam * priceParam / scaleFactor, 100000000000000000n))[0]).to.equal(sizeParam * priceParam / scaleFactor)
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, sizeParam, 100000000000000000n, maker))[1]).to.equal(sizeParam)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, sizeParam, 100000000000000000n, maker, taker))[1]).to.equal(sizeParam)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, sizeParam, 100000000000000000n))[1]).to.equal(sizeParam)
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, sizeParam, 0, maker))[0]).to.equal(sizeParam)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, sizeParam, 0, maker, taker))[0]).to.equal(sizeParam)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, sizeParam, 0))[0]).to.equal(sizeParam)
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, sizeParam * priceParam / scaleFactor, 0, maker))[1]).to.equal(sizeParam * priceParam / scaleFactor)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, sizeParam * priceParam / scaleFactor, 0, maker, taker))[1]).to.equal(sizeParam * priceParam / scaleFactor)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, sizeParam * priceParam / scaleFactor, 0))[1]).to.equal(sizeParam * priceParam / scaleFactor)
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, sizeParam * priceParam / scaleFactor + 284237n, 100000000000000000n, maker))[0]).to.equal(sizeParam * priceParam / scaleFactor + 284237n)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, sizeParam * priceParam / scaleFactor + 284237n, 100000000000000000n, maker, taker))[0]).to.equal(sizeParam * priceParam / scaleFactor + 284237n)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, sizeParam * priceParam / scaleFactor + 284237n, 100000000000000000n))[0]).to.equal(sizeParam * priceParam / scaleFactor + 284237n)
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, sizeParam + 284237n, 100000000000000000n, maker))[1]).to.equal(sizeParam + 284237n)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, sizeParam + 284237n, 100000000000000000n, maker, taker))[1]).to.equal(sizeParam + 284237n)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, sizeParam + 284237n, 100000000000000000n))[1]).to.equal(sizeParam + 284237n)
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, sizeParam + 284237n, 0, maker))[0]).to.equal(sizeParam + 284237n)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, sizeParam + 284237n, 0, maker, taker))[0]).to.equal(sizeParam + 284237n)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, sizeParam + 284237n, 0))[0]).to.equal(sizeParam + 284237n)
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, sizeParam * priceParam / scaleFactor + 284237n, 0, maker))[1]).to.equal(sizeParam * priceParam / scaleFactor + 284237n)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, sizeParam * priceParam / scaleFactor + 284237n, 0, maker, taker))[1]).to.equal(sizeParam * priceParam / scaleFactor + 284237n)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, sizeParam * priceParam / scaleFactor + 284237n, 0))[1]).to.equal(sizeParam * priceParam / scaleFactor + 284237n)
 
       console.log("big:")
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 100000000000000000000000000n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 100000000000000000000000000n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, 100000000000000000000000000n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 100000000000000000000000000n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 100000000000000000000000000n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, 100000000000000000000000000n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 100000000000000000000000000n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 100000000000000000000000000n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, 100000000000000000000000000n, 0))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 100000000000000000000000000n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 100000000000000000000000000n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, 100000000000000000000000000n, 0))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 1000000000234000002923800000523n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 1000000000234000002923800000523n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, 1000000000234000002923800000523n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 1000000000234000002923800000523n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 1000000000234000002923800000523n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, 1000000000234000002923800000523n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 1000000000234000002923800000523n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 1000000000234000002923800000523n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, 1000000000234000002923800000523n, 0))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 1000000000234000002923800000523n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 1000000000234000002923800000523n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, 1000000000234000002923800000523n, 0))
       console.log("small:")
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 13n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 13n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, 13n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 13n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 13n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, 13n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 13n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 13n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, 13n, 0))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 13n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 13n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, 13n, 0))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 17n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 17n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, 17n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 17n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 17n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, 17n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 17n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 17n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, 17n, 0))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 17n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 17n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, 17n, 0))
 
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
       await crystal.connect(maker).fallback({ data: ethers.concat([makerBuyHeader, ...Array(1).fill(makerBuyChunk)]) });
+      let orderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
+        market.target, 0, BigInt(4.5 * Number(priceFactor)), 1n, maker
+      );
+      expect(orderSizeAfter).to.equal(1289392n);
       let reserves = await crystal.connect(maker).getReserves.staticCall(marketAddr);
       console.log(reserves[0] * scaleFactor / reserves[1])
-      await crystal.connect(taker).marketOrder(marketAddr, true, true, 0, 0, sizeParam * priceParam / scaleFactor, 100000000000000000n, maker)
-      let orderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
-        market.target, 0, priceParam, 1n
+      await crystal.connect(taker).marketOrder(marketAddr, true, true, 0, 0, sizeParam * priceParam / scaleFactor, 100000000000000000n, maker, taker)
+      orderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
+        market.target, 0, priceParam, 1n, maker
       );
       expect(orderSizeAfter).to.equal(200000000000000000n);
       reserves = await crystal.connect(maker).getReserves.staticCall(marketAddr);
-      await crystal.connect(taker).marketOrder(marketAddr, true, true, 0, 0, sizeParam * 250n * priceParam / scaleFactor, 100000000000000000n, maker)
+      await crystal.connect(taker).marketOrder(marketAddr, true, true, 0, 0, sizeParam * 250n * priceParam / scaleFactor, 100000000000000000n, maker, taker)
       orderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
-        market.target, 0, priceParam, 1n
+        market.target, 0, priceParam, 1n, maker
       );
       expect(orderSizeAfter).to.equal(0n);
       reserves = await crystal.connect(maker).getReserves.staticCall(marketAddr);
       console.log(reserves[0] * scaleFactor / reserves[1])
       reserves = await crystal.connect(maker).getReserves.staticCall(marketAddr);
       console.log(reserves[0] * scaleFactor / reserves[1])
-      await crystal.connect(taker).marketOrder(marketAddr, false, true, 0, 0, sizeParam, 0, maker)
+      await crystal.connect(taker).marketOrder(marketAddr, false, true, 0, 0, sizeParam * 150n, 0, maker, taker)
+      reserves = await crystal.connect(maker).getReserves.staticCall(marketAddr);
+      console.log(reserves[0] * scaleFactor / reserves[1])
       orderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
-        market.target, 0, BigInt(4.84 * Number(priceFactor)), 1n
+        market.target, 0, BigInt(4.5 * Number(priceFactor)), 1n, maker
       );
       expect(orderSizeAfter).to.equal(1289392n);
       reserves = await crystal.connect(maker).getReserves.staticCall(marketAddr);
-      await crystal.connect(taker).marketOrder(marketAddr, false, true, 0, 0, sizeParam * 250n, 0, maker)
+      await crystal.connect(taker).marketOrder(marketAddr, false, true, 0, 0, sizeParam * 250n, 0, maker, taker)
       orderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
-        market.target, 0, BigInt(4.84 * Number(priceFactor)), 1n
+        market.target, 0, BigInt(4.5 * Number(priceFactor)), 1n, maker
       );
       expect(orderSizeAfter).to.equal(0n);
       reserves = await crystal.connect(maker).getReserves.staticCall(marketAddr);
       console.log(reserves[0] * scaleFactor / reserves[1])
       await market.connect(maker).approve(crystal.target, 129481923801283018239912830192830192830192831n)
       let liquidity = await market.connect(maker).balanceOf.staticCall(maker);
-      await crystal.connect(maker).removeLiquidityETH(marketAddr, maker, liquidity, 0, 0);
+      await crystal.connect(maker).removeLiquidityETH(marketAddr, maker, liquidity, 0, 0, maker);
     } catch (error) {
       console.error("tx failed:", error);
       throw error;
@@ -1270,7 +1273,7 @@ describe("CrystalTests", function () {
       const nextOrderId = await crystal
         .connect(maker)
         .limitOrder
-        .staticCall(market.target, false, 0, priceParam, sizeParam);
+        .staticCall(market.target, false, 0, priceParam, sizeParam, maker);
       expect(nextOrderId).to.equal(4n);
       
       let buySize = BigInt(rawSize) * 6n;
@@ -1284,7 +1287,7 @@ describe("CrystalTests", function () {
       fills = await crystal.connect(taker).fallback({ data: buyData });
       const fillsReceipt = await fills.wait();
       const orderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
-        market.target, 0, priceParam, 1n
+        market.target, 0, priceParam, 1n, maker
       );
       expect(orderSizeAfter).to.equal(0n);
       sellChunk = encodeAction(3, priceParam, sizeParam, 1n);
@@ -1389,56 +1392,56 @@ describe("CrystalTests", function () {
       await crystal.connect(maker).fallback({ data: ethers.concat([makerBuyHeader, ...Array(1).fill(makerBuyChunk)]) });
 
       console.log("normal:") // add balances too
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, sizeParam * priceParam / scaleFactor, 100000000000000000n, maker))[0]).to.equal(sizeParam * priceParam / scaleFactor)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, sizeParam * priceParam / scaleFactor, 100000000000000000n, maker, taker))[0]).to.equal(sizeParam * priceParam / scaleFactor)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, sizeParam * priceParam / scaleFactor, 100000000000000000n))[0]).to.equal(sizeParam * priceParam / scaleFactor)
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, sizeParam, 100000000000000000n, maker))[1]).to.equal(sizeParam)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, sizeParam, 100000000000000000n, maker, taker))[1]).to.equal(sizeParam)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, sizeParam, 100000000000000000n))[1]).to.equal(sizeParam)
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, sizeParam, 0, maker))[0]).to.equal(sizeParam)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, sizeParam, 0, maker, taker))[0]).to.equal(sizeParam)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, sizeParam, 0))[0]).to.equal(sizeParam)
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, sizeParam * priceParam / scaleFactor, 0, maker))[1]).to.equal(sizeParam * priceParam / scaleFactor)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, sizeParam * priceParam / scaleFactor, 0, maker, taker))[1]).to.equal(sizeParam * priceParam / scaleFactor)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, sizeParam * priceParam / scaleFactor, 0))[1]).to.equal(sizeParam * priceParam / scaleFactor)
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, sizeParam * priceParam / scaleFactor + 284237n, 100000000000000000n, maker))[0]).to.equal(sizeParam * priceParam / scaleFactor + 284237n)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, sizeParam * priceParam / scaleFactor + 284237n, 100000000000000000n, maker, taker))[0]).to.equal(sizeParam * priceParam / scaleFactor + 284237n)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, sizeParam * priceParam / scaleFactor + 284237n, 100000000000000000n))[0]).to.equal(sizeParam * priceParam / scaleFactor + 284237n)
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, sizeParam + 284237n, 100000000000000000n, maker))[1]).to.equal(sizeParam + 284237n)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, sizeParam + 284237n, 100000000000000000n, maker, taker))[1]).to.equal(sizeParam + 284237n)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, sizeParam + 284237n, 100000000000000000n))[1]).to.equal(sizeParam + 284237n)
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, sizeParam + 284237n, 0, maker))[0]).to.equal(sizeParam + 284237n)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, sizeParam + 284237n, 0, maker, taker))[0]).to.equal(sizeParam + 284237n)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, sizeParam + 284237n, 0))[0]).to.equal(sizeParam + 284237n)
-      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, sizeParam * priceParam / scaleFactor + 284237n, 0, maker))[1]).to.equal(sizeParam * priceParam / scaleFactor + 284237n)
+      expect((await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, sizeParam * priceParam / scaleFactor + 284237n, 0, maker, taker))[1]).to.equal(sizeParam * priceParam / scaleFactor + 284237n)
       expect((await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, sizeParam * priceParam / scaleFactor + 284237n, 0))[1]).to.equal(sizeParam * priceParam / scaleFactor + 284237n)
 
       console.log("big:")
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 100000000000000000000000000n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 100000000000000000000000000n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, 100000000000000000000000000n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 100000000000000000000000000n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 100000000000000000000000000n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, 100000000000000000000000000n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 100000000000000000000000000n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 100000000000000000000000000n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, 100000000000000000000000000n, 0))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 100000000000000000000000000n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 100000000000000000000000000n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, 100000000000000000000000000n, 0))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 1000000000234000002923800000523n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 1000000000234000002923800000523n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, 1000000000234000002923800000523n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 1000000000234000002923800000523n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 1000000000234000002923800000523n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, 1000000000234000002923800000523n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 1000000000234000002923800000523n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 1000000000234000002923800000523n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, 1000000000234000002923800000523n, 0))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 1000000000234000002923800000523n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 1000000000234000002923800000523n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, 1000000000234000002923800000523n, 0))
       console.log("small:")
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 13n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 13n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, 13n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 13n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 13n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, 13n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 13n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 13n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, 13n, 0))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 13n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 13n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, 13n, 0))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 17n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 17n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, 17n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 17n, 100000000000000000n, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 17n, 100000000000000000n, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, 17n, 100000000000000000n))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 17n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 17n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, 17n, 0))
-      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 17n, 0, maker))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 17n, 0, maker, taker))
       console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, 17n, 0))
       sharesBalance = await vault.connect(vaultoperator).balanceOf.staticCall(vaultoperator)
       sharesBalance = await vault.connect(depositer).balanceOf.staticCall(depositer)

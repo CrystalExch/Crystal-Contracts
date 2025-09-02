@@ -3,12 +3,21 @@ pragma solidity ^0.8.28;
 
 interface ICrystalVault {
     struct Action {
+        bool requireSuccess;
         uint256 action;
-        uint256 cloid;
-        uint256 param1;
-        uint256 param2;
+        uint256 param1; // price
+        uint256 param2; // size/id
+        uint256 cloid; // cloid
     }
 
+    struct VaultMetaData {
+        string name;
+        string description;
+        string social1;
+        string social2;
+        string social3;  
+    }
+    
     function balanceOf(address owner) external view returns (uint);
 
     function crystal() external view returns (address);
@@ -32,7 +41,7 @@ interface ICrystalVault {
     function unlock() external;
 
     function changeMaxShares(uint256 _maxShares) external;
-    function changeMarket(address newMarket) external;
+    function changeMarket() external;
     function changeOrderCap(uint16 newCap) external;
     function changeDecreaseOnWithdraw(bool newDecrease) external;
     function changeLockup(uint40 newLockup) external;
