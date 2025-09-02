@@ -44,7 +44,7 @@ referral param making the abi slightly different from univ2router
 
 seperate tx to approve a forwarder, forwarder has to deposit/withdraw from router to use its own balances
 
-forwarder can use transferfrom instead of only being allowed to place/cancel on behalf of user
+forwarder shouldn't be able to use transferfrom, should only be allowed to place/cancel on behalf of user
 
 entire math i have no idea how/why it works/doesn't
 
@@ -75,3 +75,19 @@ bitmasks and variable sizes often aren't multiples of 8s
 internal balance storage isn't carried over meaning extra sloads/sstores, as is amm reserves for limit orders
 
 premint function honestly shouldn't exist
+
+too much transferfrom and requiring infinite approvals for good ux
+
+client order id orders don't have normal order ids
+
+migration costs too much gas
+
+creation of new launchpad token shouldnt make empty market, also breaks the fact that marketids should be sequential
+
+vaults protocol shouldn't use double transfers/transferfrom for deposits/withdrawals
+
+vault management fee should exist and should be pnl based
+
+vault deposits shouldn't be forced to current ratio, should actually help bring skew back
+
+vault lockups shouldn't reset on additional deposit
