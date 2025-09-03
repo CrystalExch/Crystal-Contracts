@@ -206,10 +206,10 @@ contract CrystalMarket {
         emit ICrystal.Mint(market, msg.sender, amountQuote, amountBase);
     }
 
-    function removeLiquidity(address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin, uint256 options, address caller) external payable returns (uint256 amountQuote, uint256 amountBase) {
+    function removeLiquidity(address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin, uint256 options) external payable returns (uint256 amountQuote, uint256 amountBase) {
         ICrystal.Market storage m = _getMarket[market];
         (uint112 reserveQuote, uint112 reserveBase) = (m.reserveQuote, m.reserveBase);
-        IERC20(market).transferFrom(caller, address(this), liquidity);
+        IERC20(market).transferFrom(msg.sender, address(this), liquidity);
 
         uint256 _totalSupply = IERC20(market).totalSupply();
         amountQuote = liquidity * (reserveQuote) / _totalSupply;
@@ -233,7 +233,7 @@ contract CrystalMarket {
         require(amountQuote != 0 && amountBase != 0 && amountQuote >= amountQuoteMin && amountBase >= amountBaseMin);
         (m.reserveQuote, m.reserveBase) = (reserveQuote, reserveBase);
         emit ICrystal.Sync(market, reserveQuote, reserveBase);
-        emit ICrystal.Burn(market, caller, amountQuote, amountBase, to);
+        emit ICrystal.Burn(market, msg.sender, amountQuote, amountBase, to);
     }
 
     function _sqrt(uint256 y) internal pure returns (uint256 z) {
@@ -331,7 +331,7 @@ contract CrystalMarket {
         }
     }
 
-    function _settleBalances(address caller, int256 quoteAssetDebt, int256 baseAssetDebt, uint256 userId, uint256 balanceMode, uint256 balanceModeOut, uint256 balanceModeIn) internal {
+    function _settleBalances(int256 quoteAssetDebt, int256 baseAssetDebt, uint256 userId, uint256 balanceMode, uint256 balanceModeOut, uint256 balanceModeIn) internal {
         if (balanceMode == 0) { // external txfers
             if (balanceModeIn != 0) {
                 if (quoteAssetDebt > 0) {
@@ -355,10 +355,10 @@ contract CrystalMarket {
             }
             else {
                 if (quoteAssetDebt > 0) {
-                    IERC20(quoteAsset).transferFrom(caller, address(this), uint256(quoteAssetDebt));
+                    IERC20(quoteAsset).transferFrom(msg.sender, address(this), uint256(quoteAssetDebt));
                 }
                 if (baseAssetDebt > 0) {
-                    IERC20(baseAsset).transferFrom(caller, address(this), uint256(baseAssetDebt));
+                    IERC20(baseAsset).transferFrom(msg.sender, address(this), uint256(baseAssetDebt));
                 }
             }
             if (balanceModeOut != 0) {
@@ -371,10 +371,10 @@ contract CrystalMarket {
             }
             else {
                 if (quoteAssetDebt < 0) {
-                    IERC20(quoteAsset).transfer(caller, uint256(-quoteAssetDebt));
+                    IERC20(quoteAsset).transfer(msg.sender, uint256(-quoteAssetDebt));
                 }
                 if (baseAssetDebt < 0) {
-                    IERC20(baseAsset).transfer(caller, uint256(-baseAssetDebt));
+                    IERC20(baseAsset).transfer(msg.sender, uint256(-baseAssetDebt));
                 }
             }
         }
@@ -956,7 +956,7 @@ contract CrystalMarket {
                                     if (_order & MASK_KEEP_112_113 == 0) { // maker wants tokens
                                         address owner = userIdToAddress[ownerUserId];
                                         if ((_orderInfo >> 236 & 0x1) == 0 && (_orderInfo >> 232 & 0x1) == 0) { // taker gives tokens
-                                            IERC20(isBuy ? quoteAsset : baseAsset).transferFrom(address(uint160(_orderInfo)), owner, sizeLeft);
+                                            IERC20(isBuy ? quoteAsset : baseAsset).transferFrom(msg.sender, owner, sizeLeft);
                                         }
                                         else { // taker gives internal balance
                                             settlementDelta += sizeLeft << 128;
@@ -992,7 +992,7 @@ contract CrystalMarket {
                                     if (_order & MASK_KEEP_112_113 == 0) { // maker wants tokens
                                         address owner = userIdToAddress[ownerUserId];
                                         if ((_orderInfo >> 236 & 0x1) == 0 && (_orderInfo >> 232 & 0x1) == 0) { // taker gives tokens
-                                            IERC20(((_orderInfo >> 244 & 0xF) == 0) ? quoteAsset : baseAsset).transferFrom(address(uint160(_orderInfo)), owner, transferAmount);
+                                            IERC20(((_orderInfo >> 244 & 0xF) == 0) ? quoteAsset : baseAsset).transferFrom(msg.sender, owner, transferAmount);
                                         }
                                         else { // taker gives internal balance
                                             settlementDelta += transferAmount << 128;
@@ -1450,7 +1450,7 @@ contract CrystalMarket {
                         }
                     }
                     else {
-                        IERC20(token).transferFrom(caller, address(this), (settlementDelta >> 128));
+                        IERC20(token).transferFrom(msg.sender, address(this), (settlementDelta >> 128));
                     }
                 }
             }
@@ -1466,7 +1466,7 @@ contract CrystalMarket {
                         tokenBalances[0][token] += settlementDelta;
                     }
                     else {
-                        IERC20(token).transfer(caller, settlementDelta);
+                        IERC20(token).transfer(msg.sender, settlementDelta);
                     }
                 }
             }
@@ -1500,7 +1500,7 @@ contract CrystalMarket {
                         }
                     }
                     else {
-                        IERC20(token).transferFrom(caller, address(this), size);
+                        IERC20(token).transferFrom(msg.sender, address(this), size);
                     }
                 }
                 else {
@@ -1543,7 +1543,7 @@ contract CrystalMarket {
                         tokenBalances[0][token] += size;
                     }
                     else {
-                        IERC20(token).transfer(caller, size);
+                        IERC20(token).transfer(msg.sender, size);
                     }
                 }
                 else {
@@ -1575,7 +1575,7 @@ contract CrystalMarket {
         }
         (quoteAssetDebt, baseAssetDebt, _id) = _replaceOrder(options, price, id, newPrice, size);
         uint256 balanceMode = options; // avoid stack too deep
-        _settleBalances(caller, quoteAssetDebt, baseAssetDebt, userId, ((balanceMode >> 60) & 0xF), ((balanceMode >> 52) & 0xF), ((balanceMode >> 56) & 0xF));
+        _settleBalances(quoteAssetDebt, baseAssetDebt, userId, ((balanceMode >> 60) & 0xF), ((balanceMode >> 52) & 0xF), ((balanceMode >> 56) & 0xF));
         address _market = market;
         assembly {
             let length := mload(0xc0)
@@ -1697,7 +1697,7 @@ contract CrystalMarket {
             }
             param1 = options; // avoid stack too deep
             param2 = options; // avoid stack too deep
-            _settleBalances(caller, quoteAssetDebt, baseAssetDebt, userId, balanceMode, ((param1 >> 44) & 0xF), ((param2 >> 48) & 0xF));
+            _settleBalances(quoteAssetDebt, baseAssetDebt, userId, balanceMode, ((param1 >> 44) & 0xF), ((param2 >> 48) & 0xF));
             address _market = market;
             assembly {
                 let length := mload(0xc0)
@@ -1821,7 +1821,7 @@ contract CrystalMarket {
                 }
                 offset += 32;
             }
-            _settleBalances(msg.sender, quoteAssetDebt, baseAssetDebt, userId, balanceMode, 0, 0);
+            _settleBalances(quoteAssetDebt, baseAssetDebt, userId, balanceMode, 0, 0);
             address _market = market;
             assembly {
                 let length := mload(0xc0)

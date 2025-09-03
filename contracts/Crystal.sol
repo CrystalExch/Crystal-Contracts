@@ -349,14 +349,12 @@ contract Crystal is ICrystal {
         }
     }
 
-    function removeLiquidity(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin, address user) external returns (uint256 amountQuote, uint256 amountBase) {
-        user = _verifyUser(user);
+    function removeLiquidity(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 amountQuote, uint256 amountBase) {
         _verifyMarketAndLock(market);
         assembly {
-            mstore(0x80, shl(224, 0x2c8f8a3a))
+            mstore(0x80, shl(224, 0x13928082))
             calldatacopy(0x84, 36, 128)
-            mstore(0x124, user)
-            let result := delegatecall(gas(), market, 0x80, 196, 0, 0)
+            let result := delegatecall(gas(), market, 0x80, 164, 0, 0)
             returndatacopy(0x80, 0, returndatasize())
             switch result
             case 0 { revert(0x80, returndatasize()) }
@@ -367,16 +365,14 @@ contract Crystal is ICrystal {
         }
     }
 
-    function removeLiquidityETH(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin, address user) external returns (uint256 amountQuote, uint256 amountBase) {
-        user = _verifyUser(user);
+    function removeLiquidityETH(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 amountQuote, uint256 amountBase) {
         uint256 options = _getMarket[market].quoteAsset == weth ? (1) : (1 << 4);
         _verifyMarketAndLock(market);
         assembly {
-            mstore(0x80, shl(224, 0x2c8f8a3a))
+            mstore(0x80, shl(224, 0x13928082))
             calldatacopy(0x84, 36, 128)
             mstore(0x104, options)
-            mstore(0x124, user)
-            let result := delegatecall(gas(), market, 0x80, 196, 0, 0)
+            let result := delegatecall(gas(), market, 0x80, 164, 0, 0)
             returndatacopy(0x80, 0, returndatasize())
             switch result
             case 0 { revert(0x80, returndatasize()) }

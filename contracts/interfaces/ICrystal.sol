@@ -239,7 +239,7 @@ interface ICrystal {
     function clearCloidSlots(uint256 userId, uint256[] calldata ids) external;
     function getReserves(address market) external returns (uint112, uint112);
     function addLiquidity(address market, address to, uint256 amountQuoteDesired, uint256 amountBaseDesired, uint256 amountQuoteMin, uint256 amountBaseMin) external payable returns (uint256);
-    function removeLiquidity(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin, address user) external returns (uint256, uint256);
+    function removeLiquidity(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256, uint256);
     function marketOrder(address market, bool isBuy, bool isExactInput, uint256 options, uint256 orderType, uint256 size, uint256 worstPrice, address referrer, address user) external returns (uint256, uint256, uint256);
     function limitOrder(address market, bool isBuy, uint256 options, uint256 price, uint256 size, address user) external returns (uint256);
     function cancelOrder(address market, uint256 options, uint256 price, uint256 id, address user) external returns (uint256);
