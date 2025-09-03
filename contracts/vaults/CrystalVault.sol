@@ -146,7 +146,7 @@ contract CrystalVault is ERC20 {
         return a < b ? a : b;
     }
 
-    function _balances() internal view returns (uint256 quoteBalance, uint256 baseBalance, uint256 availableBalanceQuote, uint256 availableBalanceBase) {
+    function getBalances() public view returns (uint256 quoteBalance, uint256 baseBalance, uint256 availableBalanceQuote, uint256 availableBalanceBase) {
         (quoteBalance, availableBalanceQuote, ) = ICrystal(crystal).getDepositedBalance(address(this), quoteAsset);
         (baseBalance, availableBalanceBase, ) = ICrystal(crystal).getDepositedBalance(address(this), baseAsset);
     }
@@ -217,7 +217,7 @@ contract CrystalVault is ERC20 {
     }
 
     function previewDeposit(uint256 amountQuoteDesired, uint256 amountBaseDesired) external view returns (uint256 shares, uint256 amountQuote, uint256 amountBase) {
-        (uint256 quoteBalance, uint256 baseBalance, , ) = _balances();
+        (uint256 quoteBalance, uint256 baseBalance, , ) = getBalances();
         if (totalSupply == 0) {
             amountQuote = amountQuoteDesired;
             amountBase = amountBaseDesired;
@@ -238,14 +238,14 @@ contract CrystalVault is ERC20 {
     }
 
     function previewWithdrawal(uint256 shares) external view returns (uint256 amountQuote, uint256 amountBase) {
-        (uint256 quoteBalance, uint256 baseBalance, , ) = _balances();
+        (uint256 quoteBalance, uint256 baseBalance, , ) = getBalances();
         amountQuote = (quoteBalance * shares) / totalSupply;
         amountBase = (baseBalance * shares) / totalSupply;
     }
 
     function deposit(address user, uint256 amountQuoteDesired, uint256 amountBaseDesired, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 shares, uint256 amountQuote, uint256 amountBase) {
         require(factory == msg.sender && !locked && amountQuoteDesired != 0 && amountBaseDesired != 0);
-        (uint256 quoteBalance, uint256 baseBalance, , ) = _balances();
+        (uint256 quoteBalance, uint256 baseBalance, , ) = getBalances();
 
         if (totalSupply == 0) {
             amountQuote = amountQuoteDesired;
@@ -279,7 +279,7 @@ contract CrystalVault is ERC20 {
 
     function withdraw(address user, uint256 shares, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 amountQuote, uint256 amountBase) {
         require(factory == msg.sender && shares != 0 && shares <= balanceOf[user] && lastDepositTimestamp[user] + lockup < block.timestamp);
-        (uint256 quoteBalance, uint256 baseBalance, uint256 availableQuote, uint256 availableBase) = _balances();
+        (uint256 quoteBalance, uint256 baseBalance, uint256 availableQuote, uint256 availableBase) = getBalances();
         amountQuote = (quoteBalance * shares) / totalSupply;
         amountBase = (baseBalance * shares) / totalSupply;
         require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin);
