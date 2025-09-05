@@ -418,15 +418,18 @@ contract CrystalMarket {
             _priceLevel = (_order & (MASK_KEEP_0_51 << 205)) | (_priceLevel & MASK_OUT_205_256);
         }
         else if (id == (_priceLevel >> 154 & MASK_KEEP_0_51)) { // if pricelevel latest then set latest to fillbefore
-            uint256 orderpointer = ((((_order >> 154) & MASK_KEEP_0_51) > 0x1FFFFFFFFFF) ? ((_order >> 154) & MASK_KEEP_0_51) : marketId | (price << 48) | ((_order >> 154) & MASK_KEEP_0_51));
-            orders[orderpointer] = orders[orderpointer] & MASK_OUT_205_256 | (_order & (MASK_KEEP_0_51 << 205)); // set fillbefores fillafter to fillafter
-            _priceLevel = (_priceLevel & MASK_OUT_154_205) | (_order & (MASK_KEEP_0_51 << 154));
+            uint256 fillBefore = ((_order >> 154) & MASK_KEEP_0_51);
+            uint256 orderpointer = ((fillBefore > 0x1FFFFFFFFFF) ? fillBefore : marketId | (price << 48) | fillBefore);
+            orders[orderpointer] = (orders[orderpointer] & MASK_OUT_205_256) | (_order & (MASK_KEEP_0_51 << 205)); // set fillbefores fillafter to fillafter
+            _priceLevel = (_priceLevel & MASK_OUT_154_205) | (fillBefore << 154);
         }
-        else {           
-            uint256 orderpointer = (((_order >> 154) & MASK_KEEP_0_51 > 0x1FFFFFFFFFF) ? (_order >> 154) & MASK_KEEP_0_51 : marketId | (price << 48) | (_order >> 154) & MASK_KEEP_0_51);
-            orders[orderpointer] = orders[orderpointer] & MASK_OUT_205_256 | (_order & (MASK_KEEP_0_51 << 205)); // set fillbefores fillafter to fillafter
-            orderpointer = ((((_order >> 205) & MASK_KEEP_0_51) > 0x1FFFFFFFFFF) ? ((_order >> 205) & MASK_KEEP_0_51) : marketId | (price << 48) | ((_order >> 205) & MASK_KEEP_0_51));
-            orders[orderpointer] = orders[orderpointer] & MASK_OUT_154_205 | (_order & (MASK_KEEP_0_51 << 154)); // setfillafters fillbefore to fillbefore
+        else {
+            uint256 fillBefore = ((_order >> 154) & MASK_KEEP_0_51);
+            uint256 fillAfter = ((_order >> 205) & MASK_KEEP_0_51);
+            uint256 orderpointer = ((fillBefore > 0x1FFFFFFFFFF) ? fillBefore : marketId | (price << 48) | fillBefore);
+            orders[orderpointer] = (orders[orderpointer] & MASK_OUT_205_256) | (fillAfter << 205); // set fillbefores fillafter to fillafter
+            orderpointer = ((fillAfter > 0x1FFFFFFFFFF) ? fillAfter : marketId | (price << 48) | fillAfter);
+            orders[orderpointer] = (orders[orderpointer] & MASK_OUT_154_205) | (fillBefore << 154); // setfillafters fillbefore to fillbefore
         }
         priceLevels[marketId | price] = _priceLevel;
         if ((_priceLevel & MASK_KEEP_0_112) == 0) {
@@ -914,23 +917,24 @@ contract CrystalMarket {
                             if ((_orderInfo >> 240 & 0xF) != 0 && (_order >> 113 & 0x1FFFFFFFFFF) == (_orderInfo >> 160 & 0x1FFFFFFFFFF)) { // stp is 0 do nothing 1 cancel maker 2 cancel taker 3 cancel both
                                 if (((_orderInfo >> 240) & 0x1) != 0) { // cancel resting
                                     bool isBuy = (_orderInfo >> 244 & 0xF) == 0;
+                                    uint256 size = (_order & MASK_KEEP_0_112);
                                     if (next > 0x1FFFFFFFFFF) {
                                         orders[next] &= MASK_KEEP_113_154;
                                     }
                                     else {
                                         delete orders[marketId | (price << 48) | next];
                                     }
-                                    _priceLevel -= (_order & MASK_KEEP_0_112); // can't overflow
+                                    _priceLevel -= size; // can't overflow
                                     if (isBuy) {
-                                        settlementDelta += ((_order & MASK_KEEP_0_112));
+                                        settlementDelta += size;
                                     }
                                     else {
-                                        settlementDelta += ((_order & MASK_KEEP_0_112));
+                                        settlementDelta += size;
                                     }
                                     if ((_order & MASK_KEEP_112_113) != 0) {
-                                        tokenBalances[_order >> 113 & 0x1FFFFFFFFFF][isBuy ? baseAsset : quoteAsset] -= ((isBuy ? (_order & MASK_KEEP_0_112) : (_order & MASK_KEEP_0_112)) << 128); // unlock tokens if internal can't overflow
+                                        tokenBalances[_order >> 113 & 0x1FFFFFFFFFF][isBuy ? baseAsset : quoteAsset] -= ((isBuy ? size : size) << 128); // unlock tokens if internal can't overflow
                                     }
-                                    _addToOrdersUpdatedEvent((isBuy ? LEADING_HEX_1 : 0) | (price << 168) | (next << 112) | (_order & MASK_KEEP_0_112)); // 8 flag 80 price 56 id 112 cancel size
+                                    _addToOrdersUpdatedEvent((isBuy ? LEADING_HEX_1 : 0) | (price << 168) | (next << 112) | size); // 8 flag 80 price 56 id 112 cancel size
                                     next = (_order >> 205) & MASK_KEEP_0_51;
                                 }
                                 if (((_orderInfo >> 240) & 0xF) == 1) {
@@ -971,9 +975,9 @@ contract CrystalMarket {
                                     address _market = market;
                                     assembly {
                                         let length := mload(0xc0)
-                                        mstore(add(length, 0xe0), or(mul(LEADING_HEX_1, iszero(isBuy)), or(shl(168, price), or(shl(112, next), and(MASK_KEEP_0_112, _order)))))
+                                        mstore(add(length, 0xe0), or(mul(LEADING_HEX_1, isBuy), or(shl(168, price), or(shl(112, next), and(MASK_KEEP_0_112, _order)))))
                                         mstore(add(length, 0x100), _amountOut)
-                                        log3(add(length, 0xe0), 0x40, FILL_SIG, _market, and(0x1FFFFFFFFFF, shr(113, _order))) // anon event (orderfilled)
+                                        log3(add(length, 0xe0), 0x40, FILL_SIG, _market, and(0x1FFFFFFFFFF, shr(113, _order)))
                                         mstore(0x40, add(length, 0xe0))
                                     }
                                 }
@@ -1008,9 +1012,9 @@ contract CrystalMarket {
                                 address _market = market;
                                 assembly {
                                     let length := mload(0xc0)
-                                    mstore(add(length, 0xe0), or(mul(LEADING_HEX_1, iszero(and(shr(244, _orderInfo), 0xF))), or(shl(168, price), shl(112, next))))
+                                    mstore(add(length, 0xe0), or(mul(LEADING_HEX_1, and(shr(244, _orderInfo), 0xF)), or(shl(168, price), shl(112, next))))
                                     mstore(add(length, 0x100), and(MASK_KEEP_0_112, _order))
-                                    log3(add(length, 0xe0), 0x40, FILL_SIG, _market, and(0x1FFFFFFFFFF, shr(113, _order))) // anon event (orderfilled)
+                                    log3(add(length, 0xe0), 0x40, FILL_SIG, _market, and(0x1FFFFFFFFFF, shr(113, _order)))
                                     mstore(0x40, add(length, 0xe0))
                                 }
                                 if (next > 0x1FFFFFFFFFF) {

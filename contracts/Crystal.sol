@@ -172,6 +172,23 @@ contract Crystal is ICrystal {
         return user;
     }
 
+    function _delegateToMarket(address market, bytes4 selector, uint256 size, address user) internal returns (bytes memory) {
+        _verifyMarketAndLock(market);
+        assembly {
+            mstore(0x80, selector)
+            calldatacopy(0x84, 36, size)
+            mstore(add(size, 0x84), user)
+            let result := delegatecall(gas(), market, 0x80, add(4, add(size, mul(iszero(iszero(user)), 32))), 0, 0)
+            returndatacopy(0x80, 0, returndatasize())
+            switch result
+            case 0 { revert(0x80, returndatasize()) }
+            default {
+                tstore(0x0, 0)
+                return(0x80, returndatasize())
+            }
+        }
+    }
+
     function allMarketsLength() external view returns (uint256) {
         return allMarkets.length;
     }
@@ -249,81 +266,23 @@ contract Crystal is ICrystal {
     }
     // market methods
     function getPriceLevels(address market, bool isAscending, uint256 startPrice, uint256 distance, uint256 interval, uint256 max) external returns (bytes memory) {
-        _verifyMarketAndLock(market);
-        assembly {
-            mstore(0x80, shl(224, 0x9c510697))
-            calldatacopy(0x84, 36, 160)
-            let result := delegatecall(gas(), market, 0x80, 164, 0, 0)
-            returndatacopy(0x80, 0, returndatasize())
-            switch result
-            case 0 { revert(0x80, returndatasize()) }
-            default {
-                tstore(0x0, 0)
-                return(0x80, returndatasize())
-            }
-        }
+        _delegateToMarket(market, 0x9c510697, 160, address(0));
     }
 
     function getPriceLevelsFromMid(address market, uint256 distance, uint256 interval, uint256 max) external returns (uint256 highestBid, uint256 lowestAsk, bytes memory, bytes memory) {
-        _verifyMarketAndLock(market);
-        assembly {
-            mstore(0x80, shl(224, 0xd58887ae))
-            calldatacopy(0x84, 36, 96)
-            let result := delegatecall(gas(), market, 0x80, 100, 0, 0)
-            returndatacopy(0x80, 0, returndatasize())
-            switch result
-            case 0 { revert(0x80, returndatasize()) }
-            default {
-                tstore(0x0, 0)
-                return(0x80, returndatasize())
-            }
-        }
+        _delegateToMarket(market, 0xd58887ae, 96, address(0));
     }
 
     function getPrice(address market) external returns (uint256 price, uint256 highestBid, uint256 lowestAsk) {
-        _verifyMarketAndLock(market);
-        assembly {
-            mstore(0x80, shl(224, 0x98d5fdca))
-            let result := delegatecall(gas(), market, 0x80, 4, 0, 0)
-            returndatacopy(0x80, 0, returndatasize())
-            switch result
-            case 0 { revert(0x80, returndatasize()) }
-            default {
-                tstore(0x0, 0)
-                return(0x80, returndatasize())
-            }
-        }
+        _delegateToMarket(market, 0x98d5fdca, 0, address(0));
     }
 
     function getQuote(address market, bool isBuy, bool isExactInput, bool isCompleteFill, uint256 size, uint256 worstPrice) external returns (uint256 amountIn, uint256 amountOut) {
-        _verifyMarketAndLock(market);
-        assembly {
-            mstore(0x80, shl(224, 0x638571e3))
-            calldatacopy(0x84, 36, 160)
-            let result := delegatecall(gas(), market, 0x80, 164, 0, 0)
-            returndatacopy(0x80, 0, returndatasize())
-            switch result
-            case 0 { revert(0x80, returndatasize()) }
-            default {
-                tstore(0x0, 0)
-                return(0x80, returndatasize())
-            }
-        }
+        _delegateToMarket(market, 0x638571e3, 160, address(0));
     }
 
     function getReserves(address market) external returns (uint112 reserveQuote, uint112 reserveBase) {
-        _verifyMarketAndLock(market);
-        assembly {
-            mstore(0x80, shl(224, 0x0902f1ac))
-            let result := delegatecall(gas(), market, 0x80, 4, 0, 0)
-            returndatacopy(0x80, 0, returndatasize())
-            switch result
-            case 0 { revert(0x80, returndatasize()) }
-            default {
-                tstore(0x0, 0)
-                return(0x80, returndatasize())
-            }
-        }
+        _delegateToMarket(market, 0x0902f1ac, 0, address(0));
     }
     
     function addLiquidity(address market, address to, uint256 amountQuoteDesired, uint256 amountBaseDesired, uint256 amountQuoteMin, uint256 amountBaseMin) external payable returns (uint256 liquidity) {
@@ -350,19 +309,7 @@ contract Crystal is ICrystal {
     }
 
     function removeLiquidity(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 amountQuote, uint256 amountBase) {
-        _verifyMarketAndLock(market);
-        assembly {
-            mstore(0x80, shl(224, 0x13928082))
-            calldatacopy(0x84, 36, 128)
-            let result := delegatecall(gas(), market, 0x80, 164, 0, 0)
-            returndatacopy(0x80, 0, returndatasize())
-            switch result
-            case 0 { revert(0x80, returndatasize()) }
-            default {
-                tstore(0x0, 0)
-                return(0x80, returndatasize())
-            }
-        }
+        _delegateToMarket(market, 0x13928082, 128, msg.sender);
     }
 
     function removeLiquidityETH(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 amountQuote, uint256 amountBase) {
@@ -395,74 +342,22 @@ contract Crystal is ICrystal {
 
     function marketOrder(address market, bool isBuy, bool isExactInput, uint256 options, uint256 orderType, uint256 size, uint256 worstPrice, address referrer, address user) external returns (uint256 amountIn, uint256 amountOut, uint256 id) {
         user = _verifyUser(user);
-        _verifyMarketAndLock(market);
-        assembly {
-            mstore(0x80, shl(224, 0xe690552b))
-            calldatacopy(0x84, 36, 224)
-            mstore(0x164, user)
-            let result := delegatecall(gas(), market, 0x80, 260, 0, 0)
-            returndatacopy(0x80, 0, returndatasize())
-            switch result
-            case 0 { revert(0x80, returndatasize()) }
-            default {
-                tstore(0x0, 0)
-                return(0x80, returndatasize())
-            }
-        }
+        _delegateToMarket(market, 0xe690552b, 224, user);
     }
 
     function limitOrder(address market, bool isBuy, uint256 options, uint256 price, uint256 size, address user) external returns (uint256 id) {
         user = _verifyUser(user);
-        _verifyMarketAndLock(market);
-        assembly {
-            mstore(0x80, shl(224, 0x218a0c31))
-            calldatacopy(0x84, 36, 128)
-            mstore(0x104, user)
-            let result := delegatecall(gas(), market, 0x80, 164, 0, 0)
-            returndatacopy(0x80, 0, returndatasize())
-            switch result
-            case 0 { revert(0x80, returndatasize()) }
-            default {
-                tstore(0x0, 0)
-                return(0x80, returndatasize())
-            }
-        }
+        _delegateToMarket(market, 0x218a0c31, 128, user);
     }
 
     function cancelOrder(address market, uint256 options, uint256 price, uint256 id, address user) external returns (uint256 size) {
         user = _verifyUser(user);
-        _verifyMarketAndLock(market);
-        assembly {
-            mstore(0x80, shl(224, 0xb69d86f7))
-            calldatacopy(0x84, 36, 96)
-            mstore(0xE4, user)
-            let result := delegatecall(gas(), market, 0x80, 132, 0, 0)
-            returndatacopy(0x80, 0, returndatasize())
-            switch result
-            case 0 { revert(0x80, returndatasize()) }
-            default {
-                tstore(0x0, 0)
-                return(0x80, returndatasize())
-            }
-        }
+        _delegateToMarket(market, 0xb69d86f7, 96, user);
     }
 
     function replaceOrder(address market, uint256 options, uint256 price, uint256 id, uint256 newPrice, uint256 size, address referrer, address user) external returns (uint256 _id) {
         user = _verifyUser(user);
-        _verifyMarketAndLock(market);
-        assembly {
-            mstore(0x80, shl(224, 0x6c8dce79))
-            calldatacopy(0x84, 36, 192)
-            mstore(0x144, user)
-            let result := delegatecall(gas(), market, 0x80, 228, 0, 0)
-            returndatacopy(0x80, 0, returndatasize())
-            switch result
-            case 0 { revert(0x80, returndatasize()) }
-            default {
-                tstore(0x0, 0)
-                return(0x80, returndatasize())
-            }
-        }
+        _delegateToMarket(market, 0x6c8dce79, 192, user);
     }
 
     function batchOrders(address market, ICrystal.Action[] calldata actions, uint256 options, uint256 deadline, address referrer, address user) external payable {
