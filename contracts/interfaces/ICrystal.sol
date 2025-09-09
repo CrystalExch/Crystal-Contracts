@@ -167,11 +167,11 @@ interface ICrystal {
     event Deposit(address indexed user, uint256 indexed userId, address indexed token, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed userId, address indexed token, uint256 amount);
     event RewardsClaimed(address indexed user, address[] tokens, uint256[] amounts);
-    event Trade(address indexed market, uint256 indexed userId, address indexed user, bool isBuy, uint256 amountIn, uint256 amountOut, uint256 startPrice, uint256 endPrice);
-    event OrdersUpdated(address indexed market, uint256 indexed userId, bytes orderData);
-    event Fill(address indexed market, uint256 indexed userId, uint256 fillInfo, uint256 fillAmount); // fillinfo is price id remaining size
+    event Trade(address indexed market, address indexed user, bool isBuy, uint256 amountIn, uint256 amountOut, uint256 startPrice, uint256 endPrice);
+    event OrdersUpdated(address indexed market, address indexed user, bytes orderData);
+    event Fill(address indexed market, address indexed user, uint256 fillInfo, uint256 fillAmount); // fillinfo is price id remaining size
 
-    event TokenCreated(address indexed token, address indexed creator, string name, string symbol, string metadataCID, string description, string social1, string social2, string social3);
+    event TokenCreated(address indexed token, address indexed creator, string name, string symbol, string metadataCID, string description, string social1, string social2, string social3, string social4);
     event Migrated(address indexed token);
     event LaunchpadTrade(address indexed token, address indexed user, bool isBuy, uint256 amountIn, uint256 amountOut, uint256 virtualNativeReserve, uint256 virtualTokenReserve);
     event Mint(address indexed market, address indexed sender, uint amountQuote, uint amountBase);
@@ -233,13 +233,17 @@ interface ICrystal {
     function changeFeeClaimDuration(uint256 newFeeClaimDuration) external;
     function changeRefFeeStructure(uint8 newFeeCommission, uint8 newFeeRebate) external;
     function changeMarketParams(address market, uint256 newMinSize, uint24 newTakerFee, uint24 newMakerRebate, bool isAMMEnabled, bool isCanonical) external;
+    function changeMarketCreatorFee(address market, address newCreator, uint256 newCreatorFee) external;
     function changeLaunchpadParams(LaunchpadParams memory newLaunchpadParams) external;
     function addCanonicalDeployer(address deployer) external;
     function removeCanonicalDeployer(address deployer) external;
+    function approveForwarder(address forwarder) external;
+    function removeForwarder(address forwarder) external;
     function clearCloidSlots(uint256 userId, uint256[] calldata ids) external;
     function getReserves(address market) external returns (uint112, uint112);
     function addLiquidity(address market, address to, uint256 amountQuoteDesired, uint256 amountBaseDesired, uint256 amountQuoteMin, uint256 amountBaseMin) external payable returns (uint256);
     function removeLiquidity(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256, uint256);
+    function removeLiquidityETH(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 amountQuote, uint256 amountBase);
     function marketOrder(address market, bool isBuy, bool isExactInput, uint256 options, uint256 orderType, uint256 size, uint256 worstPrice, address referrer, address user) external returns (uint256, uint256, uint256);
     function limitOrder(address market, bool isBuy, uint256 options, uint256 price, uint256 size, address user) external returns (uint256);
     function cancelOrder(address market, uint256 options, uint256 price, uint256 id, address user) external returns (uint256);
@@ -258,7 +262,7 @@ interface ICrystal {
     function cancelLimitOrder(address tokenIn, address tokenOut, uint256 price, uint256 id, uint256 deadline) external returns (uint256);
     function replaceOrder(bool isPostOnly, bool isDecrease, address tokenIn, address tokenOut, uint256 price, uint256 id, uint256 newPrice, uint256 newSize, uint256 deadline, address referrer) external payable returns (uint256);
     function multiBatchOrders(Batch[] calldata batches, uint256 deadline, address referrer) external payable;
-    function createToken(string memory name,string memory symbol,string memory metadataCID,string memory description,string memory social1,string memory social2,string memory social3) external returns (address token);
+    function createToken(string memory name,string memory symbol,string memory metadataCID,string memory description,string memory social1,string memory social2,string memory social3,string memory social4) external returns (address token);
     function buy(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external payable returns (uint256, uint256, bool);
     function sell(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external returns (uint256, uint256);
     function getVirtualReserves(address token) external view returns (uint256, uint256);

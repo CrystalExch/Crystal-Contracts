@@ -10,6 +10,7 @@ contract CrystalToken {
         string social1;
         string social2;
         string social3;  
+        string social4;
     }
 
     string public name;
@@ -39,12 +40,13 @@ contract CrystalToken {
         string memory _description,
         string memory _social1,
         string memory _social2,
-        string memory _social3
+        string memory _social3,
+        string memory _social4
     ) {
         crystal = _crystal;
         name = _name;
         symbol = _symbol;
-        metadata = TokenMetaData(_name, _symbol, _metadataCID, _description, _social1, _social2, _social3);
+        metadata = TokenMetaData(_name, _symbol, _metadataCID, _description, _social1, _social2, _social3, _social4);
         balanceOf[_crystal] += totalSupply;
         emit Transfer(address(0), _crystal, totalSupply);
         uint256 chainId;

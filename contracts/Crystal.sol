@@ -17,7 +17,7 @@ contract Crystal is ICrystal {
     mapping (address => ICrystal.Market) private _getMarket;
     mapping (uint256 => uint256) private activated; // marketid << 128 | slotindex
     mapping (uint256 => uint256) private priceLevels; // 0 is an invalid price marketid << 128 | price
-    mapping (uint256 => uint256) private orders; // 0 is an invalid cloid, valid range 1-1023 mask 0x3FF; marketid << 128 | price << 48 | id or cloid << 41 | userid
+    mapping (uint256 => uint256) private orders; // 0 is an invalid cloid, valid range 1-1023 mask uint10; marketid << 128 | price << 48 | id or cloid << 41 | userid
     mapping (uint256 => uint256) private cloidVerify; // two cloids per slot map market and price, never zero slot
     mapping (uint256 => mapping (address => uint256)) private tokenBalances;
     mapping (address => mapping (address => uint256)) public claimableRewards;
@@ -41,6 +41,16 @@ contract Crystal is ICrystal {
     address public immutable weth; 
     address public constant eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
+    uint256 private constant MASK_OUT_113_154 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFC0000000001FFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+    uint256 private constant MASK_OUT_0_128 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000000000000000000000000000;
+    uint256 private constant MASK_KEEP_0_20 = 0xFFFFF;
+    uint256 private constant MASK_KEEP_0_41 = 0x1FFFFFFFFFF;
+    uint256 private constant MASK_KEEP_0_48 = 0xFFFFFFFFFFFF;
+    uint256 private constant MASK_KEEP_0_51 = 0x7FFFFFFFFFFFF;
+    uint256 private constant MASK_KEEP_0_80 = 0xFFFFFFFFFFFFFFFFFFFF;
+    uint256 private constant MASK_KEEP_0_112 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+    uint256 private constant MASK_KEEP_0_128 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+
     constructor(address _weth, address _gov, address _feeRecipient, uint8 _feeCommission, uint8 _feeRebate, uint256 _feeClaimDuration, ICrystal.LaunchpadParams memory _launchpadParams) {
         weth = _weth;
         gov = _gov;
@@ -55,8 +65,8 @@ contract Crystal is ICrystal {
             minSize /= 10;
             ++minSizeZeroes;
         }
-        require((_feeCommission + _feeRebate) < 50 && minSize < 0xFFFFF && minSizeZeroes < 0xFFFFF && _launchpadParams.launchpadInitialNativeSupply > 1e18 && 90000 <= _launchpadParams.launchpadFee && _launchpadParams.launchpadFee <= 100000 && 90000 <= _launchpadParams.graduatedTakerFee);
-        require(_launchpadParams.graduatedTakerFee <= 100000 && 90000 <= _launchpadParams.graduatedMakerRebate && _launchpadParams.graduatedMakerRebate <= 100000 && _launchpadParams.graduatedCreatorFeeSplit < 50 && _launchpadParams.launchpadCreatorFeeSplit < 100);
+        require((_feeCommission + _feeRebate) <= 50 && minSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20 && _launchpadParams.launchpadInitialNativeSupply > 1e18 && 90000 <= _launchpadParams.launchpadFee && _launchpadParams.launchpadFee <= 100000 && 90000 <= _launchpadParams.graduatedTakerFee);
+        require(_launchpadParams.graduatedTakerFee <= 100000 && 90000 <= _launchpadParams.graduatedMakerRebate && _launchpadParams.graduatedMakerRebate <= 100000 && _launchpadParams.graduatedCreatorFeeSplit <= 50 && _launchpadParams.launchpadCreatorFeeSplit <= 50);
         launchpadParams = _launchpadParams;
     }
 
@@ -74,7 +84,7 @@ contract Crystal is ICrystal {
                 let chunk := calldataload(offset) // balancemode << 252 | actioncount << 160 | market
                 let market := and(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF, chunk)
                 let len := shl(5, and(0xFFF, shr(160, chunk)))
-                let bribe := and(0xFFFFFFFFFFFFFFFFFFFF, shr(172, chunk))
+                let bribe := and(MASK_KEEP_0_80, shr(172, chunk))
                 mstore(0x00, market)
                 mstore(0x20, _getMarket.slot)
                 if iszero(sload(keccak256(0x00, 0x40))) { revert(0, 0) }
@@ -204,7 +214,7 @@ contract Crystal is ICrystal {
             marketInfo.scaleFactor,
             marketInfo.tickSize,
             marketInfo.maxPrice,
-            (marketInfo.minSize >> 16) * 10 ** (marketInfo.minSize & 0xFFFF),
+            (marketInfo.minSize >> 20) * 10 ** (marketInfo.minSize & MASK_KEEP_0_20),
             marketInfo.takerFee,
             marketInfo.makerRebate,
             marketInfo.reserveQuote,
@@ -215,7 +225,7 @@ contract Crystal is ICrystal {
 
     function getDepositedBalance(address user, address asset) external view returns (uint256 totalBalance, uint256 availableBalance, uint256 lockedBalance) {
         uint256 tokenBalance = tokenBalances[addressToUserId[user]][asset];
-        availableBalance = tokenBalance & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+        availableBalance = tokenBalance & MASK_KEEP_0_128;
         lockedBalance = tokenBalance >> 128;
         return (availableBalance + lockedBalance, availableBalance, lockedBalance);
     }
@@ -244,25 +254,25 @@ contract Crystal is ICrystal {
         uint256 price = cloidVerify[((cloid | 1) << 41) | userId];
         uint256 marketId;
         if (cloid & 1 == 1) {
-            marketId = ((price >> 80) & 0xFFFFFFFFFFFF);
-            price = price & 0xFFFFFFFFFFFFFFFFFFFF;
+            marketId = ((price >> 80) & MASK_KEEP_0_48);
+            price = price & MASK_KEEP_0_80;
         }
         else {
-            marketId = ((price >> 208) & 0xFFFFFFFFFFFF);
-            price = (price >> 128) & 0xFFFFFFFFFFFFFFFFFFFF;
+            marketId = ((price >> 208) & MASK_KEEP_0_48);
+            price = (price >> 128) & MASK_KEEP_0_80;
         }
         address market = marketIdToMarket[marketId];
-        return ICrystal.Order(price <= _getMarket[market].highestBid ? true : false, market, price, (order & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF), (order >> 112 & 0x1), (order >> 113 & 0x1FFFFFFFFFF), (order >> 154 & 0x7FFFFFFFFFFFF), (order >> 205 & 0x7FFFFFFFFFFFF));
+        return ICrystal.Order(price <= _getMarket[market].highestBid ? true : false, market, price, (order & MASK_KEEP_0_112), (order >> 112 & 0x1), (order >> 113 & MASK_KEEP_0_41), (order >> 154 & MASK_KEEP_0_51), (order >> 205 & MASK_KEEP_0_51));
     }
     
     function getOrder(address market, uint256 price, uint256 id) external view returns (ICrystal.Order memory) {
         uint256 order = orders[(marketToMarketId[market] << 128) | (price << 48) | id];
-        return ICrystal.Order(price <= _getMarket[market].highestBid ? true : false, market, price, (order & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF), (order >> 112 & 0x1), (order >> 113 & 0x1FFFFFFFFFF), (order >> 154 & 0x7FFFFFFFFFFFF), (order >> 205 & 0x7FFFFFFFFFFFF));
+        return ICrystal.Order(price <= _getMarket[market].highestBid ? true : false, market, price, (order & MASK_KEEP_0_112), (order >> 112 & 0x1), (order >> 113 & MASK_KEEP_0_41), (order >> 154 & MASK_KEEP_0_51), (order >> 205 & MASK_KEEP_0_51));
     }
 
     function getPriceLevel(address market, uint256 price) external view returns (ICrystal.PriceLevel memory) {
         uint256 priceLevel = priceLevels[(marketToMarketId[market] << 128) | price];
-        return ICrystal.PriceLevel((priceLevel & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF), (priceLevel >> 113 & 0x1FFFFFFFFFF), (priceLevel >> 154 & 0x7FFFFFFFFFFFF), (priceLevel >> 205 & 0x7FFFFFFFFFFFF));
+        return ICrystal.PriceLevel((priceLevel & MASK_KEEP_0_112), (priceLevel >> 113 & MASK_KEEP_0_41), (priceLevel >> 154 & MASK_KEEP_0_51), (priceLevel >> 205 & MASK_KEEP_0_51));
     }
     // market methods
     function getPriceLevels(address market, bool isAscending, uint256 startPrice, uint256 distance, uint256 interval, uint256 max) external returns (bytes memory) {
@@ -391,85 +401,110 @@ contract Crystal is ICrystal {
         }
     }
     // non-market methods
-    function deploy(bool isCanonical, address quoteAsset, address baseAsset, uint256 marketType, uint256 scaleFactor, uint256 tickSize, uint256 maxPrice, uint256 minSize, uint24 takerFee, uint24 makerRebate) external returns (address market) {
-        if (isCanonical && !isCanonicalDeployer[msg.sender]) {
+    function changeGov(address newGov) external {
+        if (msg.sender != gov) {
             revert ICrystal.Unauthorized(msg.sender);
         }
-        if (quoteAsset == eth) {
-            quoteAsset = weth;
+        gov = newGov;
+        emit ICrystal.GovChanged(msg.sender, newGov);
+    }
+
+    function changeFeeRecipient(address newFeeRecipient) external {
+        if (msg.sender != gov || newFeeRecipient == address(0)) {
+            revert ICrystal.Unauthorized(msg.sender);
         }
-        else if (baseAsset == eth) {
-            baseAsset = weth;
+        feeRecipient = newFeeRecipient;
+    }
+
+    function changeFeeClaimDuration(uint256 newFeeClaimDuration) external {
+        if (msg.sender != gov) {
+            revert ICrystal.Unauthorized(msg.sender);
         }
-        require(90000 <= takerFee && takerFee <= 100000 && 90000 <= makerRebate && makerRebate <= 100000); // validate all fee params, total fee is takerFee+makerRebate
-        uint256 marketId = allMarkets.length + 1;
-        {
-            parameters = ICrystal.Parameters(quoteAsset, baseAsset, marketId, marketType, scaleFactor, tickSize, maxPrice); // maxsize is validated here
-            uint256 maxTick;
-            market = address(new CrystalMarket{salt: keccak256(abi.encode(marketId))}());
-            if (marketType == 0) {
-                maxTick = maxPrice / tickSize;
-            }
-            else if (marketType == 1 || marketType == 2) {
-                maxTick = _priceToTick(maxPrice, tickSize);
-            }
-            else {
-                revert ICrystal.ActionFailed();
-            }
-            delete parameters;
-            ICrystal.Market storage m = _getMarket[market];
-            (m.quoteAsset, m.baseAsset, m.marketId, m.scaleFactor, m.tickSize) = (quoteAsset, baseAsset, marketId, scaleFactor, tickSize); // immutable params but for _getMarket
-            (m.takerFee, m.makerRebate, m.maxPrice, m.marketType, m.isAMMEnabled) = (takerFee, makerRebate, maxPrice, marketType, marketType == 2);
-            m.lowestAsk = uint80(maxPrice);
-            activated[(marketId << 128)] = 1; // index 0
-            uint256 minSizeZeroes;
-            uint256 tempMinSize = minSize;
-            while (tempMinSize != 0 && tempMinSize % 10 == 0) {
-                tempMinSize /= 10;
-                ++minSizeZeroes;
-            }
-            require(tempMinSize < 0xFFFFF && minSizeZeroes < 0xFFFFF && marketId < 0xFFFFFFFFFFFF); // minSize is encoded as bits 20-40 * 10 ** bits 0-20, marketid max uint48 minsize is variable to prevent dos
-            m.minSize = uint40((tempMinSize << 20) | minSizeZeroes);
-            activated[(marketId << 128) | (maxTick >> 8)] = (1 << (maxTick % 256));
+        require(newFeeClaimDuration > 86400);
+        feeClaimDuration = newFeeClaimDuration;
+    }
+
+    function changeRefFeeStructure(uint8 newFeeCommission, uint8 newFeeRebate) external {
+        if (msg.sender != gov) {
+            revert ICrystal.Unauthorized(msg.sender);
         }
-        allMarkets.push(market);
-        marketToMarketId[market] = marketId;
-        marketIdToMarket[marketId] = market;
-        if (isCanonical) {
-            getMarketByTokens[quoteAsset][baseAsset] = market;
-            getMarketByTokens[baseAsset][quoteAsset] = market;
+        require((newFeeCommission + newFeeRebate) <= 50);
+        feeCommission = newFeeCommission;
+        feeRebate = newFeeRebate;
+    }
+
+    function changeMarketParams(address market, uint256 newMinSize, uint24 newTakerFee, uint24 newMakerRebate, bool isAMMEnabled, bool isCanonical) external {
+        require((isCanonicalDeployer[msg.sender] || msg.sender == gov) && 90000 <= newTakerFee && newTakerFee <= 100000 && 90000 <= newMakerRebate && newMakerRebate <= 100000);
+        ICrystal.Market storage m = _getMarket[market];
+        if (msg.sender != gov && msg.sender != m.creator) {
+            revert ICrystal.Unauthorized(msg.sender);
         }
-        else {
-            require(launchpadTokenToMarket[baseAsset].virtualNativeReserve == 0);
-            if (getMarketByTokens[quoteAsset][baseAsset] == address(0)) {
-                getMarketByTokens[quoteAsset][baseAsset] = market;
-                getMarketByTokens[baseAsset][quoteAsset] = market; 
-            }
+        uint256 minSizeZeroes;
+        while (newMinSize != 0 && newMinSize % 10 == 0) {
+            newMinSize /= 10;
+            ++minSizeZeroes;
         }
-        ICrystal.TokenMetadata memory qMeta = ICrystal.TokenMetadata(
-            quoteAsset,
-            IERC20(quoteAsset).decimals(),
-            IERC20(quoteAsset).symbol(),
-            IERC20(quoteAsset).name()
-        );
-        ICrystal.TokenMetadata memory bMeta = ICrystal.TokenMetadata(
-            baseAsset,
-            IERC20(baseAsset).decimals(),
-            IERC20(baseAsset).symbol(),
-            IERC20(baseAsset).name()
-        );
-        ICrystal.MarketDetails memory details = ICrystal.MarketDetails(
-            marketId,
-            marketType,
-            scaleFactor,
-            tickSize,
-            maxPrice,
-            minSize,
-            takerFee,
-            makerRebate
-        );
-        bool _isCanonical = isCanonical; // avoid stack too deep
-        emit ICrystal.MarketCreated(_isCanonical, quoteAsset, baseAsset, market, qMeta, bMeta, details);
+        require(newMinSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20);
+        m.minSize = uint40((newMinSize << 20) | minSizeZeroes);
+        m.takerFee = newTakerFee;
+        m.makerRebate = newMakerRebate;
+        m.isAMMEnabled = isAMMEnabled;
+        if (isCanonical && (getMarketByTokens[m.quoteAsset][m.baseAsset] == address(0) || msg.sender == gov)) {
+            getMarketByTokens[m.quoteAsset][m.baseAsset] = market;
+            getMarketByTokens[m.baseAsset][m.quoteAsset] = market;
+        }
+        else if (!isCanonical && getMarketByTokens[m.quoteAsset][m.baseAsset] == market) {
+            getMarketByTokens[m.quoteAsset][m.baseAsset] = address(0);
+            getMarketByTokens[m.baseAsset][m.quoteAsset] = address(0);
+        }
+        emit ICrystal.MarketParamsChanged(market, (m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20), newTakerFee, newMakerRebate, m.isAMMEnabled);
+    }
+
+    function changeMarketCreatorFee(address market, address newCreator, uint256 newCreatorFee) external {
+        require(isCanonicalDeployer[msg.sender] || msg.sender == gov && newCreatorFee <= 50);
+        ICrystal.Market storage m = _getMarket[market];
+        if (msg.sender != gov && msg.sender != m.creator) {
+            revert ICrystal.Unauthorized(msg.sender);
+        }
+        m.creator = newCreator;
+        m.creatorFeeSplit = uint8(newCreatorFee);
+    }
+
+    function changeLaunchpadParams(ICrystal.LaunchpadParams memory newLaunchpadParams) external {
+        if (msg.sender != gov) {
+            revert ICrystal.Unauthorized(msg.sender);
+        }
+        uint256 minSizeZeroes;
+        uint256 minSize = newLaunchpadParams.graduatedMinSize;
+        while (minSize != 0 && minSize % 10 == 0) {
+            minSize /= 10;
+            ++minSizeZeroes;
+        }
+        require(minSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20 && newLaunchpadParams.launchpadInitialNativeSupply > 1e18 && 90000 <= newLaunchpadParams.launchpadFee && newLaunchpadParams.launchpadFee <= 100000 && 90000 <= newLaunchpadParams.graduatedTakerFee);
+        require(newLaunchpadParams.graduatedTakerFee <= 100000 && 90000 <= newLaunchpadParams.graduatedMakerRebate && newLaunchpadParams.graduatedMakerRebate <= 100000 && newLaunchpadParams.graduatedCreatorFeeSplit <= 50 && newLaunchpadParams.launchpadCreatorFeeSplit <= 50);
+        launchpadParams = newLaunchpadParams;
+    }
+
+    function addCanonicalDeployer(address deployer) external {
+        if (msg.sender != gov) {
+            revert ICrystal.Unauthorized(msg.sender);
+        }
+        isCanonicalDeployer[deployer] = true;
+    }
+
+    function removeCanonicalDeployer(address deployer) external {
+        if (msg.sender != gov) {
+            revert ICrystal.Unauthorized(msg.sender);
+        }
+        isCanonicalDeployer[deployer] = false;
+    }
+
+    function approveForwarder(address forwarder) external {
+        approvedForwarder[msg.sender][forwarder] = true;
+    }
+
+    function removeForwarder(address forwarder) external {
+        approvedForwarder[msg.sender][forwarder] = false;
     }
 
     function registerUser(address user) external returns (uint256 userId) {
@@ -531,12 +566,12 @@ contract Crystal is ICrystal {
         }
         for (uint256 i; i < ids.length; ++i) {
             if (ids[i] & 1 == 1) {
-                cloidVerify[((ids[i] | 1) << 41) | userId] &= 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000000000000000000000000000;
+                cloidVerify[((ids[i] | 1) << 41) | userId] &= MASK_OUT_0_128;
             }
             else {
-                cloidVerify[((ids[i] | 1) << 41) | userId] &= 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+                cloidVerify[((ids[i] | 1) << 41) | userId] &= MASK_KEEP_0_128;
             }
-            if ((orders[(ids[i] << 41) | userId] & 0xFFFFFFFFFFFFFFFFFFFFFFFFFC0000000001FFFFFFFFFFFFFFFFFFFFFFFFFFFF) == 0) {
+            if ((orders[(ids[i] << 41) | userId] & MASK_OUT_113_154) == 0) {
                 delete orders[(ids[i] << 41) | userId];
             }
         }
@@ -590,105 +625,87 @@ contract Crystal is ICrystal {
         delete pendingExpiredFeeClaims[user];
     }
 
-    function changeGov(address newGov) external {
-        if (msg.sender != gov) {
+    function deploy(bool isCanonical, address quoteAsset, address baseAsset, uint256 marketType, uint256 scaleFactor, uint256 tickSize, uint256 maxPrice, uint256 minSize, uint24 takerFee, uint24 makerRebate) external returns (address market) {
+        if (isCanonical && !isCanonicalDeployer[msg.sender]) {
             revert ICrystal.Unauthorized(msg.sender);
         }
-        gov = newGov;
-        emit ICrystal.GovChanged(msg.sender, newGov);
-    }
-
-    function changeFeeRecipient(address newFeeRecipient) external {
-        if (msg.sender != gov || newFeeRecipient == address(0)) {
-            revert ICrystal.Unauthorized(msg.sender);
+        if (quoteAsset == eth) {
+            quoteAsset = weth;
         }
-        feeRecipient = newFeeRecipient;
-    }
-
-    function changeFeeClaimDuration(uint256 newFeeClaimDuration) external {
-        if (msg.sender != gov) {
-            revert ICrystal.Unauthorized(msg.sender);
+        else if (baseAsset == eth) {
+            baseAsset = weth;
         }
-        require(newFeeClaimDuration > 86400);
-        feeClaimDuration = newFeeClaimDuration;
-    }
-
-    function changeRefFeeStructure(uint8 newFeeCommission, uint8 newFeeRebate) external {
-        if (msg.sender != gov) {
-            revert ICrystal.Unauthorized(msg.sender);
-        }
-        require((newFeeCommission + newFeeRebate) < 50);
-        feeCommission = newFeeCommission;
-        feeRebate = newFeeRebate;
-    }
-
-    function changeMarketParams(address market, uint256 newMinSize, uint24 newTakerFee, uint24 newMakerRebate, bool isAMMEnabled, bool isCanonical) external {
-        require(isCanonicalDeployer[msg.sender] && 90000 <= newTakerFee && newTakerFee <= 100000 && 90000 <= newMakerRebate && newMakerRebate <= 100000);
-        ICrystal.Market storage m = _getMarket[market];
-        if (newMinSize != (m.minSize >> 20) * 10 ** (m.minSize & 0xFFFFF)) {
+        require(90000 <= takerFee && takerFee <= 100000 && 90000 <= makerRebate && makerRebate <= 100000); // validate all fee params, total fee is takerFee+makerRebate
+        uint256 marketId = allMarkets.length + 1;
+        {
+            parameters = ICrystal.Parameters(quoteAsset, baseAsset, marketId, marketType, scaleFactor, tickSize, maxPrice); // maxsize is validated here
+            uint256 maxTick;
+            market = address(new CrystalMarket{salt: keccak256(abi.encode(marketId))}());
+            if (marketType == 0) {
+                require(maxPrice % tickSize == 0);
+                maxTick = maxPrice / tickSize;
+            }
+            else if (marketType == 1 || marketType == 2 || marketType == 3) {
+                maxTick = _priceToTick(maxPrice, tickSize);
+            }
+            else {
+                revert ICrystal.ActionFailed();
+            }
+            delete parameters;
+            ICrystal.Market storage m = _getMarket[market];
+            (m.quoteAsset, m.baseAsset, m.marketId, m.scaleFactor, m.tickSize) = (quoteAsset, baseAsset, marketId, scaleFactor, tickSize); // immutable params but for _getMarket
+            (m.takerFee, m.makerRebate, m.maxPrice, m.marketType, m.isAMMEnabled) = (takerFee, makerRebate, maxPrice, marketType, marketType > 1);
+            (m.creator, m.creatorFeeSplit) = (msg.sender, uint8(launchpadParams.graduatedCreatorFeeSplit));
+            m.lowestAsk = uint80(maxPrice);
+            activated[(marketId << 128)] = 1; // index 0
             uint256 minSizeZeroes;
-            while (newMinSize != 0 && newMinSize % 10 == 0) {
-                newMinSize /= 10;
+            uint256 tempMinSize = minSize;
+            while (tempMinSize != 0 && tempMinSize % 10 == 0) {
+                tempMinSize /= 10;
                 ++minSizeZeroes;
             }
-            require(newMinSize < 0xFFFFF && minSizeZeroes < 0xFFFFF);
-            m.minSize = uint40((newMinSize << 20) | minSizeZeroes);
+            require(tempMinSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20 && marketId < MASK_KEEP_0_48); // minSize is encoded as bits 20-40 * 10 ** bits 0-20, marketid max uint48 minsize is variable to prevent dos
+            m.minSize = uint40((tempMinSize << 20) | minSizeZeroes);
+            activated[(marketId << 128) | (maxTick >> 8)] = (1 << (maxTick % 256));
         }
-        if (newTakerFee != m.takerFee) {
-            m.takerFee = newTakerFee;
+        allMarkets.push(market);
+        marketToMarketId[market] = marketId;
+        marketIdToMarket[marketId] = market;
+        require(launchpadTokenToMarket[baseAsset].virtualNativeReserve == 0);
+        if (isCanonical) {
+            getMarketByTokens[quoteAsset][baseAsset] = market;
+            getMarketByTokens[baseAsset][quoteAsset] = market;
         }
-        if (newMakerRebate != m.makerRebate) {
-            m.makerRebate = newMakerRebate;
+        else {
+            if (getMarketByTokens[quoteAsset][baseAsset] == address(0) && (marketType == 1 || marketType == 2)) {
+                getMarketByTokens[quoteAsset][baseAsset] = market;
+                getMarketByTokens[baseAsset][quoteAsset] = market; 
+            }
         }
-        if (m.marketType != 0 && m.isAMMEnabled != isAMMEnabled) {
-            m.isAMMEnabled = isAMMEnabled;
-        }
-        if (isCanonical && getMarketByTokens[m.quoteAsset][m.baseAsset] != market) {
-            getMarketByTokens[m.quoteAsset][m.baseAsset] = market;
-            getMarketByTokens[m.baseAsset][m.quoteAsset] = market;
-        }
-        else if (!isCanonical && getMarketByTokens[m.quoteAsset][m.baseAsset] == market) {
-            getMarketByTokens[m.quoteAsset][m.baseAsset] = address(0);
-            getMarketByTokens[m.baseAsset][m.quoteAsset] = address(0);
-        }
-        emit ICrystal.MarketParamsChanged(market, (m.minSize >> 20) * 10 ** (m.minSize & 0xFFFFF), newTakerFee, newMakerRebate, m.isAMMEnabled);
-    }
-
-    function changeLaunchpadParams(ICrystal.LaunchpadParams memory newLaunchpadParams) external {
-        if (msg.sender != gov) {
-            revert ICrystal.Unauthorized(msg.sender);
-        }
-        uint256 minSizeZeroes;
-        uint256 minSize = newLaunchpadParams.graduatedMinSize;
-        while (minSize != 0 && minSize % 10 == 0) {
-            minSize /= 10;
-            ++minSizeZeroes;
-        }
-        require(minSize < 0xFFFFF && minSizeZeroes < 0xFFFFF && newLaunchpadParams.launchpadInitialNativeSupply > 1e18 && 90000 <= newLaunchpadParams.launchpadFee && newLaunchpadParams.launchpadFee <= 100000 && 90000 <= newLaunchpadParams.graduatedTakerFee);
-        require(newLaunchpadParams.graduatedTakerFee <= 100000 && 90000 <= newLaunchpadParams.graduatedMakerRebate && newLaunchpadParams.graduatedMakerRebate <= 100000 && newLaunchpadParams.graduatedCreatorFeeSplit < 50 && newLaunchpadParams.launchpadCreatorFeeSplit < 100);
-        launchpadParams = newLaunchpadParams;
-    }
-
-    function addCanonicalDeployer(address deployer) external {
-        if (msg.sender != gov) {
-            revert ICrystal.Unauthorized(msg.sender);
-        }
-        isCanonicalDeployer[deployer] = true;
-    }
-
-    function removeCanonicalDeployer(address deployer) external {
-        if (msg.sender != gov) {
-            revert ICrystal.Unauthorized(msg.sender);
-        }
-        isCanonicalDeployer[deployer] = false;
-    }
-
-    function approveForwarder(address forwarder) external {
-        approvedForwarder[msg.sender][forwarder] = true;
-    }
-
-    function removeForwarder(address forwarder) external {
-        approvedForwarder[msg.sender][forwarder] = false;
+        ICrystal.TokenMetadata memory qMeta = ICrystal.TokenMetadata(
+            quoteAsset,
+            IERC20(quoteAsset).decimals(),
+            IERC20(quoteAsset).symbol(),
+            IERC20(quoteAsset).name()
+        );
+        ICrystal.TokenMetadata memory bMeta = ICrystal.TokenMetadata(
+            baseAsset,
+            IERC20(baseAsset).decimals(),
+            IERC20(baseAsset).symbol(),
+            IERC20(baseAsset).name()
+        );
+        ICrystal.MarketDetails memory details = ICrystal.MarketDetails(
+            marketId,
+            marketType,
+            scaleFactor,
+            tickSize,
+            maxPrice,
+            minSize,
+            takerFee,
+            makerRebate
+        );
+        bool _isCanonical = isCanonical; // avoid stack too deep
+        emit ICrystal.MarketCreated(_isCanonical, quoteAsset, baseAsset, market, qMeta, bMeta, details);
     }
     // router methods
     function getAmountsOut(uint256 amountIn, address[] memory path) external returns (uint256[] memory amounts) {
@@ -705,16 +722,9 @@ contract Crystal is ICrystal {
                 revert ICrystal.InvalidMarket(asset0, asset1);
             }
             uint256 inputAmount;
-            if (_getMarket[market].quoteAsset == asset0) {
-                (bool result, bytes memory ret) = market.delegatecall(abi.encodeWithSelector(0x638571e3, true, true, i != 0, amounts[i], 0xFFFFFFFFFFFFFFFFFFFF));
-                require(result);
-                (inputAmount, amounts[i + 1]) = abi.decode(ret, (uint256, uint256));
-            }
-            else {
-                (bool result, bytes memory ret) = market.delegatecall(abi.encodeWithSelector(0x638571e3, false, true, i != 0, amounts[i], 1));
-                require(result);
-                (inputAmount, amounts[i + 1]) = abi.decode(ret, (uint256, uint256));
-            }
+            (bool result, bytes memory ret) = market.delegatecall(abi.encodeWithSelector(0x638571e3, _getMarket[market].quoteAsset == asset0, true, i != 0, amounts[i], _getMarket[market].quoteAsset == asset0 ? MASK_KEEP_0_80 : 1));
+            require(result);
+            (inputAmount, amounts[i + 1]) = abi.decode(ret, (uint256, uint256));
             if (i != 0 && amounts[i] != inputAmount) {
                 revert ICrystal.SlippageExceeded();
             }
@@ -735,20 +745,11 @@ contract Crystal is ICrystal {
                 revert ICrystal.InvalidMarket(asset0, asset1);
             }
             uint256 outputAmount;
-            if (_getMarket[market].quoteAsset == asset0) {
-                (bool result, bytes memory ret) = market.delegatecall(abi.encodeWithSelector(0x638571e3, true, false, true, amounts[i], 0xFFFFFFFFFFFFFFFFFFFF));
-                if (!result) {
-                    revert ICrystal.SlippageExceeded();
-                }
-                (amounts[i - 1], outputAmount) = abi.decode(ret, (uint256, uint256));
+            (bool result, bytes memory ret) = market.delegatecall(abi.encodeWithSelector(0x638571e3, _getMarket[market].quoteAsset == asset0, false, true, amounts[i], _getMarket[market].quoteAsset == asset0 ? MASK_KEEP_0_80 : 1));
+            if (!result) {
+                revert ICrystal.SlippageExceeded();
             }
-            else {
-                (bool result, bytes memory ret) = market.delegatecall(abi.encodeWithSelector(0x638571e3, false, false, true, amounts[i], 1));
-                if (!result) {
-                    revert ICrystal.SlippageExceeded();
-                }
-                (amounts[i - 1], outputAmount) = abi.decode(ret, (uint256, uint256));
-            }
+            (amounts[i - 1], outputAmount) = abi.decode(ret, (uint256, uint256));
         }
     }
 
@@ -768,7 +769,7 @@ contract Crystal is ICrystal {
             }
             asset1 = _getMarket[market].quoteAsset;
             uint256 options = ((i != 0 || path[i] == eth) ? (1 << 64) : 0) | ((i != path.length - 2 || path[i+1] == eth || to != msg.sender) ? (1 << 60) : 0);
-            bytes memory ret = abi.encodeWithSelector(0xe690552b, asset1 == asset0, true, options, 1, amounts[i], asset1 == asset0 ? 0xFFFFFFFFFFFFFFFFFFFF : 1, referrer, msg.sender);
+            bytes memory ret = abi.encodeWithSelector(0xe690552b, asset1 == asset0, true, options, 1, amounts[i], asset1 == asset0 ? MASK_KEEP_0_80 : 1, referrer, msg.sender);
             bool result;
             (result, ret) = market.delegatecall(ret);
             if (!result) {
@@ -792,7 +793,7 @@ contract Crystal is ICrystal {
             address market = getMarketByTokens[asset0][asset1];
             asset1 = _getMarket[market].quoteAsset;
             uint256 options = ((i != 0 || path[i] == eth) ? (1 << 64) : 0) | ((i != path.length - 2 || path[i+1] == eth || to != msg.sender) ? (1 << 60) : 0);
-            bytes memory ret = abi.encodeWithSelector(0xe690552b, asset1 == asset0, false, options, 1, amounts[i+1], asset1 == asset0 ? 0xFFFFFFFFFFFFFFFFFFFF : 1, referrer, msg.sender);
+            bytes memory ret = abi.encodeWithSelector(0xe690552b, asset1 == asset0, false, options, 1, amounts[i+1], asset1 == asset0 ? MASK_KEEP_0_80 : 1, referrer, msg.sender);
             bool result;
             (result, ret) = market.delegatecall(ret);
             if (!result) {
@@ -1213,7 +1214,7 @@ contract Crystal is ICrystal {
         (virtualNativeReserve, virtualTokenReserve) = (market.virtualNativeReserve, market.virtualTokenReserve);
     }
 
-    function createToken(string memory name, string memory symbol, string memory metadataCID, string memory description, string memory social1, string memory social2, string memory social3) external returns (address token) {
+    function createToken(string memory name, string memory symbol, string memory metadataCID, string memory description, string memory social1, string memory social2, string memory social3, string memory social4) external returns (address token) {
         assembly {
             if tload(0x0) { revert(0, 0) }
             tstore(0x0, 1)
@@ -1226,10 +1227,11 @@ contract Crystal is ICrystal {
             description,
             social1,
             social2,
-            social3
+            social3,
+            social4
         ));
         allTokens.push(address(token));
-        emit ICrystal.TokenCreated(address(token), msg.sender, name, symbol, metadataCID, description, social1, social2, social3);
+        emit ICrystal.TokenCreated(address(token), msg.sender, name, symbol, metadataCID, description, social1, social2, social3, social4);
         uint256 marketId = allMarkets.length + 1;
         parameters = ICrystal.Parameters(weth, token, marketId, 3, 9, 1, 1000000000000000); // maxsize is validated here
         uint256 maxTick;
@@ -1372,7 +1374,7 @@ contract Crystal is ICrystal {
             if (!isExactInput) {
                 newInputAmount = amountOut - outputAmount;
             }
-            (bool result, bytes memory ret) = getMarketByTokens[weth][token].delegatecall(abi.encodeWithSelector(0xe690552b, true, isExactInput, (1 << 64), 1, newInputAmount, 0xFFFFFFFFFFFFFFFFFFFF, address(0), msg.sender));
+            (bool result, bytes memory ret) = getMarketByTokens[weth][token].delegatecall(abi.encodeWithSelector(0xe690552b, true, isExactInput, (1 << 64), 1, newInputAmount, MASK_KEEP_0_80, address(0), msg.sender));
             if (!result) {
                 revert ICrystal.ActionFailed();
             }

@@ -129,8 +129,8 @@ describe("CrystalTests", function () {
     await base.connect(depositer).approve(vaultfactory.target, 115792089237316195423570985008687907853269984665640564039457584007913129639935n);
     const amounts = await vaultfactory.connect(depositer).deposit.staticCall(vault.target, quote.target, base.target, 2343n * 10n ** BigInt(await quote.decimals()), 1923n * 10n ** BigInt(await base.decimals()), 0, 0)
     await vaultfactory.connect(depositer).deposit(vault.target, quote.target, base.target, 2343n * 10n ** BigInt(await quote.decimals()), 1000n * 10n ** BigInt(await base.decimals()), 0, 0)
-    tokenAddr = await crystal.connect(owner).createToken.staticCall('hi', 'hi', 'hi', 'hi', 'hi', 'hi', 'hi')
-    await crystal.connect(owner).createToken('hi', 'hi', 'hi', 'hi', 'hi', 'hi', 'hi')
+    tokenAddr = await crystal.connect(owner).createToken.staticCall('hi', 'hi', 'hi', 'hi', 'hi', 'hi', 'hi', 'hi')
+    await crystal.connect(owner).createToken('hi', 'hi', 'hi', 'hi', 'hi', 'hi', 'hi', 'hi')
   }); 
 
   function makeHeader(marketAddr, numActions, internalBalance=0n) {
