@@ -319,7 +319,7 @@ contract Crystal is ICrystal {
     }
 
     function removeLiquidity(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 amountQuote, uint256 amountBase) {
-        _delegateToMarket(market, 0x13928082, 128, address(0));
+        _delegateToMarket(market, 0x13928082, 160, address(0));
     }
 
     function removeLiquidityETH(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 amountQuote, uint256 amountBase) {
