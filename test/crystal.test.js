@@ -1217,6 +1217,74 @@ describe("CrystalTests", function () {
     }
   });
 
+  it("low liq n em", async () => {
+    const rawPrice = 5;
+    const rawSize = 1_000_000;
+    
+    const scaleFactor = BigInt((await market.scaleFactor()).toString());
+    const quoteDecimals = BigInt(await quote.decimals());
+    const baseDecimals = BigInt(await base.decimals());
+    const priceFactor = quoteDecimals >= baseDecimals
+      ? scaleFactor * 10n ** (quoteDecimals - baseDecimals)
+      : scaleFactor / 10n ** (baseDecimals - quoteDecimals);
+    
+    const priceParam = BigInt(rawPrice) * priceFactor;
+    const sizeParam = BigInt(rawSize) * scaleFactor / priceParam;
+    
+    const marketAddr = await market.getAddress();
+    const sellHeader = makeHeader(marketAddr, 1);
+    let sellChunk = encodeAction(3, priceParam, sizeParam);
+    const makerBuyHeader = makeHeader(marketAddr, 1);
+    let makerBuyChunk = encodeAction(2, BigInt(4.5 * Number(priceFactor)), 1289392n);
+    try {
+      let tx = await (await crystal.connect(maker).addLiquidity(market.target, maker, 4500n * 10n ** BigInt(await quote.decimals()), 1000n * 10n ** BigInt(await base.decimals()), 0, 0, {value: 1000n * 10n ** BigInt(await base.decimals())})).wait()
+      console.log(tx.gasUsed)
+      await market.connect(maker).approve(crystal.target, 129481923801283018239912830192830192830192831n)
+      let liquidity = await market.connect(maker).balanceOf.staticCall(maker);
+      await crystal.connect(maker).removeLiquidityETH(marketAddr, maker, liquidity, 0, 0, maker);
+      console.log("big:")
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 100000000000000000000000000n, 100000000000000000n, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, 100000000000000000000000000n, 100000000000000000n))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 100000000000000000000000000n, 100000000000000000n, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, 100000000000000000000000000n, 100000000000000000n))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 100000000000000000000000000n, 0, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, 100000000000000000000000000n, 0))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 100000000000000000000000000n, 0, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, 100000000000000000000000000n, 0))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 1000000000234000002923800000523n, 100000000000000000n, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, 1000000000234000002923800000523n, 100000000000000000n))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 1000000000234000002923800000523n, 100000000000000000n, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, 1000000000234000002923800000523n, 100000000000000000n))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 1000000000234000002923800000523n, 0, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, 1000000000234000002923800000523n, 0))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 1000000000234000002923800000523n, 0, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, 1000000000234000002923800000523n, 0))
+      console.log("small:")
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 13n, 100000000000000000n, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, 13n, 100000000000000000n))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 13n, 100000000000000000n, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, 13n, 100000000000000000n))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 13n, 0, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, 13n, 0))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 13n, 0, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, 13n, 0))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, true, 0, 0, 17n, 100000000000000000n, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, true, false, 17n, 100000000000000000n))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, true, false, 0, 0, 17n, 100000000000000000n, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, true, false, false, 17n, 100000000000000000n))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, true, 0, 0, 17n, 0, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, true, false, 17n, 0))
+      console.log(await crystal.connect(taker).marketOrder.staticCall(marketAddr, false, false, 0, 0, 17n, 0, maker, taker))
+      console.log(await crystal.connect(taker).getQuote.staticCall(marketAddr, false, false, false, 17n, 0))
+
+      reserves = await crystal.connect(maker).getReserves.staticCall(marketAddr);
+      console.log(reserves[0] * scaleFactor / reserves[1])
+    } catch (error) {
+      console.error("tx failed:", error);
+      throw error;
+    }
+  });
+
   it("quoting n em", async () => {
     const rawPrice = 5;
     const rawSize = 1_000_000;
