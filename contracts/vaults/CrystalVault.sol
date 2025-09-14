@@ -265,7 +265,7 @@ contract CrystalVault is ERC20 {
             shares = _min((amountQuote * totalSupply) / quoteBalance, (amountBase * totalSupply) / baseBalance);
         }
 
-        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && (maxShares == 0 || totalSupply + shares <= maxShares));
+        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && shares != 0 && (maxShares == 0 || totalSupply + shares <= maxShares));
 
         IERC20(quoteAsset).transferFrom(msg.sender, address(this), amountQuote);
         IERC20(baseAsset).transferFrom(msg.sender, address(this), amountBase);
@@ -278,7 +278,7 @@ contract CrystalVault is ERC20 {
     }
 
     function withdraw(address user, uint256 shares, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 amountQuote, uint256 amountBase) {
-        require(factory == msg.sender && shares != 0 && shares <= balanceOf[user] && lastDepositTimestamp[user] + lockup < block.timestamp);
+        require(factory == msg.sender && shares != 0 && shares <= balanceOf[user] && lastDepositTimestamp[user] + lockup <= block.timestamp);
         (uint256 quoteBalance, uint256 baseBalance, uint256 availableQuote, uint256 availableBase) = getBalances();
         amountQuote = (quoteBalance * shares) / totalSupply;
         amountBase = (baseBalance * shares) / totalSupply;

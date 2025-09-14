@@ -59,7 +59,7 @@ async function main() {
     10,
     10,
     86400,
-    [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
+    [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99910n, 99990n, 40]
   );
 
   // Helper function for contract calls
@@ -96,7 +96,7 @@ async function main() {
     1,
     1_000_000_000_000_000,
     1_000_000,
-    99_970,
+    99_950,
     99_990,
   ];
 
@@ -117,7 +117,7 @@ async function main() {
     1,
     1_000_000,
     1_000_000,
-    99_970,
+    99_950,
     99_990,
   ];
 
@@ -269,8 +269,8 @@ async function main() {
     1,
     1_000_000_000_000_000,
     100000000000000000n,
-    99_970,
-    99_990,
+    99950n,
+    99990n,
   ];
 
   marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);
@@ -288,8 +288,8 @@ async function main() {
     1,
     1_000_000_000_000_000,
     100000000000000000n,
-    99_970,
-    99_990,
+    99950n,
+    99990n,
   ];
 
   marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);
@@ -307,8 +307,8 @@ async function main() {
     1,
     1_000_000_000_000_000,
     100000000000000000n,
-    99_970,
-    99_990,
+    99950n,
+    99990n,
   ];
 
   marketAddr = await crystalResult.contract["deploy"].staticCall(...dummyParams);

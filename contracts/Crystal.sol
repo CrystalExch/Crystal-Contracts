@@ -99,8 +99,10 @@ contract Crystal is ICrystal {
                 offset := add(offset, add(len, 0x20))
             }
             if totalBribe {
-                mstore(0x00, coinbase())
-                pop(call(gas(), mload(0x00), totalBribe, 0, 0, 0, 0))
+                pop(call(gas(), coinbase(), totalBribe, 0, 0, 0, 0))
+            }
+            if and(callvalue(), selfbalance()) {
+                pop(call(gas(), caller(), selfbalance(), 0, 0, 0, 0))
             }
             tstore(0x0, 0)
         }
@@ -314,6 +316,17 @@ contract Crystal is ICrystal {
             default {
                 tstore(0x0, 0)
                 return(0x80, returndatasize())
+            }
+        }
+        if (msg.value != 0) {
+            uint256 balance = tokenBalances[0][weth];
+            if (balance != 0) {
+                tokenBalances[0][weth] = 0;
+                IWETH(weth).withdraw(balance);
+                (bool success, ) = msg.sender.call{value: balance}("");
+                if (!success) {
+                    revert ICrystal.TransferFailed(msg.sender);
+                }
             }
         }
     }
@@ -579,7 +592,6 @@ contract Crystal is ICrystal {
     // vault/margin operators can claim to their wallet, resets any pending expiry claims
     function claimFees(address to, address[] calldata tokens) external returns (uint256[] memory amounts) {
         amounts = new uint256[](tokens.length);
-        delete pendingExpiredFeeClaims[msg.sender];
         for (uint256 i = 0; i < tokens.length; ++i) {
             if (tokens[i] == eth) {
                 amounts[i] = claimableRewards[weth][msg.sender];
@@ -595,7 +607,8 @@ contract Crystal is ICrystal {
                 claimableRewards[tokens[i]][msg.sender] = 0;
                 IERC20(tokens[i]).transfer(to, amounts[i]);
             }
-        }  
+        }
+        delete pendingExpiredFeeClaims[msg.sender];
         emit ICrystal.RewardsClaimed(msg.sender, tokens, amounts);      
     }
     // anyone can queue fee claim for if user is inactive, only governance can actually execute
