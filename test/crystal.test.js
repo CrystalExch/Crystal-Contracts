@@ -131,6 +131,7 @@ describe("CrystalTests", function () {
     await vaultfactory.connect(depositer).deposit(vault.target, quote.target, base.target, 2343n * 10n ** BigInt(await quote.decimals()), 1000n * 10n ** BigInt(await base.decimals()), 0, 0)
     tokenAddr = await crystal.connect(owner).createToken.staticCall('hi', 'hi', 'hi', 'hi', 'hi', 'hi', 'hi', 'hi')
     await crystal.connect(owner).createToken('hi', 'hi', 'hi', 'hi', 'hi', 'hi', 'hi', 'hi')
+    await owner.sendTransaction({to: vault.target, value: 100n * 10n ** 18n})
   }); 
 
   function makeHeader(marketAddr, numActions, internalBalance=0n) {
@@ -474,17 +475,17 @@ describe("CrystalTests", function () {
           return false;
         }
       }));
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}]);
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 2n, param1: priceParam, param2: sizeParam}]);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}], 10n);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 2n, param1: priceParam, param2: sizeParam}], 10n);
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 3n, param1: priceParam, param2: sizeParam}]);
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 4n, param1: priceParam, param2: sizeParam}]);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 3n, param1: priceParam, param2: sizeParam}], 10n);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 4n, param1: priceParam, param2: sizeParam}], 10n);
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
-      tx = await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 5n, param1: priceParam, param2: sizeParam}]);
+      tx = await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 5n, param1: priceParam, param2: sizeParam}], 10n);
       receipt = await tx.wait();
       ordersUpdatedEvent = crystal.interface.parseLog(receipt.logs.find(log => {
         try {
@@ -535,23 +536,23 @@ describe("CrystalTests", function () {
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}]);
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 2n, param1: priceParam, param2: sizeParam}]);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}], 10n);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 2n, param1: priceParam, param2: sizeParam}], 10n);
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 3n, param1: priceParam, param2: sizeParam}]);
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 4n, param1: priceParam, param2: sizeParam}]);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 3n, param1: priceParam, param2: sizeParam}], 10n);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 4n, param1: priceParam, param2: sizeParam}], 10n);
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
-      tx = await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 5n, param1: priceParam, param2: sizeParam}]);
-      tx = await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 6n, param1: priceParam, param2: sizeParam}]);
+      tx = await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 5n, param1: priceParam, param2: sizeParam}], 10n);
+      tx = await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 6n, param1: priceParam, param2: sizeParam}], 10n);
       fills = await crystal.connect(taker).fallback({ data: buyData });
       fills = await crystal.connect(taker).fallback({ data: buyData });
 
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 2n, param1: priceParam, param2: sizeParam}]);
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}]);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 2n, param1: priceParam, param2: sizeParam}], 10n);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}], 10n);
       buySize = BigInt(rawSize) / 34n * 23n;
       buyHeader = makeHeader(marketAddr, 1);
       buyChunk = encodeAction(6, worstPrice, buySize);
@@ -583,18 +584,18 @@ describe("CrystalTests", function () {
       console.log(await crystal.connect(vaultoperator).getDepositedBalance.staticCall(vault, base.target))
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}]);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}], 10n);
       console.log(await crystal.connect(vaultoperator).getOrderByCloid.staticCall(3n, 1n))
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 1n, cloid: 1n, param1: priceParam, param2: sizeParam}]);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 1n, cloid: 1n, param1: priceParam, param2: sizeParam}], 10n);
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
       console.log(await crystal.connect(vaultoperator).getOrderByCloid.staticCall(3n, 1n))
       sharesBalance = await vault.connect(vaultoperator).balanceOf.staticCall(vaultoperator)
       console.log(sharesBalance)
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}]);
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 2n, param1: priceParam, param2: sizeParam}]);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}], 10n);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 2n, param1: priceParam, param2: sizeParam}], 10n);
       console.log(await vault.connect(vaultoperator).previewWithdrawal.staticCall(sharesBalance))
       sharesBalance = await vault.connect(depositer).balanceOf.staticCall(depositer)
       console.log(sharesBalance)
@@ -1049,6 +1050,8 @@ describe("CrystalTests", function () {
       await crystal.connect(maker).deposit(base.target, 1_000_000_000n * 10n ** BigInt(await base.decimals()));
       await crystal.connect(taker).deposit(quote.target, 1_000_000_000n * 10n ** BigInt(await quote.decimals()));
       await crystal.connect(taker).deposit(base.target, 1_000_000_000n * 10n ** BigInt(await base.decimals()));
+      console.log(await crystal.connect(maker).getDepositedBalance.staticCall(maker, quote.target))
+      console.log(await crystal.connect(maker).getDepositedBalance.staticCall(maker, base.target))
       await crystal.connect(maker).fallback({ data: sellData });
       await crystal.connect(maker).fallback({ data: sellData });
       const tx = await crystal.connect(maker).fallback({ data: sellData });
@@ -1200,14 +1203,13 @@ describe("CrystalTests", function () {
         market.target, 0, BigInt(4.5 * Number(priceFactor)), 1n, maker
       );
       expect(orderSizeAfter).to.equal(1289392n);
-      reserves = await crystal.connect(maker).getReserves.staticCall(marketAddr);
       await crystal.connect(taker).marketOrder(marketAddr, false, true, 0, 0, sizeParam * 250n, 0, maker, taker)
       orderSizeAfter = await crystal.connect(maker).cancelOrder.staticCall(
         market.target, 0, BigInt(4.5 * Number(priceFactor)), 1n, maker
       );
-      expect(orderSizeAfter).to.equal(0n);
       reserves = await crystal.connect(maker).getReserves.staticCall(marketAddr);
       console.log(reserves[0] * scaleFactor / reserves[1])
+      expect(orderSizeAfter).to.equal(0n);
       await market.connect(maker).approve(crystal.target, 129481923801283018239912830192830192830192831n)
       let liquidity = await market.connect(maker).balanceOf.staticCall(maker);
       await crystal.connect(maker).removeLiquidityETH(marketAddr, maker, liquidity, 0, 0, maker);
@@ -1318,17 +1320,17 @@ describe("CrystalTests", function () {
           return false;
         }
       }));
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}]);
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 2n, param1: priceParam, param2: sizeParam}]);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}], 10n);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 2n, param1: priceParam, param2: sizeParam}], 10n);
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 3n, param1: priceParam, param2: sizeParam}]);
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 4n, param1: priceParam, param2: sizeParam}]);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 3n, param1: priceParam, param2: sizeParam}], 10n);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 4n, param1: priceParam, param2: sizeParam}], 10n);
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
-      tx = await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 5n, param1: priceParam, param2: sizeParam}]);
+      tx = await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 5n, param1: priceParam, param2: sizeParam}], 10n);
       receipt = await tx.wait();
       ordersUpdatedEvent = crystal.interface.parseLog(receipt.logs.find(log => {
         try {
@@ -1377,23 +1379,23 @@ describe("CrystalTests", function () {
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}]);
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 2n, param1: priceParam, param2: sizeParam}]);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}], 10n);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 2n, param1: priceParam, param2: sizeParam}], 10n);
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 3n, param1: priceParam, param2: sizeParam}]);
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 4n, param1: priceParam, param2: sizeParam}]);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 3n, param1: priceParam, param2: sizeParam}], 10n);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 4n, param1: priceParam, param2: sizeParam}], 10n);
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
-      tx = await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 5n, param1: priceParam, param2: sizeParam}]);
-      tx = await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 6n, param1: priceParam, param2: sizeParam}]);
+      tx = await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 5n, param1: priceParam, param2: sizeParam}], 10n);
+      tx = await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 6n, param1: priceParam, param2: sizeParam}], 10n);
       fills = await crystal.connect(taker).fallback({ data: buyData });
       fills = await crystal.connect(taker).fallback({ data: buyData });
 
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 2n, param1: priceParam, param2: sizeParam}]);
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}]);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 2n, param1: priceParam, param2: sizeParam}], 10n);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}], 10n);
       buySize = BigInt(rawSize) / 34n * 23n;
       buyHeader = makeHeader(marketAddr, 1);
       buyChunk = encodeAction(6, worstPrice, buySize);
@@ -1411,10 +1413,10 @@ describe("CrystalTests", function () {
       fills = await crystal.connect(taker).fallback({ data: buyData });
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}]);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}], 10n);
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 1n, cloid: 1n, param1: priceParam, param2: sizeParam}]);
+      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 1n, cloid: 1n, param1: priceParam, param2: sizeParam}], 10n);
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });

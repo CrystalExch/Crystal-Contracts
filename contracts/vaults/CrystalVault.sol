@@ -394,11 +394,16 @@ contract CrystalVault is ERC20 {
         }
     }
 
-    function execute(ICrystalVault.Action[] calldata actions) external payable {
-        require(msg.sender == owner && actions.length < 0xFFF && !closed && msg.value < 0xFFFFFFFFFFFFFFFFFFFF);
+    function sweep() external {
+        require(msg.sender == owner);
+        msg.sender.call{value: address(this).balance}('');
+    }
+
+    function execute(ICrystalVault.Action[] calldata actions, uint256 bid) external payable {
+        require(msg.sender == owner && actions.length < 0xFFF && !closed && bid < 0xFFFFFFFFFFFFFFFFFFFF);
         bytes32[] memory data = new bytes32[](actions.length + 1);
         ICrystalVault.Action memory action;
-        data[0] = bytes32(1 << 252 | msg.value << 172 | actions.length << 160 | uint160(market));
+        data[0] = bytes32(1 << 252 | bid << 172 | actions.length << 160 | uint160(market));
         for (uint256 i; i < actions.length; ++i) {
             action = actions[i];
             if (
@@ -415,11 +420,13 @@ contract CrystalVault is ERC20 {
                 ((action.param1 & 0xFFFFFFFFFFFFFFFFFFFF) << 112) |
                 action.param2 & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF);
         }
-        (bool success, bytes memory returnData) = crystal.call{value: msg.value}(abi.encodePacked(data));
+        (bool success, bytes memory returnData) = crystal.call{value: bid}(abi.encodePacked(data));
         if (!success) {
             assembly {
                 revert(add(returnData, 32), mload(returnData))
             }
         }
     }
+
+    receive() external payable {}
 }

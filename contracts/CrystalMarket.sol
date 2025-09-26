@@ -13,6 +13,7 @@ contract CrystalMarket {
     mapping (address => uint256) private addressToUserId;
     mapping (address => ICrystal.Market) private _getMarket;
     mapping (uint256 => uint256) private activated; // marketid << 128 | slotindex
+    mapping (uint256 => uint256) private activated2; // marketid << 128 | slotindex
     mapping (uint256 => uint256) private priceLevels; // 0 is an invalid price marketid << 128 | price
     mapping (uint256 => uint256) private orders; // 0 is an invalid cloid, valid range 1-1023 mask 0x3FF; marketid << 128 | price << 48 | id or userid << 41 | cloid
     mapping (uint256 => uint256) private cloidVerify; // two cloids per slot map market and price, never zero slot 1 << 255 | marketId << 208 | price << 128 | marketId << 80 | price
@@ -51,6 +52,8 @@ contract CrystalMarket {
     uint256 private constant MASK_OUT_154_205 = 0xFFFFFFFFFFFFE0000000000003FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
     uint256 private constant MASK_OUT_0_80 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000000000000000;
     uint256 private constant MASK_OUT_0_41 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE0000000000;
+    uint256 private constant MASK_OUT_255_256 = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+    uint256 private constant MASK_KEEP_255_256 = 0x8000000000000000000000000000000000000000000000000000000000000000;
     uint256 private constant MASK_KEEP_113_154 = 0x00000000000000000000000003FFFFFFFFFE0000000000000000000000000000;
     uint256 private constant MASK_KEEP_112_113 = 0x0000000000000000000000000000000000010000000000000000000000000000;
     uint256 private constant MASK_KEEP_0_10 = 0x3FF;
@@ -171,8 +174,8 @@ contract CrystalMarket {
         if (_totalSupply == 0) {
             amountQuote = amountQuoteDesired;
             amountBase = amountBaseDesired;
-            liquidity = _sqrt(amountQuote * (amountBase)) - 1000;
-            IERC20(market).mint(address(0), 1000);
+            liquidity = _sqrt(amountQuote * (amountBase)) - 10000;
+            IERC20(market).mint(address(0), 10000);
         } else {
             uint256 amountBaseOptimal = (amountQuoteDesired * reserveBase) / reserveQuote;
             if (amountBaseOptimal <= amountBaseDesired) {
@@ -201,7 +204,7 @@ contract CrystalMarket {
             tokenBalances[0][baseAsset] -= amountBase; // checked
         }
         IERC20(market).mint(to, liquidity);
-        require(liquidity != 0 && amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && reserveQuote <= MASK_KEEP_0_112 && reserveBase <= MASK_KEEP_0_112 && m.isAMMEnabled == true);
+        require(liquidity != 0 && amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && reserveQuote <= MASK_KEEP_0_112 && reserveBase <= MASK_KEEP_0_112 && m.isAMMEnabled == true && maxPrice >= ((reserveQuote * scaleFactor * 10000* m.makerRebate) / (reserveBase * 9975 * 100000)));
         (m.reserveQuote, m.reserveBase) = (reserveQuote, reserveBase);
         emit ICrystal.Sync(market, reserveQuote, reserveBase);
         emit ICrystal.Mint(market, msg.sender, amountQuote, amountBase);
@@ -220,18 +223,22 @@ contract CrystalMarket {
             IERC20(quoteAsset).transfer(to, amountQuote);
         }
         else {
-            tokenBalances[0][quoteAsset] += amountQuote;
+            uint256 balance = tokenBalances[0][quoteAsset] & MASK_KEEP_0_128;
+            require((balance + amountQuote) <= MASK_KEEP_0_128);
+            tokenBalances[0][quoteAsset] = (balance + amountQuote);
         }
         if ((options >> 4 & 1) == 0) {
             IERC20(baseAsset).transfer(to, amountBase);
         }
         else {
-            tokenBalances[0][baseAsset] += amountBase;
+            uint256 balance = tokenBalances[0][baseAsset] & MASK_KEEP_0_128;
+            require((balance + amountBase) <= MASK_KEEP_0_128);
+            tokenBalances[0][baseAsset] = (balance + amountBase);
         }
         reserveQuote -= uint112(amountQuote); // checked
         reserveBase -= uint112(amountBase); // checked
 
-        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin);
+        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && maxPrice >= ((reserveQuote * scaleFactor * 10000 * m.makerRebate) / (reserveBase * 9975 * 100000)));
         (m.reserveQuote, m.reserveBase) = (reserveQuote, reserveBase);
         emit ICrystal.Sync(market, reserveQuote, reserveBase);
         emit ICrystal.Burn(market, msg.sender, amountQuote, amountBase, to);
@@ -346,6 +353,72 @@ contract CrystalMarket {
         }
     }
 
+    function _exactInputBuySolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 sf, uint256 makerRebate, uint256 high) internal pure returns (uint256 low) {
+        unchecked {
+            while (low < high) {
+                uint256 mid = (low + high) >> 1;
+                uint256 den = 9975 * (reserveBase - ((mid * 9975 * reserveBase) / (reserveQuote * 10000 + mid * 9975)));
+                uint256 num = (reserveQuote + mid) * 10000;
+                uint256 pMid = num * sf / den;
+                if (pMid * 100000 >= targetPrice * makerRebate) {
+                    high = mid;
+                } else {
+                    low = mid + 1;
+                }
+            }
+        }
+    }
+
+    function _exactOutputBuySolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 sf, uint256 makerRebate, uint256 high) internal pure returns (uint256 low) {
+        unchecked {
+            high = high > (reserveBase - 1) ? (reserveBase - 1) : high;
+            while (low < high) {
+                uint256 mid = (low + high) >> 1;
+                uint256 num = (reserveQuote + ((mid * reserveQuote * 10000) / ((reserveBase - mid) * 9975)) + 1) * 10000;
+                uint256 den = 9975 * (reserveBase - mid);
+                uint256 pMid = num * sf / den;
+                if (pMid * 100000 >= targetPrice * makerRebate) {
+                    high = mid;
+                } else {
+                    low = mid + 1;
+                }
+            }
+        }
+    }
+
+    function _exactInputSellSolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 sf, uint256 makerRebate, uint256 high) internal pure returns (uint256 low) {
+        unchecked {
+            while (low < high) {
+                uint256 mid = (low + high) >> 1;
+                uint256 num = 9975 * (reserveQuote - ((mid * 9975 * reserveQuote) / (reserveBase * 10000 + mid * 9975)));
+                uint256 den = (reserveBase + mid) * 10000;
+                uint256 pMid = num * sf / den;
+                if (pMid * makerRebate <= targetPrice * 100000) {
+                    high = mid;
+                } else {
+                    low = mid + 1;
+                }
+            }
+        }
+    }
+
+    function _exactOutputSellSolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 sf, uint256 makerRebate, uint256 high) internal pure returns (uint256 low) {
+        unchecked { 
+            high = high > (reserveQuote - 1) ? (reserveQuote - 1) : high;
+            while (low < high) {
+                uint256 mid = (low + high) >> 1;
+                uint256 den = (reserveBase + ((mid * reserveBase * 10000) / ((reserveQuote - mid) * 9975)) + 1) * 10000;
+                uint256 num = 9975 * (reserveQuote - mid);
+                uint256 pMid = num * sf / den;
+                if (pMid * makerRebate <= targetPrice * 100000) {
+                    high = mid;
+                } else {
+                    low = mid + 1;
+                }
+            }
+        }
+    }
+    
     function _addToOrdersUpdatedEvent(uint256 logData) internal {
         assembly {
             let length := mload(0xc0)
@@ -388,10 +461,14 @@ contract CrystalMarket {
                 }
                 if (balanceModeOut != 0) {
                     if (quoteAssetDebt < 0) {
-                        tokenBalances[0][quoteAsset] += uint256(-quoteAssetDebt);
+                        uint256 balance = tokenBalances[0][quoteAsset] & MASK_KEEP_0_128;
+                        require((balance + uint256(-quoteAssetDebt)) <= MASK_KEEP_0_128);
+                        tokenBalances[0][quoteAsset] = (balance + uint256(-quoteAssetDebt));
                     }
                     if (baseAssetDebt < 0) {
-                        tokenBalances[0][baseAsset] += uint256(-baseAssetDebt);
+                        uint256 balance = tokenBalances[0][baseAsset] & MASK_KEEP_0_128;
+                        require((balance + uint256(-baseAssetDebt)) <= MASK_KEEP_0_128);
+                        tokenBalances[0][baseAsset] = (balance + uint256(-baseAssetDebt));
                     }
                 }
                 else {
@@ -415,7 +492,9 @@ contract CrystalMarket {
                         }
                     }
                     else if (quoteAssetDebt < 0) {
-                        tokenBalances[userId][quoteAsset] += uint256(-quoteAssetDebt);
+                        uint256 balance = tokenBalances[userId][quoteAsset] & MASK_KEEP_0_128;
+                        require((balance + uint256(-quoteAssetDebt)) <= MASK_KEEP_0_128);
+                        tokenBalances[userId][quoteAsset] = (balance + uint256(-quoteAssetDebt));
                     }
                     if (baseAssetDebt > 0) {
                         uint256 balance = tokenBalances[userId][baseAsset];
@@ -427,7 +506,9 @@ contract CrystalMarket {
                         }
                     }
                     else if (baseAssetDebt < 0) {
-                        tokenBalances[userId][baseAsset] += uint256(-baseAssetDebt);
+                        uint256 balance = tokenBalances[userId][baseAsset] & MASK_KEEP_0_128;
+                        require((balance + uint256(-baseAssetDebt)) <= MASK_KEEP_0_128);
+                        tokenBalances[userId][baseAsset] = (balance + uint256(-baseAssetDebt));
                     }
                 }
                 else {
@@ -461,85 +542,48 @@ contract CrystalMarket {
             priceLevels[marketId | price] = _priceLevel;
             if ((_priceLevel & MASK_KEEP_0_112) == 0) {
                 uint256 tick = marketType == 0 ? (price / tickSize) : _priceToTick(price);
-                uint256 slotIndex = tick >> 8;
-                uint256 slot = activated[marketId | slotIndex];
-                slot &= ~(1 << (tick % 256));
-                activated[marketId | slotIndex] = slot;
+                uint256 slotIndex = tick / 255;
+                uint256 slot = activated[marketId | slotIndex] & MASK_OUT_255_256;
+                slot &= ~(1 << (tick % 255));
+                activated[marketId | slotIndex] = slot | MASK_KEEP_255_256;
+                if (slot == 0) {
+                    activated2[marketId | (tick >> 16)] &= ~(1 << ((tick / 255) % 255));
+                }
                 if (price == lowestAsk) {
-                    slot = slot >> tick % 256;
+                    slot = slot >> tick % 255;
                     while (slot == 0) {
-                        ++slotIndex;
-                        slot = activated[marketId | slotIndex];
-                        tick = slotIndex << 8;
+                        uint256 slot2Index = slotIndex / 255;
+                        uint256 slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
+                        slot2 = slot2 >> slotIndex % 255;
+                        while (slot2 == 0) {
+                            ++slot2Index;
+                            slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
+                            slotIndex = slot2Index * 255;
+                        }
+                        slotIndex = _searchSlotUp(slot2, slotIndex);
+                        slot = activated[marketId | slotIndex] & MASK_OUT_255_256;
+                        tick = slotIndex * 255;
                     }
                     tick = _searchSlotUp(slot, tick);
                     _getMarket[market].lowestAsk = uint80(marketType == 0 ? (tick * tickSize) : _tickToPrice(tick));
                 }
                 else if (price == highestBid) {
-                    slot = slot & ((1 << (tick % 256)) - 1);
+                    slot = slot & ((1 << (tick % 255)) - 1);
                     while (slot == 0) {
-                        --slotIndex;
-                        slot = activated[marketId | slotIndex];
+                        uint256 slot2Index = slotIndex / 255;
+                        uint256 slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
+                        slot2 = slot2 & ((1 << (slotIndex % 255)) - 1);
+                        while (slot2 == 0) {
+                            --slot2Index;
+                            slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
+                        }
+                        slotIndex = _searchSlotDown(slot2, slot2Index * 255);
+                        slot = activated[marketId | slotIndex] & MASK_OUT_255_256;
                     }
-                    tick = _searchSlotDown(slot, slotIndex << 8);
+                    tick = _searchSlotDown(slot, slotIndex * 255);
                     _getMarket[market].highestBid = uint80(marketType == 0 ? (tick * tickSize) : _tickToPrice(tick));
                 }
             }
-        }
-    }
-
-    function _mulDiv(uint256 a, uint256 b, uint256 denominator) internal pure returns (uint256 result) {
-        uint256 prod0;
-        uint256 prod1;
-        assembly {
-            let mm := mulmod(a, b, not(0))
-            prod0 := mul(a, b)
-            prod1 := sub(sub(mm, prod0), lt(mm, prod0))
-        }
-        if (prod1 == 0) {
-            require(denominator > 0);
-            assembly {
-                result := div(prod0, denominator)
-            }
-            return result;
-        }
-        require(denominator > prod1);
-        uint256 remainder;
-        assembly {
-            remainder := mulmod(a, b, denominator)
-        }
-        assembly {
-            prod1 := sub(prod1, gt(remainder, prod0))
-            prod0 := sub(prod0, remainder)
-        }
-        uint256 twos = denominator & (~denominator + 1);
-        assembly {
-            denominator := div(denominator, twos)
-        }
-        assembly {
-            prod0 := div(prod0, twos)
-        }
-        assembly {
-            twos := add(div(sub(0, twos), twos), 1)
-        }
-        prod0 |= prod1 * twos;
-        uint256 inv = (3 * denominator) ^ 2;
-        inv *= 2 - denominator * inv;
-        inv *= 2 - denominator * inv;
-        inv *= 2 - denominator * inv;
-        inv *= 2 - denominator * inv;
-        inv *= 2 - denominator * inv;
-        inv *= 2 - denominator * inv;
-
-        result = prod0 * inv;
-        return result;
-    }
-
-    function _mulDivRoundingUp(uint256 a, uint256 b, uint256 denominator) internal pure returns (uint256 result) {
-        result = _mulDiv(a, b, denominator);
-        if (mulmod(a, b, denominator) > 0) {
-            require(result < type(uint256).max);
-            result++;
         }
     }
     // max is a limit on price buckets returned
@@ -555,12 +599,16 @@ contract CrystalMarket {
             if (!isAscending) {
                 ++tick;
             }
-            uint256 count;
+            if (max == 0) {
+                max = type(uint256).max;
+            }
             uint256 price;
             uint256 position;
             uint256 bucket = type(uint256).max;
-            uint256 slotIndex = tick >> 8;
-            uint256 slot = activated[marketId | slotIndex];
+            uint256 slotIndex = tick / 255;
+            uint256 slot = activated[marketId | slotIndex] & MASK_OUT_255_256;
+            uint256 slot2Index = slotIndex / 255;
+            uint256 slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
             assembly {
                 position := mload(0x40)
                 mstore(position, 0x0)
@@ -570,15 +618,27 @@ contract CrystalMarket {
                     distance = ((marketType == 0 ? (_maxPrice / tickSize) : _priceToTick(_maxPrice)) - startPrice);
                 }
                 while (true) {
-                    uint256 _slot = slot >> tick % 256;
-                    while (_slot == 0) {
-                        ++slotIndex;
-                        slot = activated[marketId | slotIndex];
-                        _slot = slot;
-                        tick = slotIndex << 8;
+                    {
+                        uint256 _slot = slot >> tick % 255;
+                        while (_slot == 0) {
+                            uint256 _slot2 = slot2 >> slotIndex % 255;
+                            while (_slot2 == 0) {
+                                ++slot2Index;
+                                slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
+                                _slot2 = slot2;
+                                slotIndex = slot2Index * 255;
+                            }
+                            slotIndex = _searchSlotUp(_slot2, slotIndex);
+                            slot = activated[marketId | slotIndex] & MASK_OUT_255_256;
+                            _slot = slot;
+                            tick = slotIndex * 255;
+                        }
+                        tick = _searchSlotUp(_slot, tick);
                     }
-                    tick = _searchSlotUp(_slot, tick);
-                    slot &= ~(1 << (tick % 256));
+                    slot &= ~(1 << (tick % 255));
+                    if (slot == 0) {
+                        slot2 &= ~(1 << ((slotIndex) % 255));
+                    }
                     price = marketType == 0 ? (tick * tickSize) : _tickToPrice(tick);
                     if ((((price + interval - 1) / interval) * interval) == bucket) {
                         assembly {
@@ -590,10 +650,10 @@ contract CrystalMarket {
                         }
                     }
                     else {
-                        ++count;
-                        if (count > max && max != 0 || (tick >= startPrice + distance)) {
+                        if (max == 0 || (tick >= startPrice + distance)) {
                             break;
                         }
+                        --max;
                         bucket = ((price + interval - 1) / interval) * interval; // round up because ask
                         assembly {
                             mstore(0x00, or(_marketId, price))
@@ -610,14 +670,23 @@ contract CrystalMarket {
                     distance = startPrice;
                 }
                 while (true) {
-                    uint256 _slot = slot & ((1 << (tick % 256)) - 1);
+                    uint256 _slot = slot & ((1 << (tick % 255)) - 1);
                     while (_slot == 0) {
-                        --slotIndex;
-                        slot = activated[marketId | slotIndex];
+                        uint256 _slot2 = slot2 & ((1 << (slotIndex % 255)) - 1);
+                        while (_slot2 == 0) {
+                            --slot2Index;
+                            slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
+                            _slot2 = slot2;
+                        }
+                        slotIndex = _searchSlotDown(_slot2, slot2Index * 255);
+                        slot = activated[marketId | slotIndex] & MASK_OUT_255_256;
                         _slot = slot;
                     }
-                    tick = _searchSlotDown(_slot, slotIndex << 8);
-                    slot &= ~(1 << (tick % 256));
+                    tick = _searchSlotDown(_slot, slotIndex * 255);
+                    slot &= ~(1 << (tick % 255));
+                    if (slot == 0) {
+                        slot2 &= ~(1 << ((slotIndex) % 255));
+                    }
                     price = marketType == 0 ? (tick * tickSize) : _tickToPrice(tick);
                     if ((price / interval * interval) == bucket) {
                         assembly {
@@ -629,10 +698,10 @@ contract CrystalMarket {
                         }
                     }
                     else {
-                        ++count;
-                        if (count > max && max != 0 || (tick <= startPrice - distance)) {
+                        if (max == 0 || (tick <= startPrice - distance)) {
                             break;
                         }
+                        --max;
                         bucket = price / interval * interval; // round down because bid
                         assembly {
                             mstore(0x00, or(_marketId, price))
@@ -704,21 +773,21 @@ contract CrystalMarket {
             ++count;
         }
         if (count == 2) {
-            price = (price + 1) >> 1;
+            uint256 mid = (price + 1) >> 1;
+            price = marketType == 0 ? (mid - (mid % tickSize)) : _toValidPrice(mid, false);
         }
     }
-
+    // view function but delegatecalled with value so needs payable
     function getQuote(bool isBuy, bool isExactInput, bool isCompleteFill, uint256 size, uint256 worstPrice) external payable returns (uint256 amountIn, uint256 amountOut) {
         unchecked {
             ICrystal.Market storage m = _getMarket[market];
             uint256 price;
             if (isBuy) {
-                if (isExactInput) { // orderInfo is 256-252 ordertype 252-248 !isExactInput 248-244 !isBuy 244-240 STP 240-236 !useexternalbalance 236-232 !fromcaller
+                if (isExactInput) {
                     size = (size * m.takerFee) / 100000;
                 }
-                uint256 _maxPrice = maxPrice;
-                if (worstPrice >= _maxPrice) {
-                    worstPrice = _maxPrice - 1;
+                if (worstPrice >= maxPrice) {
+                    worstPrice = (marketType == 0 ? maxPrice - tickSize : _tickToPrice(_priceToTick(maxPrice) - 1));
                 }
                 price = m.lowestAsk;
             }
@@ -727,54 +796,52 @@ contract CrystalMarket {
                     size = (size * 100000 + m.takerFee - 1) / m.takerFee;
                 }
                 if (worstPrice == 0) {
-                    ++worstPrice;
+                    worstPrice = (marketType == 0 ? tickSize : _tickToPrice(1));
                 }
                 price = m.highestBid;
             }
             (uint256 reserveQuote, uint256 reserveBase) = m.isAMMEnabled ? (m.reserveQuote, m.reserveBase) : (0, 0);
             uint256 tick = marketType == 0 ? (price / tickSize) : _priceToTick(price);
-            uint256 slot = activated[marketId | (tick >> 8)];
+            uint256 slot = activated[marketId | (tick / 255)] & MASK_OUT_255_256;
+            uint256 slot2 = activated2[marketId | (tick / 255) / 255] & MASK_OUT_255_256;
             while (isExactInput ? size > amountIn : size > amountOut) {
-                uint256 sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
                 if (reserveQuote != 0) {
-                    uint256 _amountIn = isBuy ? (price > worstPrice ? worstPrice : price) : (price < worstPrice ? worstPrice : price); // stop at either slippage limit or next resting order price
-                    uint256 _amountOut = _amountIn; // set both so one can be used as a temp variable
-                    if (isBuy && (reserveQuote * scaleFactor * 10000 * m.makerRebate) < (_amountIn * (reserveBase * 9975 * 100000))) { // adjust price in favor of amm because no maker rebate
+                    uint256 _amountIn = (isBuy ? (price > worstPrice) : (price < worstPrice)) ? worstPrice : price; // stop at either slippage limit or next resting order price
+                    uint256 _amountOut;
+                    if (isBuy && (reserveQuote * scaleFactor * 10000 * m.makerRebate) < (_amountIn * reserveBase * 9975 * 100000)) { // adjust price in favor of amm because no maker rebate
+                        uint256 sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
                         if (isExactInput) {
-                            _amountOut = reserveQuote * 10000; // reuse to avoid stack too deep
-                            _amountIn = _sqrt(_mulDiv((_amountOut / 9975) * reserveBase * 100000, (_amountIn * 9975 / 10000), m.makerRebate * scaleFactor)) - (_amountOut / 9975); // find optimal amountIn so AMM execution price up to price adjusted for maker rebate
+                            _amountIn = _exactInputBuySolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft); // find optimal amountIn so AMM execution price up to price adjusted for maker rebate
                             if (sizeLeft < _amountIn) {
                                 _amountIn = sizeLeft; // if amount is greater than sizeleft set amount to sizeleft and swap all thru amm
                             }
-                            _amountOut = (_amountIn * 9975 * reserveBase) / (_amountOut + (_amountIn * 9975)); // swap
+                            _amountOut = (_amountIn * 9975 * reserveBase) / ((reserveQuote * 10000) + (_amountIn * 9975)); // swap
                         }
                         else {
-                            _amountIn = reserveQuote * 10000; // reuse to avoid stack too deep
-                            _amountOut = reserveBase - _sqrt(_mulDivRoundingUp(_amountIn * reserveBase * m.makerRebate, scaleFactor, (_amountOut * 9975 / 10000) * (100000 * 9975))); // find optimal amountOut so AMM execution price up to price adjusted for maker rebate
+                            _amountOut = _exactOutputBuySolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft); // find optimal amountOut so AMM execution price up to price adjusted for maker rebate
                             if (sizeLeft < _amountOut) {
                                 _amountOut = sizeLeft; // if amount is greater than sizeleft set amount to sizeleft and swap all thru amm
                             }
-                            _amountIn = (_amountOut * _amountIn) / ((reserveBase - _amountOut) * 9975); // swap
+                            _amountIn = (_amountOut * reserveQuote * 10000) / ((reserveBase - _amountOut) * 9975) + 1; // swap
                         }
                         reserveQuote += _amountIn; // set reserves
                         reserveBase -= _amountOut;
                     }
-                    else if (!isBuy && (reserveQuote * scaleFactor * 9975 * 100000) > (_amountIn * (reserveBase * 10000 * m.makerRebate))) {
+                    else if (!isBuy && (reserveQuote * scaleFactor * 9975 * 100000) > (_amountIn * reserveBase * 10000 * m.makerRebate)) {
+                        uint256 sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
                         if (isExactInput) {
-                            _amountOut = reserveBase * 10000; // reuse to avoid stack too deep
-                            _amountIn = _sqrt(_mulDiv((_amountOut / 9975) * reserveQuote * 100000, scaleFactor, (_amountIn * 10000 / 9975) * m.makerRebate)) - (_amountOut / 9975);
+                            _amountIn = _exactInputSellSolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft);
                             if (sizeLeft < _amountIn) {
                                 _amountIn = sizeLeft;
                             }
-                            _amountOut = ((_amountIn * 9975) * reserveQuote) / (_amountOut + (_amountIn * 9975));
+                            _amountOut = ((_amountIn * 9975) * reserveQuote) / ((reserveBase * 10000) + (_amountIn * 9975));
                         }
                         else {
-                            _amountIn = reserveBase * 10000; // reuse to avoid stack too deep
-                            _amountOut = reserveQuote - _sqrt(_mulDivRoundingUp(_amountIn * reserveQuote * m.makerRebate, (_amountOut * 10000 / 9975), scaleFactor * (100000 * 9975)));
+                            _amountOut = _exactOutputSellSolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft);
                             if (sizeLeft < _amountOut) {
                                 _amountOut = sizeLeft;
                             }
-                            _amountIn = (_amountOut * _amountIn) / ((reserveQuote - _amountOut) * 9975);
+                            _amountIn = (_amountOut * reserveBase * 10000) / ((reserveQuote - _amountOut) * 9975) + 1;
                         }
                         reserveBase += _amountIn;
                         reserveQuote -= _amountOut;
@@ -783,12 +850,10 @@ contract CrystalMarket {
                         _amountIn = 0; // set to 0 if no swap through amm so the next statement doesn't run
                     }
                     if (_amountIn != 0) {
+                        uint256 sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
                         amountIn += _amountIn;
                         amountOut += _amountOut;
-                        if (sizeLeft != (isExactInput ? _amountIn : _amountOut)) { // deduct from sizeleft but if full swap then break
-                            sizeLeft -= (isExactInput ? _amountIn : _amountOut);
-                        }
-                        else {
+                        if (sizeLeft == (isExactInput ? _amountIn : _amountOut)) { // deduct from sizeleft but if full swap then break
                             break;
                         }
                     }
@@ -801,6 +866,7 @@ contract CrystalMarket {
                         break;
                     }
                 }
+                uint256 sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
                 uint256 liquidity = priceLevels[marketId | price] & MASK_KEEP_0_112;
                 if (isExactInput ? (isBuy ? (liquidity > (sizeLeft * m.makerRebate / 100000) * scaleFactor / price) : (liquidity > (sizeLeft * m.makerRebate / 100000) * price / scaleFactor)) : (liquidity > sizeLeft)) {
                     amountOut += (isExactInput ? (isBuy ? (sizeLeft * m.makerRebate / 100000) * scaleFactor / price : (sizeLeft * m.makerRebate / 100000) * price / scaleFactor) : sizeLeft);
@@ -811,33 +877,54 @@ contract CrystalMarket {
                     sizeLeft = 0;
                 }
                 else {
-                    uint256 _amountIn = (isBuy ? (((liquidity * price / scaleFactor) * 100000) / m.makerRebate) : (((liquidity * scaleFactor / price) * 100000) / m.makerRebate));
-                    amountIn += _amountIn;
+                    amountIn += (isBuy ? (((liquidity * price / scaleFactor) * 100000) / m.makerRebate) : (((liquidity * scaleFactor / price) * 100000) / m.makerRebate));
                     amountOut += isBuy ? liquidity : liquidity;
-                    sizeLeft -= isExactInput ? _amountIn : liquidity;
+                    sizeLeft -= isExactInput ? (isBuy ? (((liquidity * price / scaleFactor) * 100000) / m.makerRebate) : (((liquidity * scaleFactor / price) * 100000) / m.makerRebate)) : liquidity;
                     liquidity = 0;
                 }
                 if (liquidity == 0) {
-                    slot &= ~(1 << (tick % 256));
-                    uint256 slotIndex = tick >> 8;
+                    slot &= ~(1 << (tick % 255));
                     if (isBuy) {
-                        uint256 _slot = slot >> tick % 256;
+                        uint256 slotIndex = tick / 255;
+                        if (slot == 0) {
+                            slot2 &= ~(1 << ((slotIndex) % 255));
+                        }
+                        uint256 _slot = slot >> tick % 255;
                         while (_slot == 0) {
-                            ++slotIndex;
-                            slot = activated[marketId | slotIndex];
+                            uint256 slot2Index = slotIndex / 255;
+                            uint256 _slot2 = slot2 >> slotIndex % 255;
+                            while (_slot2 == 0) {
+                                ++slot2Index;
+                                slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
+                                _slot2 = slot2;
+                                slotIndex = slot2Index * 255;
+                            }
+                            slotIndex = _searchSlotUp(_slot2, slotIndex);
+                            slot = activated[marketId | slotIndex] & MASK_OUT_255_256;
                             _slot = slot;
-                            tick = slotIndex << 8;
+                            tick = slotIndex * 255;
                         }
                         tick = _searchSlotUp(_slot, tick);
                     }
                     else {
-                        uint256 _slot = slot & ((1 << (tick % 256)) - 1);
+                        uint256 slotIndex = tick / 255;
+                        if (slot == 0) {
+                            slot2 &= ~(1 << ((slotIndex) % 255));
+                        }
+                        uint256 _slot = slot & ((1 << (tick % 255)) - 1);
                         while (_slot == 0) {
-                            --slotIndex;
-                            slot = activated[marketId | slotIndex];
+                            uint256 slot2Index = slotIndex / 255;
+                            uint256 _slot2 = slot2 & ((1 << (slotIndex % 255)) - 1);
+                            while (_slot2 == 0) {
+                                --slot2Index;
+                                slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
+                                _slot2 = slot2;
+                            }
+                            slotIndex = _searchSlotDown(_slot2, slot2Index * 255);
+                            slot = activated[marketId | slotIndex] & MASK_OUT_255_256;
                             _slot = slot;
                         }
-                        tick = _searchSlotDown(_slot, slotIndex << 8);
+                        tick = _searchSlotDown(_slot, slotIndex * 255);
                     }
                     price = marketType == 0 ? (tick * tickSize) : _tickToPrice(tick);
                 }
@@ -875,29 +962,27 @@ contract CrystalMarket {
             uint256 reserves = m.isAMMEnabled ? ((uint256(m.reserveQuote) << 128) | m.reserveBase) : 0;
             {
                 uint256 tick = marketType == 0 ? (price / tickSize) : _priceToTick(price);
-                uint256 slot = activated[marketId | (tick >> 8)];
+                uint256 slot = activated[marketId | (tick / 255)] & MASK_OUT_255_256;
                 while (((orderInfo >> 248 & 1) == 0) ? size > amountIn : size > amountOut) {
                     uint256 sizeLeft = ((orderInfo >> 248 & 1) == 0) ? size - amountIn : size - amountOut;
                     if (reserves != 0) { // skip amm if not initialized
                         (uint256 reserveQuote, uint256 reserveBase) = (reserves >> 128, reserves & MASK_KEEP_0_112);
                         uint256 _amountIn = (((orderInfo >> 244 & 1) == 0) ? (price > (priceAndReferrer & MASK_KEEP_0_80)) : (price < (priceAndReferrer & MASK_KEEP_0_80))) ? (priceAndReferrer & MASK_KEEP_0_80) : price;
-                        uint256 _amountOut = _amountIn; // set both to price, overwrite the one that isn't needed later on
-                        if (((orderInfo >> 244 & 1) == 0) && (reserveQuote * scaleFactor * 10000 * m.makerRebate) < (_amountIn * (reserveBase * 9975 * 100000))) {
+                        uint256 _amountOut;
+                        if (((orderInfo >> 244 & 1) == 0) && (reserveQuote * scaleFactor * 10000 * m.makerRebate) < (_amountIn * reserveBase * 9975 * 100000)) {
                             if ((orderInfo >> 248 & 1) == 0) {
-                                _amountOut = reserveQuote * 10000; // reuse to avoid stack too deep
-                                _amountIn = _sqrt(_mulDiv((_amountOut / 9975) * reserveBase * 100000, (_amountIn * 9975 / 10000), m.makerRebate * scaleFactor)) - (_amountOut / 9975); // find optimal amountIn so AMM execution price up to price adjusted for maker rebate
+                                _amountIn = _exactInputBuySolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft); // find optimal amountIn so AMM execution price up to price adjusted for maker rebate
                                 if (sizeLeft < _amountIn) {
                                     _amountIn = sizeLeft;
                                 }
-                                _amountOut = ((_amountIn * 9975) * reserveBase) / (_amountOut + (_amountIn * 9975)); // execute v2 swap
+                                _amountOut = (_amountIn * 9975 * reserveBase) / ((reserveQuote * 10000) + (_amountIn * 9975)); // execute v2 swap
                             }
                             else {
-                                _amountIn = reserveQuote * 10000; // reuse to avoid stack too deep
-                                _amountOut = reserveBase - _sqrt(_mulDivRoundingUp(_amountIn * reserveBase * m.makerRebate, scaleFactor, (_amountOut * 9975 / 10000) * (100000 * 9975))); // find optimal amountOut so AMM execution price up to price adjusted for maker rebate
+                                _amountOut = _exactOutputBuySolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft); // find optimal amountOut so AMM execution price up to price adjusted for maker rebate
                                 if (sizeLeft < _amountOut) {
                                     _amountOut = sizeLeft;
                                 }
-                                _amountIn = (_amountOut * _amountIn) / ((reserveBase - _amountOut) * 9975); // execute v2 swap
+                                _amountIn = (_amountOut * reserveQuote * 10000) / ((reserveBase - _amountOut) * 9975) + 1; // execute v2 swap
                             }
                             reserveQuote += _amountIn;
                             reserveBase -= _amountOut;
@@ -905,10 +990,10 @@ contract CrystalMarket {
                                 uint256 pricememory;
                                 assembly { pricememory := mload(0x80) } // top 128 is start price bottom 128 is end price 
                                 uint256 endprice = ((reserveQuote * scaleFactor * 10000 * m.makerRebate) / (reserveBase * 9975 * 100000)); // adjust price in favor of amm because no maker rebate
-                                endprice = marketType == 0 ? (endprice - (endprice % tickSize)) : _toValidPrice(endprice, false); // round down
+                                endprice = endprice > maxPrice ? maxPrice : marketType == 0 ? (endprice - (endprice % tickSize)) : _toValidPrice(endprice, false); // round down
                                 if (pricememory == 0) {
                                     uint256 startprice = (((reserveQuote - _amountIn) * scaleFactor * 10000 * m.makerRebate) / ((reserveBase + _amountOut) * 9975 * 100000));
-                                    startprice = marketType == 0 ? (startprice - (startprice % tickSize)) : _toValidPrice(startprice, false);
+                                    startprice = startprice > maxPrice ? maxPrice : (marketType == 0 ? (startprice - (startprice % tickSize)) : _toValidPrice(startprice, false));
                                     pricememory = (startprice << 128) | endprice; // set start price if needed, temp undo reserve updates
                                 }
                                 else {
@@ -917,22 +1002,20 @@ contract CrystalMarket {
                                 assembly { mstore(0x80, pricememory) }
                             }
                         }
-                        else if (((orderInfo >> 244 & 1) != 0) && (reserveQuote * scaleFactor * 9975 * 100000) > (_amountIn * (reserveBase * 10000 * m.makerRebate))) {
+                        else if (((orderInfo >> 244 & 1) != 0) && (reserveQuote * scaleFactor * 9975 * 100000) > (_amountIn * reserveBase * 10000 * m.makerRebate)) {
                             if ((orderInfo >> 248 & 1) == 0) {
-                                _amountOut = reserveBase * 10000; // reuse to avoid stack too deep
-                                _amountIn = _sqrt(_mulDiv((_amountOut / 9975) * reserveQuote * 100000, scaleFactor, (_amountIn * 10000 / 9975) * m.makerRebate)) - (_amountOut / 9975);
+                                _amountIn = _exactInputSellSolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft);
                                 if (sizeLeft < _amountIn) {
                                     _amountIn = sizeLeft;
                                 }
-                                _amountOut = ((_amountIn * 9975) * reserveQuote) / (_amountOut + (_amountIn * 9975)); // execute v2 swap
+                                _amountOut = ((_amountIn * 9975) * reserveQuote) / ((reserveBase * 10000) + (_amountIn * 9975)); // execute v2 swap
                             }
                             else {
-                                _amountIn = reserveBase * 10000; // reuse to avoid stack too deep
-                                _amountOut = reserveQuote - _sqrt(_mulDivRoundingUp(_amountIn * reserveQuote * m.makerRebate, (_amountOut * 10000 / 9975), scaleFactor * (100000 * 9975)));
+                                _amountOut = _exactOutputSellSolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft);
                                 if (sizeLeft < _amountOut) {
                                     _amountOut = sizeLeft;
                                 }
-                                _amountIn = (_amountOut * _amountIn) / ((reserveQuote - _amountOut) * 9975); // execute v2 swap
+                                _amountIn = (_amountOut * reserveBase * 10000) / ((reserveQuote - _amountOut) * 9975) + 1; // execute v2 swap
                             }
                             reserveBase += _amountIn;
                             reserveQuote -= _amountOut;
@@ -940,10 +1023,10 @@ contract CrystalMarket {
                                 uint256 pricememory;
                                 assembly { pricememory := mload(0x80) } // top 128 is start price bottom 128 is end price 
                                 uint256 endprice = ((reserveQuote * scaleFactor * 9975 * 100000 + (reserveBase * 10000 * m.makerRebate - 1)) / (reserveBase * 10000 * m.makerRebate));
-                                endprice = marketType == 0 ? ((endprice + tickSize - 1) / tickSize) * tickSize : _toValidPrice(endprice, true); // round up
+                                endprice = endprice > maxPrice ? maxPrice : marketType == 0 ? ((endprice + tickSize - 1) / tickSize) * tickSize : _toValidPrice(endprice, true); // round up
                                 if (pricememory == 0) {
                                     uint256 startprice = (((reserveQuote + _amountOut) * scaleFactor * 9975 * 100000 + ((reserveBase - _amountIn) * 10000 * m.makerRebate - 1)) / ((reserveBase - _amountIn) * 10000 * m.makerRebate));
-                                    startprice = marketType == 0 ? ((endprice + tickSize - 1) / tickSize) * tickSize : _toValidPrice(startprice, true);
+                                    startprice = startprice > maxPrice ? maxPrice : (marketType == 0 ? ((endprice + tickSize - 1) / tickSize) * tickSize : _toValidPrice(startprice, true));
                                     pricememory = (startprice << 128) | endprice;
                                 }
                                 else {
@@ -964,8 +1047,8 @@ contract CrystalMarket {
                                 sizeLeft -= (((orderInfo >> 248 & 1) == 0) ? _amountIn : _amountOut);
                             }
                             else {
-                                if (activated[marketId | (tick >> 8)] != slot) { // update activated and break if swap is done
-                                    activated[marketId | (tick >> 8)] = slot;
+                                if (activated[marketId | (tick / 255)] & MASK_OUT_255_256 != slot) { // update activated and break if swap is done
+                                    activated[marketId | (tick / 255)] = slot | MASK_KEEP_255_256;
                                 }
                                 break;
                             }
@@ -976,8 +1059,8 @@ contract CrystalMarket {
                         if ((orderInfo >> 252) == 1) {
                             revert ICrystal.SlippageExceeded();
                         }
-                        if (activated[marketId | (tick >> 8)] != slot) {
-                            activated[marketId | (tick >> 8)] = slot;
+                        if (activated[marketId | (tick / 255)] & MASK_OUT_255_256 != slot) {
+                            activated[marketId | (tick / 255)] = slot | MASK_KEEP_255_256;
                         }
                         if ((orderInfo >> 252) == 2) {
                             if (reserves != 0) { // set reserves so limit order doesn't fail bc of crossing amm
@@ -1067,7 +1150,7 @@ contract CrystalMarket {
                                     assembly {
                                         let length := mload(0xc0)
                                         mstore(add(length, 0xe0), or(mul(LEADING_HEX_1, iszero(isBuy)), or(shl(168, price), or(shl(112, next), and(MASK_KEEP_0_112, _order)))))
-                                        mstore(add(length, 0x100), _amountOut)
+                                        mstore(add(length, 0x100), or(shl(128, sizeLeft), _amountOut))
                                         log3(add(length, 0xe0), 0x40, FILL_SIG, _market, owner)
                                         mstore(0x40, add(length, 0xe0))
                                     }
@@ -1103,7 +1186,7 @@ contract CrystalMarket {
                                     assembly {
                                         let length := mload(0xc0)
                                         mstore(add(length, 0xe0), or(mul(LEADING_HEX_1, and(shr(244, _orderInfo), 1)), or(shl(168, price), shl(112, next))))
-                                        mstore(add(length, 0x100), and(MASK_KEEP_0_112, _order))
+                                        mstore(add(length, 0x100), or(shl(128, transferAmount), _amountOut))
                                         log3(add(length, 0xe0), 0x40, FILL_SIG, _market, owner)
                                         mstore(0x40, add(length, 0xe0))
                                     }
@@ -1131,38 +1214,56 @@ contract CrystalMarket {
                         mstore(0x80, pricememory)
                     }
                     if ((_priceLevel & MASK_KEEP_0_112) == 0) { // if price level was fully filled find next one and potentially update activated bitmap
-                        slot &= ~(1 << (tick % 256));
-                        uint256 slotIndex = tick >> 8;
+                        slot &= ~(1 << (tick % 255));
+                        uint256 slotIndex = tick / 255;
+                        if (slot == 0) {
+                            activated2[marketId | (slotIndex / 255)] &= ~(1 << ((slotIndex) % 255));
+                        }
                         if ((orderInfo >> 244 & 1) == 0) {
-                            uint256 _slot = slot >> tick % 256;
-                            if (_slot == 0 && activated[marketId | slotIndex] != slot) {
-                                activated[marketId | slotIndex] = slot;
+                            uint256 _slot = slot >> tick % 255;
+                            if (_slot == 0 && activated[marketId | slotIndex] & MASK_OUT_255_256 != slot) {
+                                activated[marketId | slotIndex] = slot | MASK_KEEP_255_256;
                             }
                             while (_slot == 0) {
-                                ++slotIndex;
-                                slot = activated[marketId | slotIndex];
+                                uint256 slot2Index = slotIndex / 255;
+                                uint256 slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
+                                slot2 = slot2 >> slotIndex % 255;
+                                while (slot2 == 0) {
+                                    ++slot2Index;
+                                    slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
+                                    slotIndex = slot2Index * 255;
+                                }
+                                slotIndex = _searchSlotUp(slot2, slotIndex);
+                                slot = activated[marketId | slotIndex] & MASK_OUT_255_256;
                                 _slot = slot;
-                                tick = slotIndex << 8;
+                                tick = slotIndex * 255;
                             }
                             tick = _searchSlotUp(_slot, tick);
                         }
                         else {
-                            uint256 _slot = slot & ((1 << (tick % 256)) - 1);
-                            if (_slot == 0 && activated[marketId | slotIndex] != slot) {
-                                activated[marketId | slotIndex] = slot;
+                            uint256 _slot = slot & ((1 << (tick % 255)) - 1);
+                            if (_slot == 0 && activated[marketId | slotIndex] & MASK_OUT_255_256 != slot) {
+                                activated[marketId | slotIndex] = slot | MASK_KEEP_255_256;
                             }
                             while (_slot == 0) {
-                                --slotIndex;
-                                slot = activated[marketId | slotIndex];
+                                uint256 slot2Index = slotIndex / 255;
+                                uint256 slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
+                                slot2 = slot2 & ((1 << (slotIndex % 255)) - 1);
+                                while (slot2 == 0) {
+                                    --slot2Index;
+                                    slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
+                                }
+                                slotIndex = _searchSlotDown(slot2, slot2Index * 255);
+                                slot = activated[marketId | slotIndex] & MASK_OUT_255_256;
                                 _slot = slot;
                             }
-                            tick = _searchSlotDown(_slot, slotIndex << 8);
+                            tick = _searchSlotDown(_slot, slotIndex * 255);
                         }
                         price = marketType == 0 ? (tick * tickSize) : _tickToPrice(tick);
                     }
                     else {
-                        if (activated[marketId | (tick >> 8)] != slot) {
-                            activated[marketId | (tick >> 8)] = slot;
+                        if (activated[marketId | (tick / 255)] & MASK_OUT_255_256 != slot) {
+                            activated[marketId | (tick / 255)] = slot | MASK_KEEP_255_256;
                         }
                     }
                     if (sizeLeft == 0 || ((orderInfo >> 252) == 3 && gasleft() < 200000)) { // 200k gas buffer if type 3 order
@@ -1225,26 +1326,30 @@ contract CrystalMarket {
             ICrystal.Market storage m = _getMarket[market];
             if (isBuy) {
                 (uint256 highestBid, uint256 lowestAsk) = (m.highestBid, m.lowestAsk);
-                if (price >= lowestAsk || (m.isAMMEnabled && m.reserveQuote != 0 && price >= ((m.reserveQuote * scaleFactor * 10000) / (m.reserveBase * 9975) * m.makerRebate / 100000)) || (cloid != 0 && (orders[(cloid << 41) | userId] & MASK_OUT_113_154) != 0) || price == 0 || size < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20))) {
+                if (price >= lowestAsk || (cloid != 0 && (orders[(cloid << 41) | userId] & MASK_OUT_113_154) != 0) || price == 0 || size < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20))) {
                     return (0, 0);
                 }
                 if (price > highestBid) {
                     m.highestBid = uint80(price);
                 }
                 if (!isRecieveTokens) {
-                    tokenBalances[userId][quoteAsset] += (size << 128); // lock tokens if internal
+                    uint256 balance = tokenBalances[userId][quoteAsset];
+                    require(((balance >> 128) + size) <= MASK_KEEP_0_128);
+                    tokenBalances[userId][quoteAsset] = balance + (size << 128); // lock tokens if internal
                 }
             }
             else {
                 (uint256 highestBid, uint256 lowestAsk) = (m.highestBid, m.lowestAsk);
-                if (price <= highestBid || (m.isAMMEnabled && m.reserveQuote != 0 && price <= ((m.reserveQuote * scaleFactor * 9975) / (m.reserveBase * 10000) * 100000 / m.makerRebate)) || (cloid != 0 && (orders[(cloid << 41) | userId] & MASK_OUT_113_154) != 0) || price >= maxPrice || (size * price / scaleFactor) < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20))) {
+                if (price <= highestBid || (cloid != 0 && (orders[(cloid << 41) | userId] & MASK_OUT_113_154) != 0) || price >= maxPrice || (size * price / scaleFactor) < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20))) {
                     return (0, 0);
                 }
                 if (price < lowestAsk) {
                     m.lowestAsk = uint80(price);
                 }
                 if (!isRecieveTokens) {
-                    tokenBalances[userId][baseAsset] += (size << 128); // lock tokens if internal
+                    uint256 balance = tokenBalances[userId][baseAsset];
+                    require(((balance >> 128) + size) <= MASK_KEEP_0_128);
+                    tokenBalances[userId][baseAsset] = balance + (size << 128); // lock tokens if internal
                 }
             }
             uint256 _priceLevel = priceLevels[marketId | price];
@@ -1261,7 +1366,11 @@ contract CrystalMarket {
                 if ((_priceLevel & MASK_KEEP_0_112) == 0) {
                     require(price % tickSize == 0);
                     uint256 tick = marketType == 0 ? (price / tickSize) : _priceToTick(price);
-                    activated[marketId | (tick >> 8)] |= (1 << (tick % 256));
+                    uint256 slot = activated[marketId | (tick / 255)] & MASK_OUT_255_256;
+                    activated[marketId | (tick / 255)] = slot | (1 << (tick % 255)) | MASK_KEEP_255_256;
+                    if (slot == 0) {
+                        activated2[marketId | (tick >> 16)] |= (1 << ((tick / 255) % 255)) | MASK_KEEP_255_256;
+                    }
                     _priceLevel = (cloid << 205) | (_priceLevel & MASK_OUT_205_256); // set fillNext to cloid
                 }
                 else {
@@ -1278,7 +1387,11 @@ contract CrystalMarket {
                 if ((_priceLevel & MASK_KEEP_0_112) == 0) {
                     require(price % tickSize == 0);
                     uint256 tick = marketType == 0 ? (price / tickSize) : _priceToTick(price);
-                    activated[marketId | (tick >> 8)] |= (1 << (tick % 256));
+                    uint256 slot = activated[marketId | (tick / 255)] & MASK_OUT_255_256;
+                    activated[marketId | (tick / 255)] = slot | (1 << (tick % 255)) | MASK_KEEP_255_256;
+                    if (slot == 0) {
+                        activated2[marketId | (tick >> 16)] |= (1 << ((tick / 255) % 255)) | MASK_KEEP_255_256;
+                    }
                     _priceLevel = (id << 205) | (_priceLevel & MASK_OUT_205_256); // set fillNext to id, sometimes redundant
                 }
                 orders[marketId | (price << 48) | id] = ((id + 1) << 205) | (_priceLevel & (MASK_KEEP_0_51 << 154)) | (userId << 113) | (isRecieveTokens ? 0 : (1 << 112)) | size; // fillAfter to id+1, fillBefore to latest
@@ -1554,11 +1667,15 @@ contract CrystalMarket {
             token = isBuy ? baseAsset : quoteAsset;
             if (settlementDelta != 0) { // output token, stp cancels + amountout
                 if (((options >> 68) & 1) != 0) {
-                    tokenBalances[userId][token] += settlementDelta;
+                    uint256 balance = tokenBalances[userId][token] & MASK_KEEP_0_128;
+                    require((balance + settlementDelta) <= MASK_KEEP_0_128);
+                    tokenBalances[userId][token] = (balance + settlementDelta);
                 }
                 else { // use external balance
                     if (((options >> 60) & 1) != 0) {
-                        tokenBalances[0][token] += settlementDelta;
+                        uint256 balance = tokenBalances[0][token] & MASK_KEEP_0_128;
+                        require((balance + settlementDelta) <= MASK_KEEP_0_128);
+                        tokenBalances[0][token] = (balance + settlementDelta);
                     }
                     else {
                         IERC20(token).transfer(msg.sender, settlementDelta);
@@ -1635,14 +1752,18 @@ contract CrystalMarket {
                 address token = isBuy ? quoteAsset : baseAsset;
                 if (useExternalBalances) {
                     if (((options >> 44) & 1) != 0) {
-                        tokenBalances[0][token] += size;
+                        uint256 balance = tokenBalances[0][token] & MASK_KEEP_0_128;
+                        require((balance + size) <= MASK_KEEP_0_128);
+                        tokenBalances[0][token] = (balance + size);
                     }
                     else {
                         IERC20(token).transfer(msg.sender, size);
                     }
                 }
                 else {
-                    tokenBalances[userId][token] += size;
+                    uint256 balance = tokenBalances[userId][token] & MASK_KEEP_0_128;
+                    require((balance + size) <= MASK_KEEP_0_128);
+                    tokenBalances[userId][token] = (balance + size);
                 }
                 emit ICrystal.OrdersUpdated(market, user, abi.encodePacked((isBuy ? 0 : LEADING_HEX_1) | (price << 168) | (id << 112) | size));
             }

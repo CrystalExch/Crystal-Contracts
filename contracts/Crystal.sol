@@ -16,6 +16,7 @@ contract Crystal is ICrystal {
     mapping (address => uint256) public addressToUserId;
     mapping (address => ICrystal.Market) private _getMarket;
     mapping (uint256 => uint256) private activated; // marketid << 128 | slotindex
+    mapping (uint256 => uint256) private activated2; // marketid << 128 | slotindex2
     mapping (uint256 => uint256) private priceLevels; // 0 is an invalid price marketid << 128 | price
     mapping (uint256 => uint256) private orders; // 0 is an invalid cloid, valid range 1-1023 mask uint10; marketid << 128 | price << 48 | id or cloid << 41 | userid
     mapping (uint256 => uint256) private cloidVerify; // two cloids per slot map market and price, never zero slot
@@ -43,6 +44,7 @@ contract Crystal is ICrystal {
 
     uint256 private constant MASK_OUT_113_154 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFC0000000001FFFFFFFFFFFFFFFFFFFFFFFFFFFF;
     uint256 private constant MASK_OUT_0_128 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000000000000000000000000000;
+    uint256 private constant MASK_KEEP_255_256 = 0x8000000000000000000000000000000000000000000000000000000000000000;
     uint256 private constant MASK_KEEP_0_20 = 0xFFFFF;
     uint256 private constant MASK_KEEP_0_41 = 0x1FFFFFFFFFF;
     uint256 private constant MASK_KEEP_0_48 = 0xFFFFFFFFFFFF;
@@ -255,7 +257,7 @@ contract Crystal is ICrystal {
         uint256 order = orders[(cloid << 41) | userId];
         uint256 price = cloidVerify[((cloid | 1) << 41) | userId];
         uint256 marketId;
-        if (cloid & 1 == 1) {
+        if (cloid & 1 != 0) {
             marketId = ((price >> 80) & MASK_KEEP_0_48);
             price = price & MASK_KEEP_0_80;
         }
@@ -301,7 +303,9 @@ contract Crystal is ICrystal {
         uint256 options;
         if (msg.value != 0) {
             IWETH(weth).deposit{value: msg.value}();
-            tokenBalances[0][weth] += msg.value;
+            uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
+            require((balance + msg.value) <= MASK_KEEP_0_128);
+            tokenBalances[0][weth] = (balance + msg.value);
             options = _getMarket[market].quoteAsset == weth ? (1) : (1 << 4);
         }
         _verifyMarketAndLock(market);
@@ -319,7 +323,7 @@ contract Crystal is ICrystal {
             }
         }
         if (msg.value != 0) {
-            uint256 balance = tokenBalances[0][weth];
+            uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
             if (balance != 0) {
                 tokenBalances[0][weth] = 0;
                 IWETH(weth).withdraw(balance);
@@ -352,7 +356,7 @@ contract Crystal is ICrystal {
                 amountBase  := mload(add(0x80, 0x20))
             }
         }
-        uint256 balance = tokenBalances[0][weth];
+        uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
         if (balance != 0) {
             tokenBalances[0][weth] = 0;
             IWETH(weth).withdraw(balance);
@@ -390,13 +394,15 @@ contract Crystal is ICrystal {
         }
         if (msg.value != 0) {
             IWETH(weth).deposit{value: msg.value}();
-            tokenBalances[0][weth] += msg.value;
+            uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
+            require((balance + msg.value) <= MASK_KEEP_0_128);
+            tokenBalances[0][weth] = (balance + msg.value);
         }
         _verifyMarketAndLock(market);
         (bool result, bytes memory ret) = market.delegatecall(
             abi.encodeWithSelector(0x5c2a91ec, actions, options, referrer, user)
         );
-        uint256 balance = tokenBalances[0][weth];
+        uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
         if (balance != 0) {
             tokenBalances[0][weth] = 0;
             IWETH(weth).withdraw(balance);
@@ -539,7 +545,9 @@ contract Crystal is ICrystal {
         else {
             IERC20(token).transferFrom(msg.sender, address(this), amount);
         }
-        tokenBalances[userId][token] += amount;
+        uint256 balance = tokenBalances[userId][token] & MASK_KEEP_0_128;
+        require((balance + amount) <= MASK_KEEP_0_128);
+        tokenBalances[userId][token] = (balance + amount);
         emit ICrystal.Deposit(msg.sender, userId, token, amount);
     }
     // if amount = 0 withdraw all
@@ -552,7 +560,7 @@ contract Crystal is ICrystal {
         uint256 userId = addressToUserId[msg.sender];
         uint256 balance = tokenBalances[userId][token];
         if (amount == 0) {
-            amount = balance;
+            amount = uint128(balance);
         }
         if (uint128(balance) < amount) {
             revert ICrystal.ActionFailed();
@@ -578,7 +586,7 @@ contract Crystal is ICrystal {
             revert ICrystal.Unauthorized(msg.sender);
         }
         for (uint256 i; i < ids.length; ++i) {
-            if (ids[i] & 1 == 1) {
+            if (ids[i] & 1 != 0) {
                 cloidVerify[((ids[i] | 1) << 41) | userId] &= MASK_OUT_0_128;
             }
             else {
@@ -587,6 +595,32 @@ contract Crystal is ICrystal {
             if ((orders[(ids[i] << 41) | userId] & MASK_OUT_113_154) == 0) {
                 delete orders[(ids[i] << 41) | userId];
             }
+        }
+    }
+    // to make gas costs more deterministic
+    function writeCloidSlots(uint256 userId, uint256[] calldata ids) external {
+        if (msg.sender != userIdToAddress[userId]) {
+            revert ICrystal.Unauthorized(msg.sender);
+        }
+        for (uint256 i; i < ids.length; ++i) {
+            if (orders[(ids[i] << 41) | userId] == 0) {
+                orders[(ids[i] << 41) | userId] |= (userId << 113);
+                if (ids[i] & 1 != 0) {
+                    cloidVerify[((ids[i] | 1) << 41) | userId] |= MASK_KEEP_0_128;
+                }
+                else {
+                    cloidVerify[((ids[i] | 1) << 41) | userId] |= MASK_OUT_0_128;
+                }
+            }
+        }
+    }
+    // to make gas costs more deterministic
+    function writeSlots(address market, uint256[] calldata slotIndexes, uint256[] calldata slotIndexes2) external {
+        for (uint256 i; i < slotIndexes.length; ++i) {
+            activated[(marketToMarketId[market] << 128) | slotIndexes[i]] |= MASK_KEEP_255_256;
+        }
+        for (uint256 i; i < slotIndexes2.length; ++i) {
+            activated2[(marketToMarketId[market] << 128) | slotIndexes2[i]] |= MASK_KEEP_255_256;
         }
     }
     // vault/margin operators can claim to their wallet, resets any pending expiry claims
@@ -671,6 +705,9 @@ contract Crystal is ICrystal {
             (m.creator, m.creatorFeeSplit) = (msg.sender, uint8(launchpadParams.graduatedCreatorFeeSplit));
             m.lowestAsk = uint80(maxPrice);
             activated[(marketId << 128)] = 1; // index 0
+            activated2[(marketId << 128)] = 1;
+            activated[(marketId << 128) | (maxTick / 255)] = (1 << (maxTick % 255));
+            activated2[(marketId << 128) | ((maxTick / 255) / 255)] = (1 << ((maxTick / 255) % 255));
             uint256 minSizeZeroes;
             uint256 tempMinSize = minSize;
             while (tempMinSize != 0 && tempMinSize % 10 == 0) {
@@ -679,7 +716,6 @@ contract Crystal is ICrystal {
             }
             require(tempMinSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20 && marketId < MASK_KEEP_0_48); // minSize is encoded as bits 20-40 * 10 ** bits 0-20, marketid max uint48 minsize is variable to prevent dos
             m.minSize = uint40((tempMinSize << 20) | minSizeZeroes);
-            activated[(marketId << 128) | (maxTick >> 8)] = (1 << (maxTick % 256));
         }
         allMarkets.push(market);
         marketToMarketId[market] = marketId;
@@ -827,7 +863,9 @@ contract Crystal is ICrystal {
         else {
             IERC20(token).transferFrom(msg.sender, address(this), amount);
         }
-        tokenBalances[0][token] += amount;
+        uint256 balance = tokenBalances[0][token] & MASK_KEEP_0_128;
+        require((balance + amount) <= MASK_KEEP_0_128);
+        tokenBalances[0][token] = (balance + amount);
     }
     // if amount = 0 withdraw all
     function routerWithdraw(address to, address token, uint256 amount) external {
@@ -838,7 +876,7 @@ contract Crystal is ICrystal {
         }
         uint256 balance = tokenBalances[0][token];
         if (amount == 0) {
-            amount = balance;
+            amount = uint128(balance);
         }
         if (uint128(balance) < amount) {
             revert ICrystal.ActionFailed();
@@ -866,7 +904,9 @@ contract Crystal is ICrystal {
             revert ICrystal.Expired(deadline);
         }
         IWETH(weth).deposit{value: msg.value}();
-        tokenBalances[0][weth] += msg.value;
+        uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
+        require((balance + msg.value) <= MASK_KEEP_0_128);
+        tokenBalances[0][weth] = (balance + msg.value);
         amounts = exactInputSwap(msg.value, path, to, referrer);
         if (amountOutMin > amounts[amounts.length - 1]) {
             revert ICrystal.SlippageExceeded();
@@ -948,7 +988,9 @@ contract Crystal is ICrystal {
             revert ICrystal.SlippageExceeded();
         }
         IWETH(weth).deposit{value: msg.value}();
-        tokenBalances[0][weth] += msg.value;
+        uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
+        require((balance + msg.value) <= MASK_KEEP_0_128);
+        tokenBalances[0][weth] = (balance + msg.value);
         exactOutputSwap(amounts, path, to, referrer);
         if (to != msg.sender) {
             address token = path[path.length - 1];
@@ -1039,7 +1081,9 @@ contract Crystal is ICrystal {
         }
         if (tokenIn == eth) {
             IWETH(weth).deposit{value: msg.value}();
-            tokenBalances[0][weth] += msg.value;
+            balance = tokenBalances[0][weth];
+            require((balance + msg.value) <= MASK_KEEP_0_128);
+            tokenBalances[0][weth] = (balance + msg.value);
         }
         assembly {
             if tload(0x0) { revert(0, 0) }
@@ -1082,7 +1126,9 @@ contract Crystal is ICrystal {
         }
         if (isETHIn) {
             IWETH(weth).deposit{value: msg.value}();
-            tokenBalances[0][weth] += msg.value;
+            uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
+            require((balance + msg.value) <= MASK_KEEP_0_128);
+            tokenBalances[0][weth] = (balance + msg.value);
         }
         assembly {
             if tload(0x0) { revert(0, 0) }
@@ -1152,7 +1198,9 @@ contract Crystal is ICrystal {
         }
         if (tokenIn == eth) {
             IWETH(weth).deposit{value: msg.value}();
-            tokenBalances[0][weth] += msg.value;
+            uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
+            require((balance + msg.value) <= MASK_KEEP_0_128);
+            tokenBalances[0][weth] = (balance + msg.value);
         }
         assembly {
             if tload(0x0) { revert(0, 0) }
@@ -1165,7 +1213,7 @@ contract Crystal is ICrystal {
         }
         id = abi.decode(ret, (uint256));
         if (tokenIn == eth || tokenOut == eth) {
-            uint256 balance = tokenBalances[0][weth];
+            uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
             if (balance != 0) {
                 tokenBalances[0][weth] = 0;
                 IWETH(weth).withdraw(balance);
@@ -1187,7 +1235,9 @@ contract Crystal is ICrystal {
         }
         if (msg.value != 0) {
             IWETH(weth).deposit{value: msg.value}();
-            tokenBalances[0][weth] += msg.value;
+            uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
+            require((balance + msg.value) <= MASK_KEEP_0_128);
+            tokenBalances[0][weth] = (balance + msg.value);
         }
         assembly {
             if tload(0x0) { revert(0, 0) }
@@ -1208,7 +1258,7 @@ contract Crystal is ICrystal {
                 case 0 { revert(add(ret, 32), mload(ret)) }
             }
         }
-        uint256 balance = tokenBalances[0][weth];
+        uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
         if (balance != 0) {
             tokenBalances[0][weth] = 0;
             IWETH(weth).withdraw(balance);
@@ -1256,7 +1306,9 @@ contract Crystal is ICrystal {
         (m.quoteAsset, m.baseAsset, m.marketId, m.scaleFactor, m.tickSize) = (weth, token, marketId, 9, 1); // immutable params but for _getMarket
         (m.maxPrice, m.marketType, m.creator, m.creatorFeeSplit) = (1000000000000000, 3, msg.sender, uint8(launchpadParams.graduatedCreatorFeeSplit));
         activated[(marketId << 128)] = 1; // index 0
-        activated[(marketId << 128) | (maxTick >> 8)] = (1 << (maxTick % 256));
+        activated2[(marketId << 128)] = 1;
+        activated[(marketId << 128) | (maxTick / 255)] = (1 << (maxTick % 255));
+        activated2[(marketId << 128) | ((maxTick / 255) / 255)] = (1 << ((maxTick / 255) % 255));
         allMarkets.push(market);
         marketToMarketId[market] = marketId;
         marketIdToMarket[marketId] = market;
@@ -1293,8 +1345,8 @@ contract Crystal is ICrystal {
                 uint256 amountAfterFee = (inputAmount * launchpadParams.launchpadFee) / 100000;
                 uint256 collectedFee = inputAmount - amountAfterFee;
                 uint256 creatorFee = collectedFee * launchpadParams.launchpadCreatorFeeSplit / 100;
-                claimableRewards[weth][gov] += creatorFee;
-                claimableRewards[weth][launchpadMarket.creator] += collectedFee - creatorFee;
+                claimableRewards[weth][launchpadMarket.creator] += creatorFee;
+                claimableRewards[weth][gov] += (collectedFee - creatorFee);
                 launchpadMarket.virtualNativeReserve += uint112(amountAfterFee);
                 uint256 oldTokenReserve = launchpadMarket.virtualTokenReserve;
                 launchpadMarket.virtualTokenReserve = uint112(launchpadMarket.k / launchpadMarket.virtualNativeReserve);
@@ -1310,8 +1362,8 @@ contract Crystal is ICrystal {
                     IWETH(weth).deposit{value: inputAmount}();
                     uint256 collectedFee = inputAmount - ((inputAmount * launchpadParams.launchpadFee) / 100000);
                     uint256 creatorFee = collectedFee * launchpadParams.launchpadCreatorFeeSplit / 100;
-                    claimableRewards[weth][gov] += creatorFee;
-                    claimableRewards[weth][launchpadMarket.creator] += collectedFee - creatorFee;
+                    claimableRewards[weth][launchpadMarket.creator] += creatorFee;
+                    claimableRewards[weth][gov] += (collectedFee - creatorFee);
                     launchpadMarket.virtualNativeReserve = uint112(launchpadMarket.k / 200000000000000000000000000);
                     uint256 oldTokenReserve = launchpadMarket.virtualTokenReserve;
                     launchpadMarket.virtualTokenReserve = uint112(launchpadMarket.k / launchpadMarket.virtualNativeReserve);
@@ -1321,10 +1373,10 @@ contract Crystal is ICrystal {
                 else {
                     inputAmount = (preFeeIn * 100000 + launchpadParams.launchpadFee - 1) / launchpadParams.launchpadFee;
                     require(amountOut < launchpadMarket.virtualTokenReserve && inputAmount <= amountIn);
-                    uint256 fee = inputAmount - preFeeIn;
-                    uint256 creatorFee = (fee * launchpadParams.launchpadCreatorFeeSplit) / 100;
-                    claimableRewards[weth][gov] += creatorFee;
-                    claimableRewards[weth][launchpadMarket.creator] += (fee - creatorFee);
+                    uint256 collectedFee = inputAmount - preFeeIn;
+                    uint256 creatorFee = (collectedFee * launchpadParams.launchpadCreatorFeeSplit) / 100;
+                    claimableRewards[weth][launchpadMarket.creator] += creatorFee;
+                    claimableRewards[weth][gov] += (collectedFee - creatorFee);
                     launchpadMarket.virtualNativeReserve = uint112(newNative);
                     launchpadMarket.virtualTokenReserve = uint112(newToken);
                     IWETH(weth).deposit{value: inputAmount}();
@@ -1368,7 +1420,7 @@ contract Crystal is ICrystal {
                 ICrystal.MarketDetails memory details = ICrystal.MarketDetails(
                     marketToMarketId[market],
                     2,
-                    21,
+                    9,
                     1,
                     1000000000000000,
                     launchpadParams.graduatedMinSize,
@@ -1383,7 +1435,11 @@ contract Crystal is ICrystal {
         if (isExactInput ? inputAmount < amountIn : outputAmount < amountOut) { // graduated, swap thru amm
             uint256 newInputAmount = (msg.value - inputAmount);
             IWETH(weth).deposit{value: newInputAmount}();
-            tokenBalances[0][weth] += newInputAmount;
+            {
+                uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
+                require((balance + newInputAmount) <= MASK_KEEP_0_128);
+                tokenBalances[0][weth] = (balance + newInputAmount);
+            }
             if (!isExactInput) {
                 newInputAmount = amountOut - outputAmount;
             }
@@ -1432,8 +1488,8 @@ contract Crystal is ICrystal {
                 uint256 amountAfterFee = (outputAmount * launchpadParams.launchpadFee) / 100000;
                 uint256 collectedFee = outputAmount - amountAfterFee;
                 uint256 creatorFee = collectedFee * launchpadParams.launchpadCreatorFeeSplit / 100;
-                claimableRewards[weth][gov] += creatorFee;
-                claimableRewards[weth][launchpadMarket.creator] += collectedFee - creatorFee;
+                claimableRewards[weth][launchpadMarket.creator] += creatorFee;
+                claimableRewards[weth][gov] += (collectedFee - creatorFee);
                 outputAmount = amountAfterFee;
                 require(outputAmount >= amountOut);
                 IWETH(weth).withdraw(outputAmount);
@@ -1451,10 +1507,10 @@ contract Crystal is ICrystal {
                 IERC20(token).transferFrom(msg.sender, address(this), inputAmount);
                 launchpadMarket.virtualNativeReserve = uint112(newNative);
                 launchpadMarket.virtualTokenReserve = uint112(newToken);
-                uint256 fee = outputAmountWithFee - amountOut;
-                uint256 creatorFee = (fee * launchpadParams.launchpadCreatorFeeSplit) / 100;
-                claimableRewards[weth][gov] += creatorFee;
-                claimableRewards[weth][launchpadMarket.creator] += (fee - creatorFee);
+                uint256 collectedFee = outputAmountWithFee - amountOut;
+                uint256 creatorFee = (collectedFee * launchpadParams.launchpadCreatorFeeSplit) / 100;
+                claimableRewards[weth][launchpadMarket.creator] += creatorFee;
+                claimableRewards[weth][gov] += (collectedFee - creatorFee);
                 outputAmount = amountOut;
                 IWETH(weth).withdraw(amountOut);
                 (bool success, ) = msg.sender.call{value: amountOut}("");
@@ -1476,7 +1532,7 @@ contract Crystal is ICrystal {
                 if (!result) {
                     revert ICrystal.ActionFailed();
                 }
-                uint256 balance = tokenBalances[0][weth];
+                uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
                 if (balance != 0) {
                     tokenBalances[0][weth] = 0;
                     IWETH(weth).withdraw(balance);
