@@ -48,6 +48,7 @@ interface ICrystal {
         uint256 tickSize;
         uint256 maxPrice;
         address creator;
+        uint88 createTimestamp;
         uint8 creatorFeeSplit;
     }
 
@@ -109,39 +110,14 @@ interface ICrystal {
         uint256 tickSize; // uint80
         uint256 maxPrice; // uint80
     }
-
-    struct TriggerOrder {
-        uint256 userId;
-        uint256 executionPrice;
-        bool isBuy;
-        bool isExactInput;
-        uint256 options;
-        uint256 orderType;
-        uint256 size;
-        uint256 worstPrice;
-        address referrer;
-    }
-
-    struct DCAOrder {
-        uint256 userId;
-        uint256 suborderCount;
-        uint256 startTime;
-        uint256 interval;
-        uint256 currentSuborder;
-        bool isBuy;
-        bool isExactInput;
-        uint256 options;
-        uint256 totalSize;
-        uint256 executedSize;
-        address referrer;
-    }
-
+    
     struct LaunchpadMarket {
         uint112 virtualNativeReserve;
         uint112 virtualTokenReserve;
         uint256 k;
         address creator;
         address market;
+        uint88 createTimestamp;
     }
 
     struct LaunchpadParams {
@@ -203,7 +179,7 @@ interface ICrystal {
     function allMarkets(uint256) external view returns (address);
     function parameters() external view returns (address, address, uint256, uint256, uint256, uint256, uint256);
     function launchpadParams() external view returns (uint112, uint256, uint256, uint256, uint256, uint256, uint256);
-    function launchpadTokenToMarket(address) external view returns (uint112, uint112, uint256, address, address);
+    function launchpadTokenToMarket(address) external view returns (uint112, uint112, uint256, address, address, uint88);
     function allTokens(uint256) external view returns (address);
     function weth() external view returns (address);
     function eth() external view returns (address);

@@ -176,6 +176,7 @@ contract CrystalMarket {
             amountBase = amountBaseDesired;
             liquidity = _sqrt(amountQuote * (amountBase)) - 10000;
             IERC20(market).mint(address(0), 10000);
+            require(m.highestBid < ((amountQuote * scaleFactor * 10000 * m.makerRebate) / (amountBase * 9975 * 100000)) && m.lowestAsk > ((amountQuote * scaleFactor * 9975 * 100000) / (amountBase * 10000 * m.makerRebate)));
         } else {
             uint256 amountBaseOptimal = (amountQuoteDesired * reserveBase) / reserveQuote;
             if (amountBaseOptimal <= amountBaseDesired) {
@@ -204,7 +205,7 @@ contract CrystalMarket {
             tokenBalances[0][baseAsset] -= amountBase; // checked
         }
         IERC20(market).mint(to, liquidity);
-        require(liquidity != 0 && amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && reserveQuote <= MASK_KEEP_0_112 && reserveBase <= MASK_KEEP_0_112 && m.isAMMEnabled == true && maxPrice >= ((reserveQuote * scaleFactor * 10000* m.makerRebate) / (reserveBase * 9975 * 100000)));
+        require(liquidity != 0 && amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && reserveQuote <= MASK_KEEP_0_112 && reserveBase <= MASK_KEEP_0_112 && m.isAMMEnabled == true);
         (m.reserveQuote, m.reserveBase) = (reserveQuote, reserveBase);
         emit ICrystal.Sync(market, reserveQuote, reserveBase);
         emit ICrystal.Mint(market, msg.sender, amountQuote, amountBase);
@@ -216,8 +217,8 @@ contract CrystalMarket {
         IERC20(market).transferFrom(msg.sender, address(this), liquidity);
 
         uint256 _totalSupply = IERC20(market).totalSupply();
-        amountQuote = liquidity * reserveQuote / _totalSupply;
-        amountBase = liquidity * reserveBase / _totalSupply;
+        amountBase  = (liquidity * reserveBase) / _totalSupply;
+        amountQuote = (amountBase * reserveQuote) / reserveBase;
         IERC20(market).burn(address(this), liquidity);
         if ((options & 1) == 0) {
             IERC20(quoteAsset).transfer(to, amountQuote);
@@ -238,7 +239,7 @@ contract CrystalMarket {
         reserveQuote -= uint112(amountQuote); // checked
         reserveBase -= uint112(amountBase); // checked
 
-        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && maxPrice >= ((reserveQuote * scaleFactor * 10000 * m.makerRebate) / (reserveBase * 9975 * 100000)));
+        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && maxPrice >= ((reserveQuote * scaleFactor * 10000 * m.makerRebate) / (reserveBase * 9975 * 100000))); // is the maxprice check useless?
         (m.reserveQuote, m.reserveBase) = (reserveQuote, reserveBase);
         emit ICrystal.Sync(market, reserveQuote, reserveBase);
         emit ICrystal.Burn(market, msg.sender, amountQuote, amountBase, to);
@@ -419,7 +420,7 @@ contract CrystalMarket {
         }
     }
     
-    function _addToOrdersUpdatedEvent(uint256 logData) internal {
+    function _addToOrdersUpdatedEvent(uint256 logData) internal pure {
         assembly {
             let length := mload(0xc0)
             mstore(add(length, 0xe0), logData)
@@ -850,10 +851,9 @@ contract CrystalMarket {
                         _amountIn = 0; // set to 0 if no swap through amm so the next statement doesn't run
                     }
                     if (_amountIn != 0) {
-                        uint256 sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
                         amountIn += _amountIn;
                         amountOut += _amountOut;
-                        if (sizeLeft == (isExactInput ? _amountIn : _amountOut)) { // deduct from sizeleft but if full swap then break
+                        if ((isExactInput ? (size - amountIn) : (size - amountOut)) == (isExactInput ? _amountIn : _amountOut)) { // deduct from sizeleft but if full swap then break
                             break;
                         }
                     }
@@ -1326,7 +1326,7 @@ contract CrystalMarket {
             ICrystal.Market storage m = _getMarket[market];
             if (isBuy) {
                 (uint256 highestBid, uint256 lowestAsk) = (m.highestBid, m.lowestAsk);
-                if (price >= lowestAsk || (cloid != 0 && (orders[(cloid << 41) | userId] & MASK_OUT_113_154) != 0) || price == 0 || size < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20))) {
+                if (price >= lowestAsk || (m.isAMMEnabled && m.reserveQuote != 0 && price >= ((m.reserveQuote * scaleFactor * 10000) / (m.reserveBase * 9975) * m.makerRebate / 100000)) || (cloid != 0 && (orders[(cloid << 41) | userId] & MASK_OUT_113_154) != 0) || price == 0 || size < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20))) {
                     return (0, 0);
                 }
                 if (price > highestBid) {
@@ -1340,7 +1340,7 @@ contract CrystalMarket {
             }
             else {
                 (uint256 highestBid, uint256 lowestAsk) = (m.highestBid, m.lowestAsk);
-                if (price <= highestBid || (cloid != 0 && (orders[(cloid << 41) | userId] & MASK_OUT_113_154) != 0) || price >= maxPrice || (size * price / scaleFactor) < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20))) {
+                if (price <= highestBid || (m.isAMMEnabled && m.reserveQuote != 0 && price <= ((m.reserveQuote * scaleFactor * 9975) / (m.reserveBase * 10000) * 100000 / m.makerRebate)) || (cloid != 0 && (orders[(cloid << 41) | userId] & MASK_OUT_113_154) != 0) || price >= maxPrice || (size * price / scaleFactor) < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20))) {
                     return (0, 0);
                 }
                 if (price < lowestAsk) {
