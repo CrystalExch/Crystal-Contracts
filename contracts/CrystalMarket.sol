@@ -360,8 +360,8 @@ contract CrystalMarket {
                 uint256 mid = (low + high) >> 1;
                 uint256 den = 9975 * (reserveBase - ((mid * 9975 * reserveBase) / (reserveQuote * 10000 + mid * 9975)));
                 uint256 num = (reserveQuote + mid) * 10000;
-                uint256 pMid = (num * _scaleFactor + den - 1) / den;
-                if (pMid * makerRebate >= targetPrice * 100000) {
+                uint256 pMid = (num * _scaleFactor * makerRebate + ((den * 100000) - 1)) / (den * 100000);
+                if (pMid > targetPrice) {
                     high = mid;
                 } else {
                     low = mid + 1;
@@ -377,8 +377,8 @@ contract CrystalMarket {
                 uint256 mid = (low + high) >> 1;
                 uint256 num = (reserveQuote + ((mid * reserveQuote * 10000 + ((reserveBase - mid) * 9975 - 1)) / ((reserveBase - mid) * 9975)) + 1) * 10000;
                 uint256 den = 9975 * (reserveBase - mid);
-                uint256 pMid = (num * _scaleFactor + den - 1) / den;
-                if (pMid * makerRebate >= targetPrice * 100000) {
+                uint256 pMid = (num * _scaleFactor * makerRebate + ((den * 100000) - 1)) / (den * 100000);
+                if (pMid > targetPrice) {
                     high = mid;
                 } else {
                     low = mid + 1;
@@ -393,8 +393,8 @@ contract CrystalMarket {
                 uint256 mid = (low + high) >> 1;
                 uint256 num = 9975 * (reserveQuote - ((mid * 9975 * reserveQuote) / (reserveBase * 10000 + mid * 9975)));
                 uint256 den = (reserveBase + mid) * 10000;
-                uint256 pMid = num * _scaleFactor / den;
-                if (pMid * 100000 <= targetPrice * makerRebate) {
+                uint256 pMid = num * _scaleFactor * 100000 / (den * makerRebate);
+                if (pMid < targetPrice) {
                     high = mid;
                 } else {
                     low = mid + 1;
@@ -410,8 +410,8 @@ contract CrystalMarket {
                 uint256 mid = (low + high) >> 1;
                 uint256 den = (reserveBase + ((mid * reserveBase * 10000 + ((reserveQuote - mid) * 9975 - 1)) / ((reserveQuote - mid) * 9975)) + 1) * 10000;
                 uint256 num = 9975 * (reserveQuote - mid);
-                uint256 pMid = num * _scaleFactor / den;
-                if (pMid * 100000 <= targetPrice * makerRebate) {
+                uint256 pMid = num * _scaleFactor * 100000 / (den * makerRebate);
+                if (pMid < targetPrice) {
                     high = mid;
                 } else {
                     low = mid + 1;
