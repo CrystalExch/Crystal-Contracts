@@ -176,7 +176,7 @@ contract CrystalMarket {
             amountBase = amountBaseDesired;
             liquidity = _sqrt(amountQuote * (amountBase)) - 10000;
             IERC20(market).mint(address(0), 10000);
-            require(m.highestBid < ((amountQuote * scaleFactor * 10000 * m.makerRebate) / (amountBase * 9975 * 100000)) && m.lowestAsk > ((amountQuote * scaleFactor * 9975 * 100000) / (amountBase * 10000 * m.makerRebate)));
+            require(m.highestBid <= ((amountQuote * scaleFactor * 10000 * m.makerRebate + (amountBase * 9975 * 100000 - 1)) / (amountBase * 9975 * 100000)) && m.lowestAsk >= ((amountQuote * scaleFactor * 9975 * 100000) / (amountBase * 10000 * m.makerRebate)));
         } else {
             uint256 amountBaseOptimal = (amountQuoteDesired * reserveBase) / reserveQuote;
             if (amountBaseOptimal <= amountBaseDesired) {
@@ -239,7 +239,7 @@ contract CrystalMarket {
         reserveQuote -= uint112(amountQuote); // checked
         reserveBase -= uint112(amountBase); // checked
 
-        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && maxPrice >= ((reserveQuote * scaleFactor * 10000 * m.makerRebate) / (reserveBase * 9975 * 100000))); // is the maxprice check useless?
+        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && m.highestBid <= ((reserveQuote * scaleFactor * 10000 * m.makerRebate + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000)) && m.lowestAsk >= ((reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * m.makerRebate)));
         (m.reserveQuote, m.reserveBase) = (reserveQuote, reserveBase);
         emit ICrystal.Sync(market, reserveQuote, reserveBase);
         emit ICrystal.Burn(market, msg.sender, amountQuote, amountBase, to);
@@ -354,13 +354,13 @@ contract CrystalMarket {
         }
     }
 
-    function _exactInputBuySolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 sf, uint256 makerRebate, uint256 high) internal pure returns (uint256 low) {
+    function _exactInputBuySolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 _scaleFactor, uint256 makerRebate, uint256 high) internal pure returns (uint256 low) {
         unchecked {
             while (low < high) {
                 uint256 mid = (low + high) >> 1;
                 uint256 den = 9975 * (reserveBase - ((mid * 9975 * reserveBase) / (reserveQuote * 10000 + mid * 9975)));
                 uint256 num = (reserveQuote + mid) * 10000;
-                uint256 pMid = num * sf / den;
+                uint256 pMid = (num * _scaleFactor + den - 1) / den;
                 if (pMid * 100000 >= targetPrice * makerRebate) {
                     high = mid;
                 } else {
@@ -370,14 +370,14 @@ contract CrystalMarket {
         }
     }
 
-    function _exactOutputBuySolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 sf, uint256 makerRebate, uint256 high) internal pure returns (uint256 low) {
+    function _exactOutputBuySolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 _scaleFactor, uint256 makerRebate, uint256 high) internal pure returns (uint256 low) {
         unchecked {
             high = high > (reserveBase - 1) ? (reserveBase - 1) : high;
             while (low < high) {
                 uint256 mid = (low + high) >> 1;
-                uint256 num = (reserveQuote + ((mid * reserveQuote * 10000) / ((reserveBase - mid) * 9975)) + 1) * 10000;
+                uint256 num = (reserveQuote + ((mid * reserveQuote * 10000 + ((reserveBase - mid) * 9975 - 1)) / ((reserveBase - mid) * 9975)) + 1) * 10000;
                 uint256 den = 9975 * (reserveBase - mid);
-                uint256 pMid = num * sf / den;
+                uint256 pMid = (num * _scaleFactor + den - 1) / den;
                 if (pMid * 100000 >= targetPrice * makerRebate) {
                     high = mid;
                 } else {
@@ -387,13 +387,13 @@ contract CrystalMarket {
         }
     }
 
-    function _exactInputSellSolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 sf, uint256 makerRebate, uint256 high) internal pure returns (uint256 low) {
+    function _exactInputSellSolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 _scaleFactor, uint256 makerRebate, uint256 high) internal pure returns (uint256 low) {
         unchecked {
             while (low < high) {
                 uint256 mid = (low + high) >> 1;
                 uint256 num = 9975 * (reserveQuote - ((mid * 9975 * reserveQuote) / (reserveBase * 10000 + mid * 9975)));
                 uint256 den = (reserveBase + mid) * 10000;
-                uint256 pMid = num * sf / den;
+                uint256 pMid = num * _scaleFactor / den;
                 if (pMid * makerRebate <= targetPrice * 100000) {
                     high = mid;
                 } else {
@@ -403,14 +403,14 @@ contract CrystalMarket {
         }
     }
 
-    function _exactOutputSellSolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 sf, uint256 makerRebate, uint256 high) internal pure returns (uint256 low) {
+    function _exactOutputSellSolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 _scaleFactor, uint256 makerRebate, uint256 high) internal pure returns (uint256 low) {
         unchecked { 
             high = high > (reserveQuote - 1) ? (reserveQuote - 1) : high;
             while (low < high) {
                 uint256 mid = (low + high) >> 1;
-                uint256 den = (reserveBase + ((mid * reserveBase * 10000) / ((reserveQuote - mid) * 9975)) + 1) * 10000;
+                uint256 den = (reserveBase + ((mid * reserveBase * 10000 + ((reserveQuote - mid) * 9975 - 1)) / ((reserveQuote - mid) * 9975)) + 1) * 10000;
                 uint256 num = 9975 * (reserveQuote - mid);
-                uint256 pMid = num * sf / den;
+                uint256 pMid = num * _scaleFactor / den;
                 if (pMid * makerRebate <= targetPrice * 100000) {
                     high = mid;
                 } else {
@@ -635,10 +635,10 @@ contract CrystalMarket {
                             tick = slotIndex * 255;
                         }
                         tick = _searchSlotUp(_slot, tick);
-                    }
-                    slot &= ~(1 << (tick % 255));
-                    if (slot == 0) {
-                        slot2 &= ~(1 << ((slotIndex) % 255));
+                        slot &= ~(1 << (tick % 255));
+                        if (slot >> tick % 255 == 0) {
+                            slot2 &= ~(1 << ((slotIndex) % 255));
+                        }
                     }
                     price = marketType == 0 ? (tick * tickSize) : _tickToPrice(tick);
                     if ((((price + interval - 1) / interval) * interval) == bucket) {
@@ -685,7 +685,7 @@ contract CrystalMarket {
                     }
                     tick = _searchSlotDown(_slot, slotIndex * 255);
                     slot &= ~(1 << (tick % 255));
-                    if (slot == 0) {
+                    if (slot & ((1 << (tick % 255)) - 1) == 0) {
                         slot2 &= ~(1 << ((slotIndex) % 255));
                     }
                     price = marketType == 0 ? (tick * tickSize) : _tickToPrice(tick);
@@ -754,12 +754,12 @@ contract CrystalMarket {
         (highestBid, lowestAsk) = (m.highestBid, m.lowestAsk);
         (uint256 reserveQuote, uint256 reserveBase) = m.isAMMEnabled ? (m.reserveQuote, m.reserveBase) : (0, 0);
         if (reserveQuote != 0) {
-            uint256 ammPrice = ((reserveQuote * scaleFactor * 9975 * 100000 + (reserveBase * 10000 * m.makerRebate - 1)) / (reserveBase * 10000 * m.makerRebate));
+            uint256 ammPrice = ((reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * m.makerRebate));
             ammPrice = marketType == 0 ? ((ammPrice + tickSize - 1) / tickSize) * tickSize : _toValidPrice(ammPrice, true); // get adjusted amm bid
             if (highestBid < ammPrice) {
                 highestBid = ammPrice;
             }
-            ammPrice = ((reserveQuote * scaleFactor * 10000 * m.makerRebate) / (reserveBase * 9975 * 100000));
+            ammPrice = ((reserveQuote * scaleFactor * 10000 * m.makerRebate + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000));
             ammPrice = marketType == 0 ? (ammPrice - (ammPrice % tickSize)) : _toValidPrice(ammPrice, false); // get adjusted amm ask
             if (lowestAsk > ammPrice) {
                 lowestAsk = ammPrice;
@@ -787,7 +787,7 @@ contract CrystalMarket {
                 if (isExactInput) {
                     size = (size * m.takerFee) / 100000;
                 }
-                if (worstPrice >= maxPrice) {
+                if (worstPrice >= maxPrice || worstPrice == 0) {
                     worstPrice = (marketType == 0 ? maxPrice - tickSize : _tickToPrice(_priceToTick(maxPrice) - 1));
                 }
                 price = m.lowestAsk;
@@ -809,7 +809,7 @@ contract CrystalMarket {
                 if (reserveQuote != 0) {
                     uint256 _amountIn = (isBuy ? (price > worstPrice) : (price < worstPrice)) ? worstPrice : price; // stop at either slippage limit or next resting order price
                     uint256 _amountOut;
-                    if (isBuy && (reserveQuote * scaleFactor * 10000 * m.makerRebate) < (_amountIn * reserveBase * 9975 * 100000)) { // adjust price in favor of amm because no maker rebate
+                    if (isBuy && _amountIn > (reserveQuote * scaleFactor * 10000 * m.makerRebate + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000)) { // adjust price in favor of amm because no maker rebate
                         uint256 sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
                         if (isExactInput) {
                             _amountIn = _exactInputBuySolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft); // find optimal amountIn so AMM execution price up to price adjusted for maker rebate
@@ -828,7 +828,7 @@ contract CrystalMarket {
                         reserveQuote += _amountIn; // set reserves
                         reserveBase -= _amountOut;
                     }
-                    else if (!isBuy && (reserveQuote * scaleFactor * 9975 * 100000) > (_amountIn * reserveBase * 10000 * m.makerRebate)) {
+                    else if (!isBuy && _amountIn < (reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * m.makerRebate)) {
                         uint256 sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
                         if (isExactInput) {
                             _amountIn = _exactInputSellSolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft);
@@ -886,13 +886,11 @@ contract CrystalMarket {
                     slot &= ~(1 << (tick % 255));
                     if (isBuy) {
                         uint256 slotIndex = tick / 255;
-                        if (slot == 0) {
-                            slot2 &= ~(1 << ((slotIndex) % 255));
-                        }
                         uint256 _slot = slot >> tick % 255;
                         while (_slot == 0) {
                             uint256 slot2Index = slotIndex / 255;
                             uint256 _slot2 = slot2 >> slotIndex % 255;
+                            slot2 &= ~(1 << ((slotIndex) % 255));
                             while (_slot2 == 0) {
                                 ++slot2Index;
                                 slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
@@ -908,13 +906,11 @@ contract CrystalMarket {
                     }
                     else {
                         uint256 slotIndex = tick / 255;
-                        if (slot == 0) {
-                            slot2 &= ~(1 << ((slotIndex) % 255));
-                        }
                         uint256 _slot = slot & ((1 << (tick % 255)) - 1);
                         while (_slot == 0) {
                             uint256 slot2Index = slotIndex / 255;
                             uint256 _slot2 = slot2 & ((1 << (slotIndex % 255)) - 1);
+                            slot2 &= ~(1 << ((slotIndex) % 255));
                             while (_slot2 == 0) {
                                 --slot2Index;
                                 slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
@@ -945,7 +941,7 @@ contract CrystalMarket {
                 if (((orderInfo >> 248 & 1) == 0)) { // isexactinput
                     size = (size * m.takerFee) / 100000; // pre adjust size bc taker fee is in quote which is specified
                 }
-                if ((priceAndReferrer & MASK_KEEP_0_80) >= maxPrice) {
+                if ((priceAndReferrer & MASK_KEEP_0_80) >= maxPrice || (priceAndReferrer & MASK_KEEP_0_80) == 0) {
                     priceAndReferrer = (priceAndReferrer & MASK_OUT_0_80) | (marketType == 0 ? maxPrice - tickSize : _tickToPrice(_priceToTick(maxPrice) - 1)); // set worst price to 1 tick worse than max price bc worst price is inclusive
                 }
                 price = m.lowestAsk;
@@ -969,7 +965,7 @@ contract CrystalMarket {
                         (uint256 reserveQuote, uint256 reserveBase) = (reserves >> 128, reserves & MASK_KEEP_0_112);
                         uint256 _amountIn = (((orderInfo >> 244 & 1) == 0) ? (price > (priceAndReferrer & MASK_KEEP_0_80)) : (price < (priceAndReferrer & MASK_KEEP_0_80))) ? (priceAndReferrer & MASK_KEEP_0_80) : price;
                         uint256 _amountOut;
-                        if (((orderInfo >> 244 & 1) == 0) && (reserveQuote * scaleFactor * 10000 * m.makerRebate) < (_amountIn * reserveBase * 9975 * 100000)) {
+                        if (((orderInfo >> 244 & 1) == 0) && _amountIn > (reserveQuote * scaleFactor * 10000 * m.makerRebate + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000)) {
                             if ((orderInfo >> 248 & 1) == 0) {
                                 _amountIn = _exactInputBuySolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft); // find optimal amountIn so AMM execution price up to price adjusted for maker rebate
                                 if (sizeLeft < _amountIn) {
@@ -989,11 +985,11 @@ contract CrystalMarket {
                             {
                                 uint256 pricememory;
                                 assembly { pricememory := mload(0x80) } // top 128 is start price bottom 128 is end price 
-                                uint256 endprice = ((reserveQuote * scaleFactor * 10000 * m.makerRebate) / (reserveBase * 9975 * 100000)); // adjust price in favor of amm because no maker rebate
-                                endprice = endprice > maxPrice ? maxPrice : marketType == 0 ? (endprice - (endprice % tickSize)) : _toValidPrice(endprice, false); // round down
+                                uint256 endprice = ((reserveQuote * scaleFactor * 10000 * m.makerRebate + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000)); // adjust price in favor of amm because no maker rebate
+                                endprice = endprice >= maxPrice ? maxPrice : endprice <= tickSize ? tickSize : marketType == 0 ? (endprice - (endprice % tickSize)) : _toValidPrice(endprice, false); // round up
                                 if (pricememory == 0) {
-                                    uint256 startprice = (((reserveQuote - _amountIn) * scaleFactor * 10000 * m.makerRebate) / ((reserveBase + _amountOut) * 9975 * 100000));
-                                    startprice = startprice > maxPrice ? maxPrice : (marketType == 0 ? (startprice - (startprice % tickSize)) : _toValidPrice(startprice, false));
+                                    uint256 startprice = (((reserveQuote - _amountIn) * scaleFactor * 10000 * m.makerRebate + ((reserveBase + _amountOut) * 9975 * 100000 - 1)) / ((reserveBase + _amountOut) * 9975 * 100000));
+                                    startprice = startprice >= maxPrice ? maxPrice : startprice <= tickSize ? tickSize : (marketType == 0 ? (startprice - (startprice % tickSize)) : _toValidPrice(startprice, false));
                                     pricememory = (startprice << 128) | endprice; // set start price if needed, temp undo reserve updates
                                 }
                                 else {
@@ -1002,7 +998,7 @@ contract CrystalMarket {
                                 assembly { mstore(0x80, pricememory) }
                             }
                         }
-                        else if (((orderInfo >> 244 & 1) != 0) && (reserveQuote * scaleFactor * 9975 * 100000) > (_amountIn * reserveBase * 10000 * m.makerRebate)) {
+                        else if (((orderInfo >> 244 & 1) != 0) && _amountIn < (reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * m.makerRebate)) {
                             if ((orderInfo >> 248 & 1) == 0) {
                                 _amountIn = _exactInputSellSolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft);
                                 if (sizeLeft < _amountIn) {
@@ -1022,11 +1018,11 @@ contract CrystalMarket {
                             {
                                 uint256 pricememory;
                                 assembly { pricememory := mload(0x80) } // top 128 is start price bottom 128 is end price 
-                                uint256 endprice = ((reserveQuote * scaleFactor * 9975 * 100000 + (reserveBase * 10000 * m.makerRebate - 1)) / (reserveBase * 10000 * m.makerRebate));
-                                endprice = endprice > maxPrice ? maxPrice : marketType == 0 ? ((endprice + tickSize - 1) / tickSize) * tickSize : _toValidPrice(endprice, true); // round up
+                                uint256 endprice = ((reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * m.makerRebate));
+                                endprice = endprice >= maxPrice ? maxPrice : endprice <= tickSize ? tickSize : marketType == 0 ? ((endprice + tickSize - 1) / tickSize) * tickSize : _toValidPrice(endprice, true); // round down
                                 if (pricememory == 0) {
-                                    uint256 startprice = (((reserveQuote + _amountOut) * scaleFactor * 9975 * 100000 + ((reserveBase - _amountIn) * 10000 * m.makerRebate - 1)) / ((reserveBase - _amountIn) * 10000 * m.makerRebate));
-                                    startprice = startprice > maxPrice ? maxPrice : (marketType == 0 ? ((endprice + tickSize - 1) / tickSize) * tickSize : _toValidPrice(startprice, true));
+                                    uint256 startprice = ((reserveQuote + _amountOut) * scaleFactor * 9975 * 100000) / ((reserveBase - _amountIn) * 10000 * m.makerRebate);
+                                    startprice = startprice >= maxPrice ? maxPrice : startprice <= tickSize ? tickSize : marketType == 0 ? ((startprice + tickSize - 1) / tickSize) * tickSize : _toValidPrice(startprice, true);
                                     pricememory = (startprice << 128) | endprice;
                                 }
                                 else {
@@ -1216,18 +1212,17 @@ contract CrystalMarket {
                     if ((_priceLevel & MASK_KEEP_0_112) == 0) { // if price level was fully filled find next one and potentially update activated bitmap
                         slot &= ~(1 << (tick % 255));
                         uint256 slotIndex = tick / 255;
-                        if (slot == 0) {
-                            activated2[marketId | (slotIndex / 255)] &= ~(1 << ((slotIndex) % 255));
-                        }
                         if ((orderInfo >> 244 & 1) == 0) {
                             uint256 _slot = slot >> tick % 255;
-                            if (_slot == 0 && activated[marketId | slotIndex] & MASK_OUT_255_256 != slot) {
+                            if (_slot == 0 && ((activated[marketId | slotIndex] & MASK_OUT_255_256) != slot)) {
                                 activated[marketId | slotIndex] = slot | MASK_KEEP_255_256;
                             }
                             while (_slot == 0) {
                                 uint256 slot2Index = slotIndex / 255;
-                                uint256 slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
-                                slot2 = slot2 >> slotIndex % 255;
+                                uint256 slot2 = (activated2[marketId | slot2Index] & MASK_OUT_255_256 & ~(1 << ((slotIndex) % 255))) >> slotIndex % 255;
+                                if (slot == 0) {
+                                    activated2[marketId | (slotIndex / 255)] &= ~(1 << ((slotIndex) % 255));
+                                }
                                 while (slot2 == 0) {
                                     ++slot2Index;
                                     slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
@@ -1242,13 +1237,15 @@ contract CrystalMarket {
                         }
                         else {
                             uint256 _slot = slot & ((1 << (tick % 255)) - 1);
-                            if (_slot == 0 && activated[marketId | slotIndex] & MASK_OUT_255_256 != slot) {
+                            if (_slot == 0 && ((activated[marketId | slotIndex] & MASK_OUT_255_256) != slot)) {
                                 activated[marketId | slotIndex] = slot | MASK_KEEP_255_256;
                             }
                             while (_slot == 0) {
                                 uint256 slot2Index = slotIndex / 255;
-                                uint256 slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
-                                slot2 = slot2 & ((1 << (slotIndex % 255)) - 1);
+                                uint256 slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256 & ((1 << (slotIndex % 255)) - 1);
+                                if (slot == 0) {
+                                    activated2[marketId | (slotIndex / 255)] &= ~(1 << ((slotIndex) % 255));
+                                }
                                 while (slot2 == 0) {
                                     --slot2Index;
                                     slot2 = activated2[marketId | slot2Index] & MASK_OUT_255_256;
@@ -1326,7 +1323,7 @@ contract CrystalMarket {
             ICrystal.Market storage m = _getMarket[market];
             if (isBuy) {
                 (uint256 highestBid, uint256 lowestAsk) = (m.highestBid, m.lowestAsk);
-                if (price >= lowestAsk || (m.isAMMEnabled && m.reserveQuote != 0 && price >= ((m.reserveQuote * scaleFactor * 10000) / (m.reserveBase * 9975) * m.makerRebate / 100000)) || (cloid != 0 && (orders[(cloid << 41) | userId] & MASK_OUT_113_154) != 0) || price == 0 || size < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20))) {
+                if (price >= lowestAsk || (m.isAMMEnabled && m.reserveQuote != 0 && price > ((m.reserveQuote * scaleFactor * 10000 * m.makerRebate + (m.reserveBase * 9975 * 100000 - 1)) / (m.reserveBase * 9975 * 100000))) || (cloid != 0 && (orders[(cloid << 41) | userId] & MASK_OUT_113_154) != 0) || price == 0 || size < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20))) {
                     return (0, 0);
                 }
                 if (price > highestBid) {
@@ -1340,7 +1337,7 @@ contract CrystalMarket {
             }
             else {
                 (uint256 highestBid, uint256 lowestAsk) = (m.highestBid, m.lowestAsk);
-                if (price <= highestBid || (m.isAMMEnabled && m.reserveQuote != 0 && price <= ((m.reserveQuote * scaleFactor * 9975) / (m.reserveBase * 10000) * 100000 / m.makerRebate)) || (cloid != 0 && (orders[(cloid << 41) | userId] & MASK_OUT_113_154) != 0) || price >= maxPrice || (size * price / scaleFactor) < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20))) {
+                if (price <= highestBid || (m.isAMMEnabled && m.reserveQuote != 0 && price < ((m.reserveQuote * scaleFactor * 9975 * 100000) / (m.reserveBase * 10000 * m.makerRebate))) || (cloid != 0 && (orders[(cloid << 41) | userId] & MASK_OUT_113_154) != 0) || price >= maxPrice || (size * price / scaleFactor) < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20))) {
                     return (0, 0);
                 }
                 if (price < lowestAsk) {
@@ -2049,4 +2046,6 @@ contract CrystalMarket {
             }
         }
     }
+        receive() external payable {}
+
 }

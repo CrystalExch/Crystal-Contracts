@@ -41,6 +41,7 @@ contract Crystal is ICrystal {
 
     address public immutable weth; 
     address public constant eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
+    address private constant placeholder = 0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC;
 
     uint256 private constant MASK_OUT_113_154 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFC0000000001FFFFFFFFFFFFFFFFFFFFFFFFFFFF;
     uint256 private constant MASK_OUT_0_128 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF00000000000000000000000000000000;
@@ -587,14 +588,14 @@ contract Crystal is ICrystal {
             revert ICrystal.Unauthorized(msg.sender);
         }
         for (uint256 i; i < ids.length; ++i) {
-            if (ids[i] & 1 != 0) {
-                cloidVerify[((ids[i] | 1) << 41) | userId] &= MASK_OUT_0_128;
-            }
-            else {
-                cloidVerify[((ids[i] | 1) << 41) | userId] &= MASK_KEEP_0_128;
-            }
-            if ((orders[(ids[i] << 41) | userId] & MASK_OUT_113_154) == 0) {
+            if ((orders[(ids[i] << 41) | userId] & MASK_OUT_113_154) == 0) { // order can't be active
                 delete orders[(ids[i] << 41) | userId];
+                if (ids[i] & 1 != 0) {
+                    cloidVerify[((ids[i] | 1) << 41) | userId] &= MASK_OUT_0_128;
+                }
+                else {
+                    cloidVerify[((ids[i] | 1) << 41) | userId] &= MASK_KEEP_0_128;
+                }
             }
         }
     }
@@ -768,7 +769,7 @@ contract Crystal is ICrystal {
             address asset0 = path[i] == eth ? weth : path[i];
             address asset1 = path[i+1] == eth ? weth : path[i+1];
             address market = getMarketByTokens[asset0][asset1];
-            if (market == address(0)) {
+            if (market == address(0) || market == placeholder) {
                 revert ICrystal.InvalidMarket(asset0, asset1);
             }
             uint256 inputAmount;
@@ -791,7 +792,7 @@ contract Crystal is ICrystal {
             address asset0 = path[i-1] == eth ? weth : path[i-1];
             address asset1 = path[i] == eth ? weth : path[i];
             address market = getMarketByTokens[asset0][asset1];
-            if (market == address(0)) {
+            if (market == address(0) || market == placeholder) {
                 revert ICrystal.InvalidMarket(asset0, asset1);
             }
             uint256 outputAmount;
@@ -814,7 +815,7 @@ contract Crystal is ICrystal {
             address asset0 = path[i] == eth ? weth : path[i];
             address asset1 = path[i+1] == eth ? weth : path[i+1];
             address market = getMarketByTokens[asset0][asset1];
-            if (market == address(0)) {
+            if (market == address(0) || market == placeholder) {
                 revert ICrystal.InvalidMarket(asset0, asset1);
             }
             asset1 = _getMarket[market].quoteAsset;
@@ -841,7 +842,7 @@ contract Crystal is ICrystal {
             address asset0 = path[i] == eth ? weth : path[i];
             address asset1 = path[i+1] == eth ? weth : path[i+1];
             address market = getMarketByTokens[asset0][asset1];
-            if (market == address(0)) {
+            if (market == address(0) || market == placeholder) {
                 revert ICrystal.InvalidMarket(asset0, asset1);
             }
             asset1 = _getMarket[market].quoteAsset;
@@ -1080,7 +1081,7 @@ contract Crystal is ICrystal {
             revert ICrystal.Expired(deadline);
         }
         address market = getMarketByTokens[tokenIn == eth ? weth : tokenIn][tokenOut == eth ? weth : tokenOut];    
-        if (market == address(0)) {
+        if (market == address(0) || market == placeholder) {
             revert ICrystal.InvalidMarket(tokenIn == eth ? weth : tokenIn, tokenOut == eth ? weth : tokenOut);
         }
         if (tokenIn == eth) {
@@ -1125,7 +1126,7 @@ contract Crystal is ICrystal {
         address asset0 = isETHIn ? weth : tokenIn;
         address asset1 = tokenOut == eth ? weth : tokenOut;
         address market = getMarketByTokens[asset0][asset1];    
-        if (market == address(0)) {
+        if (market == address(0) || market == placeholder) {
             revert ICrystal.InvalidMarket(asset0, asset1);
         }
         if (isETHIn) {
@@ -1157,7 +1158,7 @@ contract Crystal is ICrystal {
         address asset0 = isETHIn ? weth : tokenIn;
         address asset1 = tokenOut == eth ? weth : tokenOut;
         address market = getMarketByTokens[asset0][asset1];    
-        if (market == address(0)) {
+        if (market == address(0) || market == placeholder) {
             revert ICrystal.InvalidMarket(asset0, asset1);
         }
         assembly {
@@ -1197,7 +1198,7 @@ contract Crystal is ICrystal {
             revert ICrystal.Expired(deadline);
         }
         address market = getMarketByTokens[tokenIn == eth ? weth : tokenIn][tokenOut == eth ? weth : tokenOut];    
-        if (market == address(0)) {
+        if (market == address(0) || market == placeholder) {
             revert ICrystal.InvalidMarket(tokenIn == eth ? weth : tokenIn, tokenOut == eth ? weth : tokenOut);
         }
         if (tokenIn == eth) {
@@ -1316,6 +1317,8 @@ contract Crystal is ICrystal {
         allMarkets.push(market);
         marketToMarketId[market] = marketId;
         marketIdToMarket[marketId] = market;
+        getMarketByTokens[weth][token] = placeholder;
+        getMarketByTokens[token][weth] = placeholder;
         launchpadTokenToMarket[address(token)] = ICrystal.LaunchpadMarket(launchpadParams.launchpadInitialNativeSupply, 1000000000000000000000000000, uint256(launchpadParams.launchpadInitialNativeSupply) * 1000000000000000000000000000, msg.sender, market, uint88(block.timestamp));
         (bool result, bytes memory ret) = market.delegatecall(
             abi.encodeWithSelector(0xf7bb5c88, address(this), (1000000000000000000000000000 * uint256(launchpadParams.launchpadInitialNativeSupply) / 200000000000000000000000000) - uint256(launchpadParams.launchpadInitialNativeSupply), 200000000000000000000000000) // premint
@@ -1450,7 +1453,7 @@ contract Crystal is ICrystal {
             bool result;
             bytes memory ret = abi.encodeWithSelector(0xe690552b, true, isExactInput, (1 << 64), 1, newInputAmount, MASK_KEEP_0_80, address(0), msg.sender);
             address market = getMarketByTokens[weth][token];    
-            if (market == address(0)) {
+            if (market == address(0) || market == placeholder) {
                 revert ICrystal.InvalidMarket(weth, token);
             }
             (result, ret) = market.delegatecall(ret);
@@ -1539,7 +1542,7 @@ contract Crystal is ICrystal {
                 bool result;
                 bytes memory ret = abi.encodeWithSelector(0xe690552b, false, isExactInput, (1 << 60), 1, newInputAmount, 1, address(0), msg.sender);
                 address market = getMarketByTokens[weth][token];    
-                if (market == address(0)) {
+                if (market == address(0) || market == placeholder) {
                     revert ICrystal.InvalidMarket(weth, token);
                 }
                 (result, ret) = market.delegatecall(ret);
@@ -1567,7 +1570,7 @@ contract Crystal is ICrystal {
 
     function close(address token) external returns (uint256 amountQuote, uint256 amountBase) {
         address market = getMarketByTokens[weth][token];    
-        if (market == address(0)) {
+        if (market == address(0) || market == placeholder) {
             ICrystal.LaunchpadMarket storage l = launchpadTokenToMarket[token];
             require(msg.sender == gov && l.createTimestamp != 0 && block.timestamp > (l.createTimestamp + (86400 * 365)));
             IERC20(token).transfer(address(0), l.virtualTokenReserve);
