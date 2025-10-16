@@ -91,7 +91,7 @@ contract Crystal is ICrystal {
                 let bribe := and(MASK_KEEP_0_80, shr(172, chunk))
                 mstore(0x00, market)
                 mstore(0x20, _getMarket.slot)
-                if iszero(sload(keccak256(0x00, 0x40))) { revert(0, 0) }
+                if iszero(and(sload(keccak256(0x00, 0x40)), MASK_KEEP_80_160)) { revert(0, 0) }
                 mstore(0x80, or(shl(44, shr(252, chunk)), userId))
                 calldatacopy(0xa0, add(offset, 0x20), len)
                 let result := delegatecall(gas(), market, 0x80, add(len, 0x20), 0, 0)
@@ -362,9 +362,9 @@ contract Crystal is ICrystal {
         if (balance != 0) {
             tokenBalances[0][weth] = 0;
             IWETH(weth).withdraw(balance);
-            (bool success, ) = msg.sender.call{value: balance}("");
+            (bool success, ) = to.call{value: balance}("");
             if (!success) {
-                revert ICrystal.TransferFailed(msg.sender);
+                revert ICrystal.TransferFailed(to);
             }
         }
     }
@@ -396,9 +396,7 @@ contract Crystal is ICrystal {
         }
         if (msg.value != 0) {
             IWETH(weth).deposit{value: msg.value}();
-            uint256 preBalance = tokenBalances[0][weth] & MASK_KEEP_0_128;
-            require((preBalance + msg.value) <= MASK_KEEP_0_128);
-            tokenBalances[0][weth] = (preBalance + msg.value);
+            tokenBalances[0][weth] += msg.value;
         }
         _verifyMarketAndLock(market);
         (bool result, bytes memory ret) = market.delegatecall(
@@ -482,7 +480,7 @@ contract Crystal is ICrystal {
     }
 
     function changeMarketCreatorFee(address market, address newCreator, uint256 newCreatorFee) external {
-        require(isCanonicalDeployer[msg.sender] || msg.sender == gov && newCreatorFee <= 50);
+        require((isCanonicalDeployer[msg.sender] || msg.sender == gov) && newCreatorFee <= 50);
         ICrystal.Market storage m = _getMarket[market];
         if (msg.sender != gov && msg.sender != m.creator) {
             revert ICrystal.Unauthorized(msg.sender);
@@ -547,9 +545,7 @@ contract Crystal is ICrystal {
         else {
             IERC20(token).transferFrom(msg.sender, address(this), amount);
         }
-        uint256 balance = tokenBalances[userId][token] & MASK_KEEP_0_128;
-        require((balance + amount) <= MASK_KEEP_0_128);
-        tokenBalances[userId][token] = (balance + amount);
+        tokenBalances[userId][token] += amount;
         emit ICrystal.Deposit(msg.sender, userId, token, amount);
     }
     // if amount = 0 withdraw all
@@ -564,7 +560,7 @@ contract Crystal is ICrystal {
         if (amount == 0) {
             amount = uint128(balance);
         }
-        if (uint128(balance) < amount) {
+        if (uint128(balance) < amount || userId == 0) {
             revert ICrystal.ActionFailed();
         }
         else {
@@ -868,9 +864,7 @@ contract Crystal is ICrystal {
         else {
             IERC20(token).transferFrom(msg.sender, address(this), amount);
         }
-        uint256 balance = tokenBalances[0][token] & MASK_KEEP_0_128;
-        require((balance + amount) <= MASK_KEEP_0_128);
-        tokenBalances[0][token] = (balance + amount);
+        tokenBalances[0][token] += amount;
     }
     // if amount = 0 withdraw all
     function routerWithdraw(address to, address token, uint256 amount) external {
@@ -909,9 +903,7 @@ contract Crystal is ICrystal {
             revert ICrystal.Expired(deadline);
         }
         IWETH(weth).deposit{value: msg.value}();
-        uint256 preBalance = tokenBalances[0][weth] & MASK_KEEP_0_128;
-        require((preBalance + msg.value) <= MASK_KEEP_0_128);
-        tokenBalances[0][weth] = (preBalance + msg.value);
+        tokenBalances[0][weth] += msg.value;
         amounts = exactInputSwap(msg.value, path, to, referrer);
         if (amountOutMin > amounts[amounts.length - 1]) {
             revert ICrystal.SlippageExceeded();
@@ -993,9 +985,7 @@ contract Crystal is ICrystal {
             revert ICrystal.SlippageExceeded();
         }
         IWETH(weth).deposit{value: msg.value}();
-        uint256 preBalance = tokenBalances[0][weth] & MASK_KEEP_0_128;
-        require((preBalance + msg.value) <= MASK_KEEP_0_128);
-        tokenBalances[0][weth] = (preBalance + msg.value);
+        tokenBalances[0][weth] += msg.value;
         exactOutputSwap(amounts, path, to, referrer);
         if (to != msg.sender) {
             address token = path[path.length - 1];
@@ -1086,9 +1076,7 @@ contract Crystal is ICrystal {
         }
         if (tokenIn == eth) {
             IWETH(weth).deposit{value: msg.value}();
-            balance = tokenBalances[0][weth];
-            require((balance + msg.value) <= MASK_KEEP_0_128);
-            tokenBalances[0][weth] = (balance + msg.value);
+            tokenBalances[0][weth] += msg.value;
         }
         assembly {
             if tload(0x0) { revert(0, 0) }
@@ -1131,9 +1119,7 @@ contract Crystal is ICrystal {
         }
         if (isETHIn) {
             IWETH(weth).deposit{value: msg.value}();
-            uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
-            require((balance + msg.value) <= MASK_KEEP_0_128);
-            tokenBalances[0][weth] = (balance + msg.value);
+            tokenBalances[0][weth] += msg.value;
         }
         assembly {
             if tload(0x0) { revert(0, 0) }
@@ -1203,9 +1189,7 @@ contract Crystal is ICrystal {
         }
         if (tokenIn == eth) {
             IWETH(weth).deposit{value: msg.value}();
-            uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
-            require((balance + msg.value) <= MASK_KEEP_0_128);
-            tokenBalances[0][weth] = (balance + msg.value);
+            tokenBalances[0][weth] += msg.value;
         }
         assembly {
             if tload(0x0) { revert(0, 0) }
@@ -1240,9 +1224,7 @@ contract Crystal is ICrystal {
         }
         if (msg.value != 0) {
             IWETH(weth).deposit{value: msg.value}();
-            uint256 preBalance = tokenBalances[0][weth] & MASK_KEEP_0_128;
-            require((preBalance + msg.value) <= MASK_KEEP_0_128);
-            tokenBalances[0][weth] = (preBalance + msg.value);
+            tokenBalances[0][weth] += msg.value;
         }
         assembly {
             if tload(0x0) { revert(0, 0) }
@@ -1253,7 +1235,7 @@ contract Crystal is ICrystal {
             assembly {
                 mstore(0x00, market)
                 mstore(0x20, _getMarket.slot)
-                if iszero(sload(keccak256(0x00, 0x40))) { revert(0, 0) }
+                if iszero(and(sload(keccak256(0x00, 0x40)), MASK_KEEP_80_160)) { revert(0, 0) }
             }
             (bool result, bytes memory ret) = market.delegatecall(
                 abi.encodeWithSelector(0x5c2a91ec, batches[i].actions, batches[i].options, referrer, msg.sender)
@@ -1282,7 +1264,7 @@ contract Crystal is ICrystal {
         (virtualNativeReserve, virtualTokenReserve) = (market.virtualNativeReserve, market.virtualTokenReserve);
     }
 
-    function createToken(string memory name, string memory symbol, string memory metadataCID, string memory description, string memory social1, string memory social2, string memory social3, string memory social4) external returns (address token) {
+    function createToken(string memory name, string memory symbol, string memory metadataCID, string memory description, string memory social1, string memory social2, string memory social3, string memory social4) external payable returns (address token) {
         assembly {
             if tload(0x0) { revert(0, 0) }
             tstore(0x0, 1)
@@ -1331,9 +1313,12 @@ contract Crystal is ICrystal {
         assembly {
             tstore(0x0, 0)
         }
+        if (msg.value != 0) {
+            buy(true, token, msg.value, 0);
+        }
     }
 
-    function buy(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external payable returns (uint256, uint256, bool) {
+    function buy(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) public payable returns (uint256, uint256, bool) {
         assembly {
             if tload(0x0) { revert(0, 0) }
             tstore(0x0, 1)
@@ -1443,9 +1428,7 @@ contract Crystal is ICrystal {
             uint256 newInputAmount = (msg.value - inputAmount);
             IWETH(weth).deposit{value: newInputAmount}();
             {
-                uint256 preBalance = tokenBalances[0][weth] & MASK_KEEP_0_128;
-                require((preBalance + newInputAmount) <= MASK_KEEP_0_128);
-                tokenBalances[0][weth] = (preBalance + newInputAmount);
+                tokenBalances[0][weth] += newInputAmount;
             }
             if (!isExactInput) {
                 newInputAmount = amountOut - outputAmount;
@@ -1479,7 +1462,7 @@ contract Crystal is ICrystal {
         assembly {
             tstore(0x0, 0)
         }
-        return (amountIn, amountOut, launchpadMarket.market == address(0));
+        return (inputAmount, outputAmount, launchpadMarket.market == address(0));
     }
 
     function sell(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external returns (uint256, uint256) {
@@ -1534,38 +1517,36 @@ contract Crystal is ICrystal {
             emit ICrystal.LaunchpadTrade(token, msg.sender, false, inputAmount, outputAmount, launchpadMarket.virtualNativeReserve, launchpadMarket.virtualTokenReserve);
         }
         else {
-            if (isExactInput ? inputAmount < amountIn : outputAmount < amountOut) { // graduated, swap thru amm
-                uint256 newInputAmount = amountIn;
-                if (!isExactInput) {
-                    newInputAmount = amountOut;
-                }
-                bool result;
-                bytes memory ret = abi.encodeWithSelector(0xe690552b, false, isExactInput, (1 << 60), 1, newInputAmount, 1, address(0), msg.sender);
-                address market = getMarketByTokens[weth][token];    
-                if (market == address(0) || market == placeholder) {
-                    revert ICrystal.InvalidMarket(weth, token);
-                }
-                (result, ret) = market.delegatecall(ret);
-                if (!result) {
-                    revert ICrystal.ActionFailed();
-                }
-                uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
-                if (balance != 0) {
-                    tokenBalances[0][weth] = 0;
-                    IWETH(weth).withdraw(balance);
-                    (bool success, ) = msg.sender.call{value: balance}("");
-                    if (!success) {
-                        revert ICrystal.TransferFailed(msg.sender);
-                    }
-                }
-                (newInputAmount, balance, ) = abi.decode(ret, (uint256, uint256, uint256)); // avoid std
-                isExactInput ? require(balance >= amountOut) : require(newInputAmount <= amountIn);
+            uint256 newInputAmount = amountIn;
+            if (!isExactInput) {
+                newInputAmount = amountOut;
             }
+            bool result;
+            bytes memory ret = abi.encodeWithSelector(0xe690552b, false, isExactInput, (1 << 60), 1, newInputAmount, 1, address(0), msg.sender);
+            address market = getMarketByTokens[weth][token];    
+            if (market == address(0) || market == placeholder) {
+                revert ICrystal.InvalidMarket(weth, token);
+            }
+            (result, ret) = market.delegatecall(ret);
+            if (!result) {
+                revert ICrystal.ActionFailed();
+            }
+            uint256 balance = tokenBalances[0][weth] & MASK_KEEP_0_128;
+            if (balance != 0) {
+                tokenBalances[0][weth] = 0;
+                IWETH(weth).withdraw(balance);
+                (bool success, ) = msg.sender.call{value: balance}("");
+                if (!success) {
+                    revert ICrystal.TransferFailed(msg.sender);
+                }
+            }
+            (inputAmount, outputAmount, ) = abi.decode(ret, (uint256, uint256, uint256)); // avoid std
+            isExactInput ? require(outputAmount >= amountOut) : require(inputAmount <= amountIn);
         }
         assembly {
             tstore(0x0, 0)
         }
-        return (amountIn, amountOut);
+        return (inputAmount, outputAmount);
     }
 
     function close(address token) external returns (uint256 amountQuote, uint256 amountBase) {
@@ -1583,15 +1564,16 @@ contract Crystal is ICrystal {
         else {
             ICrystal.Market storage m = _getMarket[market];
             require(msg.sender == gov && m.createTimestamp != 0 && block.timestamp > (m.createTimestamp + (86400 * 365)));
+            m.createTimestamp = 0;
             uint256 liquidity = IERC20(market).balanceOf(address(0));
             IERC20(market).transferFrom(address(0), address(this), liquidity);
-            (amountQuote, amountBase) = ICrystal(address(this)).removeLiquidity(market, address(this), liquidity, 0, 0);
-            claimableRewards[m.quoteAsset][gov] = amountQuote;
-            claimableRewards[m.baseAsset][gov] = amountBase;
+            (amountQuote, amountBase) = ICrystal(address(this)).removeLiquidity(market, address(this), liquidity - 100000, 0, 0);
+            claimableRewards[m.quoteAsset][gov] += amountQuote;
+            claimableRewards[m.baseAsset][gov] += amountBase;
         }
     }
 
-    function lock(address market) external {
+    function lockZeroAddressLiquidity(address market) external {
         require(msg.sender == gov);
         _getMarket[market].createTimestamp = 0;
     }

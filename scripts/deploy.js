@@ -59,7 +59,7 @@ async function main() {
     10,
     10,
     86400,
-    [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99910n, 99990n, 40]
+    [1000000000000000000000n, 99000n, 10n, 1000000000000000000n, 99910n, 99990n, 40]
   );
 
   // Helper function for contract calls
@@ -323,11 +323,11 @@ async function main() {
     CrystalVaultFactory,
     crystalResult.address,
     wallet.address,
-    ethers.ZeroAddress,
+    "0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701",
     100,
-    100000000000000000000n,
-    100,
-    0n
+    1n,
+    1000,
+    5n
   );
 
   // deploy ref helper

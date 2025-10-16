@@ -57,6 +57,12 @@ contract CrystalVaultFactory {
         else {
             lockup = maxLockup;
         }
+        if (maxShares != 0) {
+            ICrystalVault(vault).changeMaxShares(maxShares);
+        }
+        if (decreaseOnWithdraw) {
+            ICrystalVault(vault).changeDecreaseOnWithdraw(decreaseOnWithdraw);
+        }
         getVault[vault] = ICrystalVaultFactory.Vault(quoteAsset, baseAsset, msg.sender, 0, maxShares, lockup, decreaseOnWithdraw, false, false, metadata);
         allVaults.push(vault);
         emit ICrystalVaultFactory.VaultDeployed(vault, quoteAsset, baseAsset, msg.sender, maxShares, lockup, decreaseOnWithdraw, metadata);
@@ -89,12 +95,12 @@ contract CrystalVaultFactory {
             require(amountQuote > defaultQuoteMin * 10 ** IERC20(quoteAsset == eth ? weth : quoteAsset).decimals());
         }
 
-        if (minSize[baseAsset] != 0) {
-            require(amountBase > minSize[baseAsset]);
+        if (minSize[baseAsset == eth ? weth : baseAsset] != 0) {
+            require(amountBase > minSize[baseAsset == eth ? weth : baseAsset]);
         } else {
             require(amountBase > defaultBaseMin);
         }
-        string memory symbol = string.concat("CLV-", IERC20(baseAsset).symbol(), IERC20(quoteAsset == eth ? weth : quoteAsset).symbol());
+        string memory symbol = string.concat("CLV-", IERC20(baseAsset == eth ? weth : baseAsset).symbol(), IERC20(quoteAsset == eth ? weth : quoteAsset).symbol());
 
         vault = _createVault(quoteAsset == eth ? weth : quoteAsset, baseAsset == eth ? weth : baseAsset, maxShares, uint40(lockup), decreaseOnWithdraw, symbol, metadata);
 
@@ -179,7 +185,7 @@ contract CrystalVaultFactory {
             IERC20(baseAsset).transfer(msg.sender, amountBase);
         }
         uint256 totalShares = ICrystalVault(vault).totalSupply();
-        if (totalShares == 0 && !vaultInfo.closed) { // has to be owner full withdraw causing vault to close
+        if (IERC20(vault).balanceOf(vaultInfo.owner) == 0 && !vaultInfo.closed) { // has to be owner full withdraw causing vault to close
             if (!vaultInfo.locked) {
                 vaultInfo.locked = true;
                 emit ICrystalVaultFactory.Locked(vault);
@@ -267,4 +273,6 @@ contract CrystalVaultFactory {
         require(msg.sender == ICrystalVault(vault).owner());
         ICrystalVault(vault).clearCloidSlots(userId, ids);
     }
+
+    receive() external payable {}
 }

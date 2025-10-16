@@ -178,7 +178,7 @@ contract CrystalVault is ERC20 {
         require(factory == msg.sender);
         cancelAll();
         address newMarket = ICrystal(crystal).getMarketByTokens(quoteAsset, baseAsset);
-        require(ICrystal(crystal).getMarket(market).quoteAsset == quoteAsset); // min owner deposit is enforced in factory, valid market is enforced here aswell
+        require(ICrystal(crystal).getMarket(newMarket).quoteAsset == quoteAsset); // min owner deposit is enforced in factory, valid market is enforced here aswell
         market = newMarket;
     }
 
@@ -371,8 +371,12 @@ contract CrystalVault is ERC20 {
                 }
             }
         }
-        ICrystal(crystal).withdraw(msg.sender, quoteAsset, amountQuote);
-        ICrystal(crystal).withdraw(msg.sender, baseAsset, amountBase);
+        if (amountQuote > 0) {
+            ICrystal(crystal).withdraw(msg.sender, quoteAsset, amountQuote);
+        }
+        if (amountBase > 0) {
+            ICrystal(crystal).withdraw(msg.sender, baseAsset, amountBase);
+        }
     }
 
     function cancelAll() public {
