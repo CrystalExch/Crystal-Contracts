@@ -419,7 +419,7 @@ contract CrystalVault is ERC20 {
                 require(action.cloid != 0 && action.cloid < orderCap);
             }
             data[i+1] = bytes32((action.action << 252) |
-                (action.requireSuccess ? (1 << 246) : 0) |
+                (action.requireSuccess ? (1 << 248) : 0) |
                 ((action.cloid & 0x3FF) << 192) |
                 ((action.param1 & 0xFFFFFFFFFFFFFFFFFFFF) << 112) |
                 action.param2 & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF);

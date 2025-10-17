@@ -238,7 +238,7 @@ contract CrystalMarket {
         reserveQuote -= uint112(amountQuote); // checked
         reserveBase -= uint112(amountBase); // checked
 
-        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && m.highestBid <= ((reserveQuote * scaleFactor * 10000 * m.makerRebate + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000)) && m.lowestAsk >= ((reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * m.makerRebate)));
+        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && (m.isAMMEnabled == false || (m.highestBid <= ((reserveQuote * scaleFactor * 10000 * m.makerRebate + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000)) && m.lowestAsk >= ((reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * m.makerRebate)))));
         (m.reserveQuote, m.reserveBase) = (reserveQuote, reserveBase);
         emit ICrystal.Sync(market, reserveQuote, reserveBase);
         emit ICrystal.Burn(market, msg.sender, amountQuote, amountBase, to);
@@ -374,7 +374,7 @@ contract CrystalMarket {
             high = high > (reserveBase - 1) ? (reserveBase - 1) : high;
             while (low < high) {
                 uint256 mid = (low + high) >> 1;
-                uint256 num = (reserveQuote + ((mid * reserveQuote * 10000 + ((reserveBase - mid) * 9975 - 1)) / ((reserveBase - mid) * 9975)) + 1) * 10000;
+                uint256 num = (reserveQuote + ((mid * reserveQuote * 10000) / ((reserveBase - mid) * 9975)) + 1) * 10000;
                 uint256 den = 9975 * (reserveBase - mid);
                 uint256 pMid = (num * _scaleFactor * makerRebate + ((den * 100000) - 1)) / (den * 100000);
                 if (pMid > targetPrice) {
@@ -407,7 +407,7 @@ contract CrystalMarket {
             high = high > (reserveQuote - 1) ? (reserveQuote - 1) : high;
             while (low < high) {
                 uint256 mid = (low + high) >> 1;
-                uint256 den = (reserveBase + ((mid * reserveBase * 10000 + ((reserveQuote - mid) * 9975 - 1)) / ((reserveQuote - mid) * 9975)) + 1) * 10000;
+                uint256 den = (reserveBase + ((mid * reserveBase * 10000) / ((reserveQuote - mid) * 9975)) + 1) * 10000;
                 uint256 num = 9975 * (reserveQuote - mid);
                 uint256 pMid = num * _scaleFactor * 100000 / (den * makerRebate);
                 if (pMid < targetPrice) {
@@ -848,9 +848,10 @@ contract CrystalMarket {
                         _amountIn = 0; // set to 0 if no swap through amm so the next statement doesn't run
                     }
                     if (_amountIn != 0) {
+                        uint256 sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
                         amountIn += _amountIn;
                         amountOut += _amountOut;
-                        if ((isExactInput ? (size - amountIn) : (size - amountOut)) == (isExactInput ? _amountIn : _amountOut)) { // deduct from sizeleft but if full swap then break
+                        if (sizeLeft == (isExactInput ? _amountIn : _amountOut)) {
                             break;
                         }
                     }
@@ -1614,6 +1615,7 @@ contract CrystalMarket {
             }
             uint256 settlementDelta;
             assembly {
+                mstore(0x80, 0x0)
                 mstore(0x40, 0xe0) // 0x80 is used by _marketOrder internally to avoid stack too deep
             }
             (amountIn, amountOut, id, settlementDelta) = _marketOrder(size, (uint160(referrer) << 80) | worstPrice, orderInfo);
@@ -1776,6 +1778,7 @@ contract CrystalMarket {
         options = (uint160(user) << 96) | (options & MASK_KEEP_0_96);
         newPrice = (uint160(referrer) << 80) | newPrice;
         assembly {
+            mstore(0x80, 0x0)
             mstore(0x40, 0xe0) // 0x80 is used by _marketOrder internally to avoid stack too deep
         }
         (quoteAssetDebt, baseAssetDebt, _id) = _replaceOrder(options, price, id, newPrice, size);
@@ -1819,6 +1822,7 @@ contract CrystalMarket {
             }
             balanceMode = ((options >> 52) & 1);
             assembly {
+                mstore(0x80, 0x0)
                 mstore(0x40, 0xe0)
             }
             while (offset < actions.length) {
@@ -1859,7 +1863,7 @@ contract CrystalMarket {
                 else if (action > 3 && action < 12) { // 4 mtl buy 5 mtl sell 6 partial buy 7 partial sell 8 partial buy stop when low gas 9 partial sell stop when low gas 10 complete buy 11 complete sell
                     uint256 settlementDelta;
                     settlementDelta = (uint160(referrer) << 80) | param1; // avoid stack too deep
-                    param1 = (((action < 6) ? 2 : (action < 8) ? 0 : (action < 10) ? 3 : 1) << 252) | ((action & 1 != 0) ? (1 << 244) : 0); // reuse to save stack, represents ordertype and isbuy
+                    param1 = (uint256((action < 6) ? 2 : (action < 8) ? 0 : (action < 10) ? 3 : 1) << 252) | ((action & 1 != 0) ? (1 << 244) : 0); // reuse to save stack, represents ordertype and isbuy
                     ( , param1, , settlementDelta) = _marketOrder(param2, settlementDelta, param1 | (1 << 240) | (balanceMode << 236) | (cloid << 208) | (userId << 160) | uint160(user));
                     if (action & 1 != 0) { // sell
                         baseAssetDebt += int256(settlementDelta >> 128);
@@ -1981,7 +1985,7 @@ contract CrystalMarket {
                 else if (action > 3 && action < 12) { // 4 mtl buy 5 mtl sell 6 partial buy 7 partial sell 8 partial buy stop when low gas 9 partial sell stop when low gas 10 complete buy 11 complete sell
                     uint256 settlementDelta;
                     settlementDelta = (uint160(msg.sender) << 80) | param1; // avoid stack too deep
-                    param1 = (((action < 6) ? 2 : (action < 8) ? 0 : (action < 10) ? 3 : 1) << 252) | ((action & 1 != 0) ? (1 << 244) : 0); // reuse to save stack, represents ordertype and isbuy
+                    param1 = (uint256((action < 6) ? 2 : (action < 8) ? 0 : (action < 10) ? 3 : 1) << 252) | (((action & 1) != 0) ? (1 << 244) : 0); // reuse to save stack, represents ordertype and isbuy
                     ( , param1, , settlementDelta) = _marketOrder(param2, settlementDelta, param1 | (1 << 240) | (balanceMode << 236) | (cloid << 208) | (userId << 160) | uint160(msg.sender));
                     if (action & 1 != 0) { // sell
                         baseAssetDebt += int256(settlementDelta >> 128);

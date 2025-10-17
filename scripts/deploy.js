@@ -30,7 +30,7 @@ async function main() {
       to: null, // deployment
       data: deployTx.data,
       gasLimit: estimated, // High gas limit for large contracts
-      gasPrice: 62000000000,
+      gasPrice: 162000000000,
       chainId: 10143,
       nonce: await provider.getTransactionCount(wallet.address),
     };
@@ -74,7 +74,7 @@ async function main() {
       to: await contract.getAddress(),
       data: callData,
       gasLimit: estimated,
-      gasPrice: 62000000000,
+      gasPrice: 162000000000,
       chainId: 10143,
       nonce: await provider.getTransactionCount(wallet.address),
     };

@@ -1008,9 +1008,9 @@ contract Crystal is ICrystal {
                 tokenBalances[0][weth] = balance - amount;
             }
             IWETH(weth).withdraw(amount);
-            (bool success, ) = to.call{value: amount}("");
+            (bool success, ) = msg.sender.call{value: amount}("");
             if (!success) {
-                revert ICrystal.TransferFailed(to);
+                revert ICrystal.TransferFailed(msg.sender);
             }         
         }
     }
@@ -1283,6 +1283,7 @@ contract Crystal is ICrystal {
         allTokens.push(address(token));
         emit ICrystal.TokenCreated(address(token), msg.sender, name, symbol, metadataCID, description, social1, social2, social3, social4);
         uint256 marketId = allMarkets.length + 1;
+        require(marketId < MASK_KEEP_0_48);
         parameters = ICrystal.Parameters(weth, token, marketId, 3, 9, 1, 1000000000000000); // maxsize is validated here
         uint256 maxTick;
         address market;
