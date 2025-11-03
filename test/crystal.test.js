@@ -93,8 +93,7 @@ describe("CrystalTests", function () {
       crystal.target,        // address of the Crystal contract
       owner.address,         // gov
       ethers.ZeroAddress,
-      100,                  // defaultQuoteMin
-      100000000000000000000n,                  // defaultBaseMin
+      100,                  // minSize
       100,                  // maxOrderCap
       0n, // 0 day lockup
     );
@@ -384,7 +383,7 @@ describe("CrystalTests", function () {
           return false;
         }
       }));
-      sellChunk = encodeAction(3, priceParam, sizeParam, 2n);
+      sellChunk = encodeAction(5, priceParam, sizeParam, 2n);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
@@ -1413,7 +1412,7 @@ describe("CrystalTests", function () {
       fills = await crystal.connect(taker).fallback({ data: buyData });
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
-      await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}], 10n);
+      await vault.connect(vaultoperator).execute([{requireSuccess: false, action: 3n, cloid: 1n, param1: priceParam, param2: sizeParam}], 10n);
       sellChunk = encodeAction(3, priceParam, sizeParam);
       await crystal.connect(maker).fallback({ data: ethers.concat([sellHeader, ...Array(1).fill(sellChunk)]) });
       await vault.connect(vaultoperator).execute([{requireSuccess: true, action: 1n, cloid: 1n, param1: priceParam, param2: sizeParam}], 10n);

@@ -15,17 +15,15 @@ contract CrystalVaultFactory {
     address[] public allVaults;
     mapping (address => ICrystalVaultFactory.Vault) public getVault;
     mapping (address => uint256) public minSize;
-    uint256 public defaultQuoteMin; // min deposit, is already divided by deciamls
-    uint256 public defaultBaseMin; // anti rounding error, raw value
+    uint256 public minDeposit; // min deposit
     uint16 public maxOrderCap;
     uint40 public maxLockup;
 
-    constructor(address _crystal, address _gov, address _weth, uint256 _defaultQuoteMin, uint256 _defaultBaseMin, uint256 _maxOrderCap, uint256 _lockup) {
+    constructor(address _crystal, address _gov, address _weth, uint256 _minDeposit, uint256 _maxOrderCap, uint256 _lockup) {
         crystal = _crystal;
         gov = _gov;
         weth = _weth;
-        defaultQuoteMin = _defaultQuoteMin;
-        defaultBaseMin = _defaultBaseMin;
+        minDeposit = _minDeposit;
         maxOrderCap = uint16(_maxOrderCap);
         maxLockup = uint40(_lockup);
     }
@@ -92,13 +90,13 @@ contract CrystalVaultFactory {
         if (minSize[quoteAsset == eth ? weth : quoteAsset] != 0) { // make sure first deposit isn't dust
             require(amountQuote > minSize[quoteAsset == eth ? weth : quoteAsset]);
         } else {
-            require(amountQuote > defaultQuoteMin * 10 ** IERC20(quoteAsset == eth ? weth : quoteAsset).decimals());
+            require(amountQuote > minDeposit);
         }
 
         if (minSize[baseAsset == eth ? weth : baseAsset] != 0) {
             require(amountBase > minSize[baseAsset == eth ? weth : baseAsset]);
         } else {
-            require(amountBase > defaultBaseMin);
+            require(amountBase > minDeposit);
         }
         string memory symbol = string.concat("CLV-", IERC20(baseAsset == eth ? weth : baseAsset).symbol(), IERC20(quoteAsset == eth ? weth : quoteAsset).symbol());
 

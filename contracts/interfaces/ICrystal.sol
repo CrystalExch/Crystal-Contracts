@@ -241,5 +241,7 @@ interface ICrystal {
     function createToken(string memory name,string memory symbol,string memory metadataCID,string memory description,string memory social1,string memory social2,string memory social3,string memory social4) external payable returns (address token);
     function buy(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external payable returns (uint256, uint256, bool);
     function sell(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external returns (uint256, uint256);
+    function quoteBuy(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external returns (uint256, uint256, bool);
+    function quoteSell(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external returns (uint256, uint256);
     function getVirtualReserves(address token) external view returns (uint256, uint256);
 }
