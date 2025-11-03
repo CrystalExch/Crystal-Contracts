@@ -1451,8 +1451,8 @@ contract Crystal is ICrystal {
             if (!isExactInput) {
                 newInputAmount = amountOut - outputAmount;
             }
-            bool result;
             bytes memory ret = abi.encodeWithSelector(0xe690552b, true, isExactInput, (1 << 64), 1, newInputAmount, MASK_KEEP_0_80, address(0), msg.sender);
+            bool result;
             address market = getMarketByTokens[weth][token];    
             if (market == address(0) || market == placeholder) {
                 revert ICrystal.InvalidMarket(weth, token);
@@ -1538,8 +1538,8 @@ contract Crystal is ICrystal {
         }
         else {
             uint256 newInputAmount = isExactInput ? amountIn : amountOut;
-            bool result;
             bytes memory ret = abi.encodeWithSelector(0xe690552b, false, isExactInput, (1 << 60), 1, newInputAmount, 1, address(0), msg.sender);
+            bool result;
             address market = getMarketByTokens[weth][token];    
             if (market == address(0) || market == placeholder) {
                 revert ICrystal.InvalidMarket(weth, token);
@@ -1601,7 +1601,6 @@ contract Crystal is ICrystal {
                     inputAmount = (preFeeIn * 100000 + launchpadParams.launchpadFee - 1) / launchpadParams.launchpadFee;
                     require(amountOut < launchpadMarket.virtualTokenReserve && inputAmount <= amountIn);
                     virtualNativeReserve = uint112(newNative);
-                    virtualTokenReserve = uint112(newToken);
                     outputAmount = amountOut;
                 }
             }
@@ -1659,15 +1658,13 @@ contract Crystal is ICrystal {
                 uint256 newToken = (launchpadMarket.k + newNative - 1) / newNative;
                 inputAmount = newToken - launchpadMarket.virtualTokenReserve;
                 require(outputAmountWithFee < launchpadMarket.virtualNativeReserve && inputAmount <= amountIn);
-                virtualNativeReserve = uint112(newNative);
-                virtualTokenReserve = uint112(newToken);
                 outputAmount = amountOut;
             }
         }
         else {
             uint256 newInputAmount = isExactInput ? amountIn : amountOut;
-            bool result;
             bytes memory ret = abi.encodeWithSelector(0x638571e3, false, isExactInput, true, newInputAmount, 1);
+            bool result;
             address market = getMarketByTokens[weth][token];    
             if (market == address(0) || market == placeholder) {
                 revert ICrystal.InvalidMarket(weth, token);
@@ -1682,7 +1679,7 @@ contract Crystal is ICrystal {
         return (inputAmount, outputAmount);
     }
 
-    function close(address token) external returns (uint256 amountQuote, uint256 amountBase) {
+    function closeInactiveMarket(address token) external returns (uint256 amountQuote, uint256 amountBase) {
         address market = getMarketByTokens[weth][token];    
         if (market == address(0) || market == placeholder) {
             ICrystal.LaunchpadMarket storage l = launchpadTokenToMarket[token];

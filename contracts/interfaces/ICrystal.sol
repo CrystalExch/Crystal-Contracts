@@ -244,4 +244,6 @@ interface ICrystal {
     function quoteBuy(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external returns (uint256, uint256, bool);
     function quoteSell(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external returns (uint256, uint256);
     function getVirtualReserves(address token) external view returns (uint256, uint256);
+    function closeInactiveMarket(address token) external returns (uint256 amountQuote, uint256 amountBase);
+    function lockZeroAddressLiquidity(address market) external;
 }

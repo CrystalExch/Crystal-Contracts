@@ -325,8 +325,7 @@ async function main() {
     wallet.address,
     "0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701",
     100,
-    1n,
-    1000,
+    100,
     5n
   );
 
