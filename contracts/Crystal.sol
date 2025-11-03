@@ -10,7 +10,6 @@ import {CrystalMarket} from './CrystalMarket.sol';
 contract Crystal is ICrystal {
     address public feeRecipient;
     uint8 public feeCommission;
-    uint8 public feeRebate;
 
     mapping (uint256 => address) public userIdToAddress;
     mapping (address => uint256) public addressToUserId;
@@ -55,12 +54,11 @@ contract Crystal is ICrystal {
     uint256 private constant MASK_KEEP_0_112 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
     uint256 private constant MASK_KEEP_0_128 = 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
-    constructor(address _weth, address _gov, address _feeRecipient, uint8 _feeCommission, uint8 _feeRebate, uint256 _feeClaimDuration, ICrystal.LaunchpadParams memory _launchpadParams) {
+    constructor(address _weth, address _gov, address _feeRecipient, uint8 _feeCommission, uint256 _feeClaimDuration, ICrystal.LaunchpadParams memory _launchpadParams) {
         weth = _weth;
         gov = _gov;
         feeRecipient = _feeRecipient;
         feeCommission = _feeCommission;
-        feeRebate = _feeRebate;
         feeClaimDuration = _feeClaimDuration;
         isCanonicalDeployer[_gov] = true;
         uint256 minSizeZeroes;
@@ -69,7 +67,7 @@ contract Crystal is ICrystal {
             minSize /= 10;
             ++minSizeZeroes;
         }
-        require((_feeCommission + _feeRebate) <= 50 && minSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20 && _launchpadParams.launchpadInitialNativeSupply > 1e18 && 90000 <= _launchpadParams.launchpadFee && _launchpadParams.launchpadFee <= 100000 && 90000 <= _launchpadParams.graduatedTakerFee);
+        require(_feeCommission <= 50 && minSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20 && _launchpadParams.launchpadInitialNativeSupply > 1e18 && 90000 <= _launchpadParams.launchpadFee && _launchpadParams.launchpadFee <= 100000 && 90000 <= _launchpadParams.graduatedTakerFee);
         require(_launchpadParams.graduatedTakerFee <= 100000 && 90000 <= _launchpadParams.graduatedMakerRebate && _launchpadParams.graduatedMakerRebate <= 100000 && _launchpadParams.graduatedCreatorFeeSplit <= 50 && _launchpadParams.launchpadCreatorFeeSplit <= 50);
         launchpadParams = _launchpadParams;
     }
@@ -445,13 +443,12 @@ contract Crystal is ICrystal {
         feeClaimDuration = newFeeClaimDuration;
     }
 
-    function changeRefFeeStructure(uint8 newFeeCommission, uint8 newFeeRebate) external {
+    function changeRefFeeCommission(uint8 newFeeCommission) external {
         if (msg.sender != gov) {
             revert ICrystal.Unauthorized(msg.sender);
         }
-        require((newFeeCommission + newFeeRebate) <= 50);
+        require(newFeeCommission <= 50);
         feeCommission = newFeeCommission;
-        feeRebate = newFeeRebate;
     }
 
     function changeMarketParams(address market, uint256 newMinSize, uint24 newTakerFee, uint24 newMakerRebate, bool isAMMEnabled, bool isCanonical) external {

@@ -7,7 +7,6 @@ import {ICrystal} from './interfaces/ICrystal.sol';
 contract CrystalMarket {
     address private feeRecipient; // public is useless so everything isn't
     uint8 private feeCommission;
-    uint8 private feeRebate;
 
     mapping (uint256 => address) private userIdToAddress; // 0 is an invalid userid
     mapping (address => uint256) private addressToUserId;
@@ -805,18 +804,18 @@ contract CrystalMarket {
                     uint256 _amountIn = (isBuy ? (price > worstPrice) : (price < worstPrice)) ? worstPrice : price; // stop at either slippage limit or next resting order price
                     uint256 _amountOut;
                     if (isBuy && _amountIn > (reserveQuote * scaleFactor * 10000 * m.makerRebate + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000)) { // adjust price in favor of amm because no maker rebate
-                        uint256 sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
+                        uint256 _sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
                         if (isExactInput) {
-                            _amountIn = _exactInputBuySolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft); // find optimal amountIn so AMM execution price up to price adjusted for maker rebate
-                            if (sizeLeft < _amountIn) {
-                                _amountIn = sizeLeft; // if amount is greater than sizeleft set amount to sizeleft and swap all thru amm
+                            _amountIn = _exactInputBuySolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, _sizeLeft); // find optimal amountIn so AMM execution price up to price adjusted for maker rebate
+                            if (_sizeLeft < _amountIn) {
+                                _amountIn = _sizeLeft; // if amount is greater than _sizeLeft set amount to _sizeLeft and swap all thru amm
                             }
                             _amountOut = (_amountIn * 9975 * reserveBase) / ((reserveQuote * 10000) + (_amountIn * 9975)); // swap
                         }
                         else {
-                            _amountOut = _exactOutputBuySolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft); // find optimal amountOut so AMM execution price up to price adjusted for maker rebate
-                            if (sizeLeft < _amountOut) {
-                                _amountOut = sizeLeft; // if amount is greater than sizeleft set amount to sizeleft and swap all thru amm
+                            _amountOut = _exactOutputBuySolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, _sizeLeft); // find optimal amountOut so AMM execution price up to price adjusted for maker rebate
+                            if (_sizeLeft < _amountOut) {
+                                _amountOut = _sizeLeft; // if amount is greater than _sizeLeft set amount to _sizeLeft and swap all thru amm
                             }
                             _amountIn = (_amountOut * reserveQuote * 10000) / ((reserveBase - _amountOut) * 9975) + 1; // swap
                         }
@@ -824,18 +823,18 @@ contract CrystalMarket {
                         reserveBase -= _amountOut;
                     }
                     else if (!isBuy && _amountIn < (reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * m.makerRebate)) {
-                        uint256 sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
+                        uint256 _sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
                         if (isExactInput) {
-                            _amountIn = _exactInputSellSolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft);
-                            if (sizeLeft < _amountIn) {
-                                _amountIn = sizeLeft;
+                            _amountIn = _exactInputSellSolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, _sizeLeft);
+                            if (_sizeLeft < _amountIn) {
+                                _amountIn = _sizeLeft;
                             }
                             _amountOut = ((_amountIn * 9975) * reserveQuote) / ((reserveBase * 10000) + (_amountIn * 9975));
                         }
                         else {
-                            _amountOut = _exactOutputSellSolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft);
-                            if (sizeLeft < _amountOut) {
-                                _amountOut = sizeLeft;
+                            _amountOut = _exactOutputSellSolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, _sizeLeft);
+                            if (_sizeLeft < _amountOut) {
+                                _amountOut = _sizeLeft;
                             }
                             _amountIn = (_amountOut * reserveBase * 10000) / ((reserveQuote - _amountOut) * 9975) + 1;
                         }
@@ -846,10 +845,10 @@ contract CrystalMarket {
                         _amountIn = 0; // set to 0 if no swap through amm so the next statement doesn't run
                     }
                     if (_amountIn != 0) {
-                        uint256 sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
+                        uint256 _sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
                         amountIn += _amountIn;
                         amountOut += _amountOut;
-                        if (sizeLeft == (isExactInput ? _amountIn : _amountOut)) {
+                        if (_sizeLeft == (isExactInput ? _amountIn : _amountOut)) {
                             break;
                         }
                     }
@@ -1365,14 +1364,12 @@ contract CrystalMarket {
                 else {
                     uint256 amountCommission = feeAmount * feeCommission / 100;
                     claimableRewards[quoteAsset][address(uint160(priceAndReferrer >> 80))] += amountCommission;
-                    uint256 amountRebate = feeAmount * feeRebate / 100;
-                    claimableRewards[quoteAsset][address(uint160(orderInfo))] += amountRebate;
                     uint256 creatorFee;
                     if (marketType == 3) {
                         creatorFee = feeAmount * m.creatorFeeSplit / 100;
                         claimableRewards[quoteAsset][m.creator] += creatorFee;
                     }
-                    claimableRewards[quoteAsset][feeRecipient] += (feeAmount - amountCommission - amountRebate - creatorFee);
+                    claimableRewards[quoteAsset][feeRecipient] += (feeAmount - amountCommission - creatorFee);
                 }
                 assembly { price := mload(0x80) }
                 emit ICrystal.Trade(market, address(uint160(orderInfo)), (orderInfo >> 244 & 1) == 0, amountIn, amountOut, price >> 128, price & MASK_KEEP_0_128);

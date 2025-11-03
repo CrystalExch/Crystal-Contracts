@@ -165,7 +165,6 @@ interface ICrystal {
     
     function feeRecipient() external view returns (address);
     function feeCommission() external view returns (uint8);
-    function feeRebate() external view returns (uint8);
     function userIdToAddress(uint256) external view returns (address);
     function addressToUserId(address) external view returns (uint256);
     function claimableRewards(address, address) external view returns (uint256);
@@ -207,7 +206,7 @@ interface ICrystal {
     function changeGov(address newGov) external;
     function changeFeeRecipient(address newFeeRecipient) external;
     function changeFeeClaimDuration(uint256 newFeeClaimDuration) external;
-    function changeRefFeeStructure(uint8 newFeeCommission, uint8 newFeeRebate) external;
+    function changeRefFeeCommission(uint8 newFeeCommission) external;
     function changeMarketParams(address market, uint256 newMinSize, uint24 newTakerFee, uint24 newMakerRebate, bool isAMMEnabled, bool isCanonical) external;
     function changeMarketCreatorFee(address market, address newCreator, uint256 newCreatorFee) external;
     function changeLaunchpadParams(LaunchpadParams memory newLaunchpadParams) external;

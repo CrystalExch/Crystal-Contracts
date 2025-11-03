@@ -57,7 +57,6 @@ async function main() {
     wallet.address,
     wallet.address,
     10,
-    10,
     86400,
     [1000000000000000000000n, 99000n, 10n, 1000000000000000000n, 99910n, 99990n, 40]
   );

@@ -39,7 +39,7 @@ describe("CrystalTests", function () {
     await base.connect(depositer).deposit({value: ethers.parseEther("1000000000000000000000000000000")});
 
     const Crystal = await ethers.getContractFactory("Crystal");
-    crystal = await Crystal.deploy(base.target, owner.address, owner.address, 10, 10, 86400, [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]);
+    crystal = await Crystal.deploy(base.target, owner.address, owner.address, 10, 86400, [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]);
     // price * base amount * base decimals = quote amount * quote decimals * scale factor
     // price factor = quote amount * scale factor / base amount
     // scale factor = real world max price * price factor * 10 ** quote decimals
