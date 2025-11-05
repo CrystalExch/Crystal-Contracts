@@ -1684,7 +1684,7 @@ contract Crystal is ICrystal {
             IERC20(token).transfer(address(0), l.virtualTokenReserve);
             uint256 initialNativeReserve = l.k / 1000000000000000000000000000;
             if (l.virtualNativeReserve > initialNativeReserve) {
-                claimableRewards[weth][gov] = l.virtualNativeReserve - initialNativeReserve;
+                claimableRewards[weth][gov] += (l.virtualNativeReserve - initialNativeReserve);
             }
             delete launchpadTokenToMarket[token];
         }
