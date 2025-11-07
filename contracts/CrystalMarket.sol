@@ -203,7 +203,7 @@ contract CrystalMarket {
             tokenBalances[0][baseAsset] -= amountBase; // checked
         }
         IERC20(market).mint(to, liquidity);
-        require(liquidity != 0 && amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && reserveQuote <= MASK_KEEP_0_112 && reserveBase <= MASK_KEEP_0_112 && m.isAMMEnabled == true);
+        require(liquidity != 0 && amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && m.isAMMEnabled == true);
         (m.reserveQuote, m.reserveBase) = (reserveQuote, reserveBase);
         emit ICrystal.Sync(market, reserveQuote, reserveBase);
         emit ICrystal.Mint(market, msg.sender, amountQuote, amountBase);
@@ -1039,7 +1039,7 @@ contract CrystalMarket {
                                 settlementDelta += (_amountIn << 128);
                             }
                             else {
-                                settlementDelta |= ((MASK_KEEP_0_128) << 128);
+                                settlementDelta |= (MASK_KEEP_0_128 << 128);
                             }
                             amountIn += _amountIn;
                             amountOut += _amountOut;
@@ -1080,7 +1080,7 @@ contract CrystalMarket {
                                 settlementDelta += (slot << 128);
                             }
                             else {
-                                settlementDelta |= ((MASK_KEEP_0_128) << 128);
+                                settlementDelta |= (MASK_KEEP_0_128 << 128);
                             }
                             if (slot != 0) { // limit order event is written to memory, emitted in outer function
                                 _addToOrdersUpdatedEvent((LEADING_HEX_2 + (((tick >> 244 & 1) == 0) ? 0 : LEADING_HEX_1)) | (sizeLeft << 168) | (id << 112) | slot); // 8 flag 80 price 56 id 112 size
@@ -1143,17 +1143,28 @@ contract CrystalMarket {
                                             try IERC20(isBuy ? quoteAsset : baseAsset).transferFrom(msg.sender, owner, sizeLeft) {
                                             }
                                             catch {
-                                                settlementDelta += (sizeLeft << 128);
+                                                uint256 tempSettlementDelta = settlementDelta; // need new var to avoid stack too deep
+                                                if (((tempSettlementDelta >> 128) + sizeLeft) <= MASK_KEEP_0_128) {
+                                                    settlementDelta = tempSettlementDelta + (sizeLeft << 128);
+                                                }
+                                                else {
+                                                    settlementDelta = tempSettlementDelta | (MASK_KEEP_0_128 << 128);
+                                                }
                                                 if (((tokenBalances[ownerUserId][isBuy ? quoteAsset : baseAsset] & MASK_KEEP_0_128) + sizeLeft) <= MASK_KEEP_0_128) {
                                                     tokenBalances[ownerUserId][isBuy ? quoteAsset : baseAsset] += sizeLeft;
                                                 } else {
                                                     tokenBalances[ownerUserId][isBuy ? quoteAsset : baseAsset] |= MASK_KEEP_0_128;
                                                 }
-                                                tokenBalances[ownerUserId][isBuy ? baseAsset : quoteAsset] -= (_amountOut << 128); // unlock maker internal
                                             }
                                         }
                                         else { // taker gives internal balance
-                                            settlementDelta += (sizeLeft << 128);
+                                            uint256 tempSettlementDelta = settlementDelta;
+                                            if (((tempSettlementDelta >> 128) + sizeLeft) <= MASK_KEEP_0_128) {
+                                                settlementDelta = tempSettlementDelta + (sizeLeft << 128);
+                                            }
+                                            else {
+                                                settlementDelta = tempSettlementDelta | (MASK_KEEP_0_128 << 128);
+                                            }
                                             (bool success,) = (isBuy ? quoteAsset : baseAsset).call(
                                                 abi.encodeWithSelector(0xa9059cbb, owner, sizeLeft)
                                             );
@@ -1164,12 +1175,17 @@ contract CrystalMarket {
                                                 } else {
                                                     tokenBalances[ownerUserId][isBuy ? quoteAsset : baseAsset] |= MASK_KEEP_0_128;
                                                 }
-                                                tokenBalances[ownerUserId][isBuy ? baseAsset : quoteAsset] -= (_amountOut << 128); // unlock maker internal
                                             }
                                         }
                                     }
                                     else { // maker wants internal balance
-                                        settlementDelta += (sizeLeft << 128);
+                                        uint256 tempSettlementDelta = settlementDelta;
+                                        if (((tempSettlementDelta >> 128) + sizeLeft) <= MASK_KEEP_0_128) {
+                                            settlementDelta = tempSettlementDelta + (sizeLeft << 128);
+                                        }
+                                        else {
+                                            settlementDelta = tempSettlementDelta | (MASK_KEEP_0_128 << 128);
+                                        }
                                         if (((tokenBalances[ownerUserId][isBuy ? quoteAsset : baseAsset] & MASK_KEEP_0_128) + sizeLeft) <= MASK_KEEP_0_128) {
                                             tokenBalances[ownerUserId][isBuy ? quoteAsset : baseAsset] += sizeLeft;
                                         } else {
@@ -1204,17 +1220,28 @@ contract CrystalMarket {
                                             try IERC20(((_orderInfo >> 244 & 1) == 0) ? quoteAsset : baseAsset).transferFrom(msg.sender, owner, transferAmount) {
                                             }
                                             catch {
-                                                settlementDelta += (transferAmount << 128);
+                                                uint256 tempSettlementDelta = settlementDelta;
+                                                if (((tempSettlementDelta >> 128) + transferAmount) <= MASK_KEEP_0_128) {
+                                                    settlementDelta = tempSettlementDelta + (transferAmount << 128);
+                                                }
+                                                else {
+                                                    settlementDelta = tempSettlementDelta | (MASK_KEEP_0_128 << 128);
+                                                }
                                                 if (((tokenBalances[ownerUserId][((_orderInfo >> 244 & 1) == 0) ? quoteAsset : baseAsset] & MASK_KEEP_0_128) + transferAmount) <= MASK_KEEP_0_128) {
                                                     tokenBalances[ownerUserId][((_orderInfo >> 244 & 1) == 0) ? quoteAsset : baseAsset] += transferAmount;
                                                 } else {
                                                     tokenBalances[ownerUserId][((_orderInfo >> 244 & 1) == 0) ? quoteAsset : baseAsset] |= MASK_KEEP_0_128;
                                                 }
-                                                tokenBalances[ownerUserId][((_orderInfo >> 244 & 1) == 0) ? baseAsset : quoteAsset] -= (_amountOut << 128); // unlock maker internal        
                                             }
                                         }
                                         else { // taker gives internal balance
-                                            settlementDelta += (transferAmount << 128);
+                                            uint256 tempSettlementDelta = settlementDelta;
+                                            if (((tempSettlementDelta >> 128) + transferAmount) <= MASK_KEEP_0_128) {
+                                                settlementDelta = tempSettlementDelta + (transferAmount << 128);
+                                            }
+                                            else {
+                                                settlementDelta = tempSettlementDelta | (MASK_KEEP_0_128 << 128);
+                                            }
                                             (bool success,) = (((_orderInfo >> 244 & 1) == 0) ? quoteAsset : baseAsset).call(
                                                 abi.encodeWithSelector(0xa9059cbb, owner, transferAmount)
                                             );
@@ -1225,12 +1252,17 @@ contract CrystalMarket {
                                                 } else {
                                                     tokenBalances[ownerUserId][((_orderInfo >> 244 & 1) == 0) ? quoteAsset : baseAsset] |= MASK_KEEP_0_128;
                                                 }
-                                                tokenBalances[ownerUserId][((_orderInfo >> 244 & 1) == 0) ? baseAsset : quoteAsset] -= (_amountOut << 128); // unlock maker internal
                                             }
                                         }
                                     }
                                     else { // maker wants internal balance
-                                        settlementDelta += (transferAmount << 128);
+                                        uint256 tempSettlementDelta = settlementDelta;
+                                        if (((tempSettlementDelta >> 128) + transferAmount) <= MASK_KEEP_0_128) {
+                                            settlementDelta = tempSettlementDelta + (transferAmount << 128);
+                                        }
+                                        else {
+                                            settlementDelta = tempSettlementDelta | (MASK_KEEP_0_128 << 128);
+                                        }
                                         if (((tokenBalances[ownerUserId][((_orderInfo >> 244 & 1) == 0) ? quoteAsset : baseAsset] & MASK_KEEP_0_128) + transferAmount) <= MASK_KEEP_0_128) {
                                             tokenBalances[ownerUserId][((_orderInfo >> 244 & 1) == 0) ? quoteAsset : baseAsset] += transferAmount;
                                         } else {
@@ -1344,7 +1376,7 @@ contract CrystalMarket {
                         settlementDelta += (feeAmount << 128);
                     }
                     else {
-                        settlementDelta |= ((MASK_KEEP_0_128) << 128);
+                        settlementDelta |= (MASK_KEEP_0_128 << 128);
                     }
                     m.lowestAsk = uint80(price);
                 }

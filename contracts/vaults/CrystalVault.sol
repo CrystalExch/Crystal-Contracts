@@ -287,6 +287,7 @@ contract CrystalVault is ERC20 {
         if (user == owner && !closed) {
             if (balanceOf[owner] == 0) {
                 cancelAll();
+                (quoteBalance, baseBalance, availableQuote, availableBase) = getBalances();
                 closed = true;
                 if (!locked) {
                     locked = true;

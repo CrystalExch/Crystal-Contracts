@@ -171,10 +171,12 @@ interface ICrystal {
     function latestUserId() external view returns (uint256);
     function gov() external view returns (address);
     function feeClaimDuration() external view returns (uint256);
-    function getMarketByTokens(address, address) external view returns (address);
+    function pendingClosedMarkets(address user) external view returns (uint256);
+    function isCanonicalDeployer(address) external view returns (bool);
+    function approvedForwarder(address, address) external view returns (bool);
     function marketToMarketId(address) external view returns (uint256);
     function marketIdToMarket(uint256) external view returns (address);
-    function isCanonicalDeployer(address) external view returns (bool);
+    function getMarketByTokens(address, address) external view returns (address);
     function allMarkets(uint256) external view returns (address);
     function parameters() external view returns (address, address, uint256, uint256, uint256, uint256, uint256);
     function launchpadParams() external view returns (uint112, uint256, uint256, uint256, uint256, uint256, uint256);
@@ -243,6 +245,7 @@ interface ICrystal {
     function quoteBuy(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external returns (uint256, uint256, bool);
     function quoteSell(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external returns (uint256, uint256);
     function getVirtualReserves(address token) external view returns (uint256, uint256);
-    function closeInactiveMarket(address token) external returns (uint256 amountQuote, uint256 amountBase);
+    function queueCloseInactiveMarket(address token) external;
+    function executeCloseInactiveMarket(address token) external returns (uint256 amountQuote, uint256 amountBase);
     function lockZeroAddressLiquidity(address market) external;
 }
