@@ -18,8 +18,8 @@ module.exports = {
   },
   networks: {
     monad: {
-      url: 'https://testnet-rpc.monad.xyz',
-      chainId: 10143,
+      url: 'https://rpc.monad.xyz',
+      chainId: 143,
       gas: "auto",
       gasPrice: "auto",
       allowUnlimitedContractSize: true,
@@ -37,6 +37,6 @@ module.exports = {
   gasReporter: {
     enabled: false,
     currency: "USD",
-    coinmarketcap: "" // optional
+    coinmarketcap: ""
   }
 };
