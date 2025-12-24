@@ -1,20 +1,20 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
 interface ICrystal {
-    struct InternalOrder { //  bit is if maker wants internal balance (1) or tokens (0) order is stored at either marketid << 128 | price << 48 | id or cloid << 41 | userid; no collision because marketid seperates cloid orders from non cloid, userid prevents cloid collisions, and price n id are always unique
-        uint256 size; //uint112 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+    struct InternalOrder { // bit is if maker wants internal balance (1) or tokens (0) order is stored at either marketid << 128 | price << 48 | id or cloid << 41 | userid; no collision because marketid seperates cloid orders from non cloid, userid prevents cloid collisions, and price n id are always unique
+        uint256 size; // uint112 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF
         uint256 orderType; // uint1 0x1
         uint256 userId; // uint41 0x1FFFFFFFFFF
         uint256 fillBefore; // uint51 0x7FFFFFFFFFFFF
         uint256 fillAfter; // uint51 0x7FFFFFFFFFFFF
     }
 
-    struct Order { //  bit is if maker wants internal balance (1) or tokens (0) order is stored at either marketid << 128 | price << 48 | id or cloid << 41 | userid; no collision because marketid seperates cloid orders from non cloid, userid prevents cloid collisions, and price n id are always unique
+    struct Order { // bit is if maker wants internal balance (1) or tokens (0) order is stored at either marketid << 128 | price << 48 | id or cloid << 41 | userid; no collision because marketid seperates cloid orders from non cloid, userid prevents cloid collisions, and price n id are always unique
         bool isBuy;
         address market;    
-        uint256 price; //uint80 0xFFFFFFFFFFFFFFFFFFFF
-        uint256 size; //uint112 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+        uint256 price; // uint80 0xFFFFFFFFFFFFFFFFFFFF
+        uint256 size; // uint112 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF
         uint256 orderType; //uint1 0x1
         uint256 userId; // uint41 0x1FFFFFFFFFF
         uint256 fillBefore; // uint51 0x7FFFFFFFFFFFF
@@ -36,10 +36,8 @@ interface ICrystal {
         uint24 takerFee;
         uint24 makerRebate;
         bool isAMMEnabled;
-
         uint112 reserveQuote;
         uint112 reserveBase;
-        
         address quoteAsset;
         address baseAsset;
         uint256 marketId;
@@ -104,11 +102,11 @@ interface ICrystal {
     struct Parameters {
         address quoteAsset;
         address baseAsset;
-        uint256 marketId; // uint128
+        uint256 marketId; // uint128 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
         uint256 marketType;
-        uint256 scaleFactor; // uint127
-        uint256 tickSize; // uint80
-        uint256 maxPrice; // uint80
+        uint256 scaleFactor; // uint112 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+        uint256 tickSize; // uint80 0xFFFFFFFFFFFFFFFFFFFF
+        uint256 maxPrice; // uint80 0xFFFFFFFFFFFFFFFFFFFF
     }
     
     struct LaunchpadMarket {
@@ -202,6 +200,7 @@ interface ICrystal {
     function withdraw(address to, address token, uint256 amount) external;
     function routerDeposit(address token, uint256 amount) external payable;
     function routerWithdraw(address to, address token, uint256 amount) external;
+    function addClaimableFee(address to, address[] calldata tokens, uint256[] calldata amounts) external payable;
     function claimFees(address to, address[] calldata tokens) external returns (uint256[] memory);
     function queueClaimExpiredFees(address user, address[] calldata tokens) external;
     function executeClaimExpiredFees(address user) external returns (uint256[] memory);

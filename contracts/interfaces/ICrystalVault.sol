@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
 interface ICrystalVault {
@@ -36,6 +36,7 @@ interface ICrystalVault {
     function lockup() external view returns (uint40);
     function locked() external view returns (bool);
     function closed() external view returns (bool);
+    function getBalances() external view returns (uint256 quoteBalance, uint256 baseBalance, uint256 availableBalanceQuote, uint256 availableBalanceBase);
 
     function lock() external;
     function unlock() external;
