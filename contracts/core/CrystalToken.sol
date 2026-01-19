@@ -8,11 +8,11 @@ import {ERC20} from "../libraries/ERC20.sol";
  * @author Crystal Labs
  *
  * @notice
- * Fixed-supply ERC20 with EIP-2612 permits created through Crystal's launchpad.
+ * Fixed-supply ERC20 with EIP-2612 permit support created through Crystal's launchpad.
  *
  * @dev
- * - Entire supply is minted upon creation and available through Crystal's launchpad.
- * - An automatic infinite approval is granted to Crystal's core protocol for ease of use.
+ * - The entire supply is minted upon creation to the launchpad.
+ * - An automatic infinite approval is granted to the core protocol for ease of use.
  */
 contract CrystalToken is ERC20 {
     /// @notice Metadata describing the token and its external references.
@@ -46,28 +46,9 @@ contract CrystalToken is ERC20 {
      * @param _social3 Tertiary social link.
      * @param _social4 Quaternary social link.
      */
-    constructor(
-        address _crystal,
-        string memory _name,
-        string memory _symbol,
-        string memory _metadataCID,
-        string memory _description,
-        string memory _social1,
-        string memory _social2,
-        string memory _social3,
-        string memory _social4
-    ) ERC20(_name, _symbol) {
+    constructor(address _crystal, string memory _name, string memory _symbol, string memory _metadataCID, string memory _description, string memory _social1, string memory _social2, string memory _social3, string memory _social4) ERC20(_name, _symbol) {
         crystal = _crystal;
-        metadata = TokenMetaData(
-            _name,
-            _symbol,
-            _metadataCID,
-            _description,
-            _social1,
-            _social2,
-            _social3,
-            _social4
-        );
+        metadata = TokenMetaData(_name, _symbol, _metadataCID, _description, _social1, _social2, _social3, _social4);
         _mint(_crystal, 1000000000000000000000000000);
     }
 
@@ -82,15 +63,8 @@ contract CrystalToken is ERC20 {
      *
      * @return success True if the transfer succeeded.
      */
-    function transferFrom(
-        address from,
-        address to,
-        uint256 value
-    ) external override returns (bool) {
-        if (
-            allowance[from][msg.sender] != type(uint256).max &&
-            msg.sender != crystal
-        ) {
+    function transferFrom(address from, address to, uint256 value) external override returns (bool) {
+        if (allowance[from][msg.sender] != type(uint256).max && msg.sender != crystal) {
             allowance[from][msg.sender] -= value;
         }
         _transfer(from, to, value);

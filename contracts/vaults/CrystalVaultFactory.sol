@@ -12,26 +12,25 @@ import {ICrystalVaultFactory} from "../interfaces/ICrystalVaultFactory.sol";
  * @author Crystal Labs
  *
  * @notice
- * Factory contract responsible for deploying, configuring, and mediating access
- * to CrystalVault instances.
+ * The factory contract responsible for deploying CrystalVault instances.
  *
  * The factory:
  * - Deploys new vaults.
- * - Enforces global constraints (min deposit, max lockup, max order cap).
  * - Routes deposits and withdrawals.
- * - Tracks vault metadata and lifecycle state.
- * - Handles ETH <-> WETH wrapping via sentinel address.
+ * - Tracks vault metadata and configuration.
+ * - Handles native token wrapping and unwrapping.
  *
  * @dev
  * - Vault logic lives entirely in CrystalVault.
- * - This contract is the only caller of vault deposit/withdraw.
- * - Uses a reentrancy guard via transient storage.
+ * - All deposits and withdrawals to/from individual vaults must go through this contract.
+ * - Governance can only set default vault parameters.
+ * - Vault operators interact with the vault directly to place and cancel orders.
  */
 contract CrystalVaultFactory {
-    /// @notice WETH contract address used when ETH sentinel is supplied.
+    /// @notice Wrapped native token address.
     address public immutable weth;
 
-    /// @notice Sentinel address representing ETH input.
+    /// @notice Placeholder native token address.
     address public immutable eth = 0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE;
 
     /// @notice Governance address controlling factory-level parameters.
@@ -68,14 +67,7 @@ contract CrystalVaultFactory {
      * @param _maxOrderCap Global maximum order cap for vaults.
      * @param _lockup Global maximum withdrawal lockup duration.
      */
-    constructor(
-        address _crystal,
-        address _gov,
-        address _weth,
-        uint256 _minDeposit,
-        uint256 _maxOrderCap,
-        uint256 _lockup
-    ) {
+    constructor(address _crystal, address _gov, address _weth, uint256 _minDeposit, uint256 _maxOrderCap, uint256 _lockup) {
         crystal = _crystal;
         gov = _gov;
         weth = _weth;
@@ -97,33 +89,10 @@ contract CrystalVaultFactory {
      *
      * @return vault Address of the deployed vault.
      */
-    function _createVault(
-        address quoteAsset,
-        address baseAsset,
-        uint256 maxShares,
-        uint40 lockup,
-        bool decreaseOnWithdraw,
-        string memory symbol,
-        ICrystalVault.VaultMetaData memory metadata
-    ) private returns (address vault) {
-        vault = address(
-            new CrystalVault(
-                crystal,
-                quoteAsset,
-                baseAsset,
-                msg.sender,
-                symbol,
-                metadata
-            )
-        );
-        IERC20(quoteAsset).approve(
-            vault,
-            0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-        );
-        IERC20(baseAsset).approve(
-            vault,
-            0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-        );
+    function _createVault(address quoteAsset, address baseAsset, uint256 maxShares, uint40 lockup, bool decreaseOnWithdraw, string memory symbol, ICrystalVault.VaultMetaData memory metadata) private returns (address vault) {
+        vault = address(new CrystalVault(crystal, quoteAsset, baseAsset, msg.sender, symbol, metadata));
+        IERC20(quoteAsset).approve(vault, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+        IERC20(baseAsset).approve(vault, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
         if (lockup != 0) {
             ICrystalVault(vault).changeLockup(lockup);
         } else {
@@ -135,29 +104,9 @@ contract CrystalVaultFactory {
         if (decreaseOnWithdraw) {
             ICrystalVault(vault).changeDecreaseOnWithdraw(decreaseOnWithdraw);
         }
-        getVault[vault] = ICrystalVaultFactory.Vault(
-            quoteAsset,
-            baseAsset,
-            msg.sender,
-            0,
-            maxShares,
-            lockup,
-            decreaseOnWithdraw,
-            false,
-            false,
-            metadata
-        );
+        getVault[vault] = ICrystalVaultFactory.Vault(quoteAsset, baseAsset, msg.sender, 0, maxShares, lockup, decreaseOnWithdraw, false, false, metadata);
         allVaults.push(vault);
-        emit ICrystalVaultFactory.VaultDeployed(
-            vault,
-            quoteAsset,
-            baseAsset,
-            msg.sender,
-            maxShares,
-            lockup,
-            decreaseOnWithdraw,
-            metadata
-        );
+        emit ICrystalVaultFactory.VaultDeployed(vault, quoteAsset, baseAsset, msg.sender, maxShares, lockup, decreaseOnWithdraw, metadata);
     }
 
     /**
@@ -215,21 +164,10 @@ contract CrystalVaultFactory {
      *
      * @return vault Address of the deployed vault.
      */
-    function deploy(
-        address quoteAsset,
-        address baseAsset,
-        uint256 amountQuote,
-        uint256 amountBase,
-        uint256 maxShares,
-        uint256 lockup,
-        bool decreaseOnWithdraw,
-        ICrystalVault.VaultMetaData memory metadata
-    ) external payable returns (address vault) {
+    function deploy(address quoteAsset, address baseAsset, uint256 amountQuote, uint256 amountBase, uint256 maxShares, uint256 lockup, bool decreaseOnWithdraw, ICrystalVault.VaultMetaData memory metadata) external payable returns (address vault) {
         if (minSize[quoteAsset == eth ? weth : quoteAsset] != 0) {
-            // make sure first deposit isn't dust
-            require(
-                amountQuote > minSize[quoteAsset == eth ? weth : quoteAsset]
-            );
+            // Enforce minimum initial deposit
+            require(amountQuote > minSize[quoteAsset == eth ? weth : quoteAsset]);
         } else {
             require(amountQuote > minDeposit);
         }
@@ -239,21 +177,9 @@ contract CrystalVaultFactory {
         } else {
             require(amountBase > minDeposit);
         }
-        string memory symbol = string.concat(
-            "CLV-",
-            IERC20(baseAsset == eth ? weth : baseAsset).symbol(),
-            IERC20(quoteAsset == eth ? weth : quoteAsset).symbol()
-        );
+        string memory symbol = string.concat("CLV-", IERC20(baseAsset == eth ? weth : baseAsset).symbol(), IERC20(quoteAsset == eth ? weth : quoteAsset).symbol());
 
-        vault = _createVault(
-            quoteAsset == eth ? weth : quoteAsset,
-            baseAsset == eth ? weth : baseAsset,
-            maxShares,
-            uint40(lockup),
-            decreaseOnWithdraw,
-            symbol,
-            metadata
-        );
+        vault = _createVault(quoteAsset == eth ? weth : quoteAsset, baseAsset == eth ? weth : baseAsset, maxShares, uint40(lockup), decreaseOnWithdraw, symbol, metadata);
 
         deposit(vault, quoteAsset, baseAsset, amountQuote, amountBase, 0, 0);
     }
@@ -278,20 +204,8 @@ contract CrystalVaultFactory {
      * @return amountQuote Actual quote amount used.
      * @return amountBase Actual base amount used.
      */
-    function previewDeposit(
-        address vault,
-        uint256 amountQuoteDesired,
-        uint256 amountBaseDesired
-    )
-        external
-        view
-        returns (uint256 shares, uint256 amountQuote, uint256 amountBase)
-    {
-        return
-            ICrystalVault(vault).previewDeposit(
-                amountQuoteDesired,
-                amountBaseDesired
-            );
+    function previewDeposit(address vault, uint256 amountQuoteDesired, uint256 amountBaseDesired) external view returns (uint256 shares, uint256 amountQuote, uint256 amountBase) {
+        return ICrystalVault(vault).previewDeposit(amountQuoteDesired, amountBaseDesired);
     }
 
     /**
@@ -303,10 +217,7 @@ contract CrystalVaultFactory {
      * @return amountQuote Quote amount returned.
      * @return amountBase Base amount returned.
      */
-    function previewWithdrawal(
-        address vault,
-        uint256 shares
-    ) external view returns (uint256 amountQuote, uint256 amountBase) {
+    function previewWithdrawal(address vault, uint256 shares) external view returns (uint256 amountQuote, uint256 amountBase) {
         return ICrystalVault(vault).previewWithdrawal(shares);
     }
 
@@ -320,18 +231,9 @@ contract CrystalVaultFactory {
      * @return amountQuote Quote amount represented.
      * @return amountBase Base amount represented.
      */
-    function balanceOf(
-        address vault,
-        address user
-    )
-        external
-        view
-        returns (uint256 shares, uint256 amountQuote, uint256 amountBase)
-    {
+    function balanceOf(address vault, address user) external view returns (uint256 shares, uint256 amountQuote, uint256 amountBase) {
         shares = ICrystalVault(vault).balanceOf(user);
-        (amountQuote, amountBase) = ICrystalVault(vault).previewWithdrawal(
-            shares
-        );
+        (amountQuote, amountBase) = ICrystalVault(vault).previewWithdrawal(shares);
     }
 
     /**
@@ -349,88 +251,41 @@ contract CrystalVaultFactory {
      * @return amountQuote Actual quote deposited.
      * @return amountBase Actual base deposited.
      */
-    function deposit(
-        address vault,
-        address quoteAsset,
-        address baseAsset,
-        uint256 amountQuoteDesired,
-        uint256 amountBaseDesired,
-        uint256 amountQuoteMin,
-        uint256 amountBaseMin
-    )
-        public
-        payable
-        returns (uint256 shares, uint256 amountQuote, uint256 amountBase)
-    {
+    function deposit(address vault, address quoteAsset, address baseAsset, uint256 amountQuoteDesired, uint256 amountBaseDesired, uint256 amountQuoteMin, uint256 amountBaseMin) public payable returns (uint256 shares, uint256 amountQuote, uint256 amountBase) {
         assembly {
             if tload(0x0) {
                 revert(0, 0)
             }
             tstore(0x0, 1)
         }
-        require(
-            getVault[vault].quoteAsset ==
-                (quoteAsset == eth ? weth : quoteAsset) &&
-                getVault[vault].baseAsset ==
-                (baseAsset == eth ? weth : baseAsset)
-        );
+        require(getVault[vault].quoteAsset == (quoteAsset == eth ? weth : quoteAsset) && getVault[vault].baseAsset == (baseAsset == eth ? weth : baseAsset));
         if (quoteAsset == eth) {
             IWETH(weth).deposit{value: msg.value}();
         } else {
-            IERC20(quoteAsset).transferFrom(
-                msg.sender,
-                address(this),
-                amountQuoteDesired
-            );
+            IERC20(quoteAsset).transferFrom(msg.sender, address(this), amountQuoteDesired);
         }
         if (baseAsset == eth) {
             IWETH(weth).deposit{value: msg.value}();
         } else {
-            IERC20(baseAsset).transferFrom(
-                msg.sender,
-                address(this),
-                amountBaseDesired
-            );
+            IERC20(baseAsset).transferFrom(msg.sender, address(this), amountBaseDesired);
         }
-        (shares, amountQuote, amountBase) = ICrystalVault(vault).deposit(
-            msg.sender,
-            amountQuoteDesired,
-            amountBaseDesired,
-            amountQuoteMin,
-            amountBaseMin
-        );
+        (shares, amountQuote, amountBase) = ICrystalVault(vault).deposit(msg.sender, amountQuoteDesired, amountBaseDesired, amountQuoteMin, amountBaseMin);
         if (quoteAsset == eth) {
             IWETH(weth).withdraw(msg.value - amountQuote);
-            (bool success, ) = msg.sender.call{value: msg.value - amountQuote}(
-                ""
-            );
+            (bool success, ) = msg.sender.call{value: msg.value - amountQuote}("");
             require(success);
         } else {
-            IERC20(quoteAsset).transfer(
-                msg.sender,
-                amountQuoteDesired - amountQuote
-            );
+            IERC20(quoteAsset).transfer(msg.sender, amountQuoteDesired - amountQuote);
         }
         if (baseAsset == eth) {
             IWETH(weth).withdraw(msg.value - amountBase);
-            (bool success, ) = msg.sender.call{value: msg.value - amountBase}(
-                ""
-            );
+            (bool success, ) = msg.sender.call{value: msg.value - amountBase}("");
             require(success);
         } else {
-            IERC20(baseAsset).transfer(
-                msg.sender,
-                amountBaseDesired - amountBase
-            );
+            IERC20(baseAsset).transfer(msg.sender, amountBaseDesired - amountBase);
         }
         getVault[vault].totalShares += shares;
-        emit ICrystalVaultFactory.Deposit(
-            vault,
-            msg.sender,
-            shares,
-            amountQuote,
-            amountBase
-        );
+        emit ICrystalVaultFactory.Deposit(vault, msg.sender, shares, amountQuote, amountBase);
         assembly {
             tstore(0x0, 0)
         }
@@ -449,14 +304,7 @@ contract CrystalVaultFactory {
      * @return amountQuote Quote amount returned.
      * @return amountBase Base amount returned.
      */
-    function withdraw(
-        address vault,
-        address quoteAsset,
-        address baseAsset,
-        uint256 shares,
-        uint256 amountQuoteMin,
-        uint256 amountBaseMin
-    ) external returns (uint256 amountQuote, uint256 amountBase) {
+    function withdraw(address vault, address quoteAsset, address baseAsset, uint256 shares, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 amountQuote, uint256 amountBase) {
         assembly {
             if tload(0x0) {
                 revert(0, 0)
@@ -464,16 +312,8 @@ contract CrystalVaultFactory {
             tstore(0x0, 1)
         }
         ICrystalVaultFactory.Vault storage vaultInfo = getVault[vault];
-        require(
-            vaultInfo.quoteAsset == (quoteAsset == eth ? weth : quoteAsset) &&
-                vaultInfo.baseAsset == (baseAsset == eth ? weth : baseAsset)
-        );
-        (amountQuote, amountBase) = ICrystalVault(vault).withdraw(
-            msg.sender,
-            shares,
-            amountQuoteMin,
-            amountBaseMin
-        );
+        require(vaultInfo.quoteAsset == (quoteAsset == eth ? weth : quoteAsset) && vaultInfo.baseAsset == (baseAsset == eth ? weth : baseAsset));
+        (amountQuote, amountBase) = ICrystalVault(vault).withdraw(msg.sender, shares, amountQuoteMin, amountBaseMin);
         if (quoteAsset == eth) {
             IWETH(weth).withdraw(amountQuote);
             (bool success, ) = msg.sender.call{value: amountQuote}("");
@@ -489,10 +329,8 @@ contract CrystalVaultFactory {
             IERC20(baseAsset).transfer(msg.sender, amountBase);
         }
         uint256 totalShares = ICrystalVault(vault).totalSupply();
-        if (
-            IERC20(vault).balanceOf(vaultInfo.owner) == 0 && !vaultInfo.closed
-        ) {
-            // has to be owner full withdraw causing vault to close
+        if (IERC20(vault).balanceOf(vaultInfo.owner) == 0 && !vaultInfo.closed) {
+            // Owner fully exited; close vault
             if (!vaultInfo.locked) {
                 vaultInfo.locked = true;
                 emit ICrystalVaultFactory.Locked(vault);
@@ -501,13 +339,7 @@ contract CrystalVaultFactory {
             emit ICrystalVaultFactory.Closed(vault);
         }
         vaultInfo.totalShares = totalShares;
-        emit ICrystalVaultFactory.Withdraw(
-            vault,
-            msg.sender,
-            shares,
-            amountQuote,
-            amountBase
-        );
+        emit ICrystalVaultFactory.Withdraw(vault, msg.sender, shares, amountQuote, amountBase);
         assembly {
             tstore(0x0, 0)
         }
@@ -545,23 +377,16 @@ contract CrystalVaultFactory {
      * @return amountQuote Quote amount returned to owner.
      * @return amountBase Base amount returned to owner.
      */
-    function close(
-        address vault
-    ) external returns (uint256 amountQuote, uint256 amountBase) {
+    function close(address vault) external returns (uint256 amountQuote, uint256 amountBase) {
         require(msg.sender == ICrystalVault(vault).owner());
         ICrystalVaultFactory.Vault storage vaultInfo = getVault[vault];
         uint256 shares = ICrystalVault(vault).balanceOf(msg.sender);
-        (amountQuote, amountBase) = ICrystalVault(vault).withdraw(
-            msg.sender,
-            shares,
-            0,
-            0
-        );
+        (amountQuote, amountBase) = ICrystalVault(vault).withdraw(msg.sender, shares, 0, 0);
         IERC20(vaultInfo.quoteAsset).transfer(msg.sender, amountQuote);
         IERC20(vaultInfo.baseAsset).transfer(msg.sender, amountBase);
         uint256 totalShares = ICrystalVault(vault).totalSupply();
         if (totalShares == 0 && !vaultInfo.closed) {
-            // has to be owner full withdraw causing vault to close
+            // Owner fully exited; close vault
             if (!vaultInfo.locked) {
                 vaultInfo.locked = true;
                 emit ICrystalVaultFactory.Locked(vault);
@@ -570,13 +395,7 @@ contract CrystalVaultFactory {
             emit ICrystalVaultFactory.Closed(vault);
         }
         vaultInfo.totalShares = totalShares;
-        emit ICrystalVaultFactory.Withdraw(
-            vault,
-            msg.sender,
-            shares,
-            amountQuote,
-            amountBase
-        );
+        emit ICrystalVaultFactory.Withdraw(vault, msg.sender, shares, amountQuote, amountBase);
     }
 
     /**
@@ -622,10 +441,7 @@ contract CrystalVaultFactory {
      * @param vault Vault address.
      * @param newDecrease New decrease flag.
      */
-    function changeDecreaseOnWithdraw(
-        address vault,
-        bool newDecrease
-    ) external {
+    function changeDecreaseOnWithdraw(address vault, bool newDecrease) external {
         require(msg.sender == ICrystalVault(vault).owner());
         ICrystalVault(vault).changeDecreaseOnWithdraw(newDecrease);
         emit ICrystalVaultFactory.DecreaseOnWithdrawChanged(vault, newDecrease);
@@ -658,11 +474,7 @@ contract CrystalVaultFactory {
      * @param userId Crystal user id.
      * @param ids Cloid slot ids to clear.
      */
-    function clearCloidSlots(
-        address vault,
-        uint256 userId,
-        uint256[] calldata ids
-    ) external {
+    function clearCloidSlots(address vault, uint256 userId, uint256[] calldata ids) external {
         require(msg.sender == ICrystalVault(vault).owner());
         ICrystalVault(vault).clearCloidSlots(userId, ids);
     }
