@@ -1130,15 +1130,9 @@ contract CrystalMarket is ERC20 {
                         uint256 _sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
                         if (isExactInput) {
                             _amountIn = _exactInputBuySolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, _sizeLeft); // Compute optimal input for AMM execution at target price
-                            if (_sizeLeft < _amountIn) {
-                                _amountIn = _sizeLeft; // Cap at remaining size; execute entirely via AMM
-                            }
                             _amountOut = (_amountIn * 9975 * reserveBase) / ((reserveQuote * 10000) + (_amountIn * 9975));
                         } else {
                             _amountOut = _exactOutputBuySolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, _sizeLeft); // Compute optimal output for AMM execution at target price
-                            if (_sizeLeft < _amountOut) {
-                                _amountOut = _sizeLeft; // Cap at remaining size; execute entirely via AMM
-                            }
                             _amountIn = (_amountOut * reserveQuote * 10000) / ((reserveBase - _amountOut) * 9975) + 1;
                         }
                         reserveQuote += _amountIn;
@@ -1147,15 +1141,9 @@ contract CrystalMarket is ERC20 {
                         uint256 _sizeLeft = isExactInput ? (size - amountIn) : (size - amountOut);
                         if (isExactInput) {
                             _amountIn = _exactInputSellSolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, _sizeLeft);
-                            if (_sizeLeft < _amountIn) {
-                                _amountIn = _sizeLeft;
-                            }
                             _amountOut = ((_amountIn * 9975) * reserveQuote) / ((reserveBase * 10000) + (_amountIn * 9975));
                         } else {
                             _amountOut = _exactOutputSellSolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, _sizeLeft);
-                            if (_sizeLeft < _amountOut) {
-                                _amountOut = _sizeLeft;
-                            }
                             _amountIn = (_amountOut * reserveBase * 10000) / ((reserveQuote - _amountOut) * 9975) + 1;
                         }
                         reserveBase += _amountIn;
@@ -1303,15 +1291,9 @@ contract CrystalMarket is ERC20 {
                         if ((((orderInfo >> 244) & 1) == 0) && _amountIn > (reserveQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000)) {
                             if (((orderInfo >> 248) & 1) == 0) {
                                 _amountIn = _exactInputBuySolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft); // Compute optimal input for AMM execution at maker-adjusted price
-                                if (sizeLeft < _amountIn) {
-                                    _amountIn = sizeLeft;
-                                }
                                 _amountOut = (_amountIn * 9975 * reserveBase) / ((reserveQuote * 10000) + (_amountIn * 9975)); // Execute Uniswap V2-style swap
                             } else {
                                 _amountOut = _exactOutputBuySolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft); // Compute optimal output for AMM execution at maker-adjusted price
-                                if (sizeLeft < _amountOut) {
-                                    _amountOut = sizeLeft;
-                                }
                                 _amountIn = (_amountOut * reserveQuote * 10000) / ((reserveBase - _amountOut) * 9975) + 1; // Execute Uniswap V2-style swap
                             }
                             reserveQuote += _amountIn;
@@ -1338,15 +1320,9 @@ contract CrystalMarket is ERC20 {
                         } else if ((((orderInfo >> 244) & 1) != 0) && _amountIn < (reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * uint256(m.makerRebate))) {
                             if (((orderInfo >> 248) & 1) == 0) {
                                 _amountIn = _exactInputSellSolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft);
-                                if (sizeLeft < _amountIn) {
-                                    _amountIn = sizeLeft;
-                                }
                                 _amountOut = ((_amountIn * 9975) * reserveQuote) / ((reserveBase * 10000) + (_amountIn * 9975)); // Execute Uniswap V2-style swap
                             } else {
                                 _amountOut = _exactOutputSellSolve(reserveQuote, reserveBase, _amountIn, scaleFactor, m.makerRebate, sizeLeft);
-                                if (sizeLeft < _amountOut) {
-                                    _amountOut = sizeLeft;
-                                }
                                 _amountIn = (_amountOut * reserveBase * 10000) / ((reserveQuote - _amountOut) * 9975) + 1; // Execute Uniswap V2-style swap
                             }
                             reserveBase += _amountIn;
@@ -2024,8 +2000,6 @@ contract CrystalMarket is ERC20 {
                         _addToOrdersUpdatedEvent((LEADING_HEX_4 + (isBuy ? 0 : LEADING_HEX_1)) | (price << 168) | (id << 112) | (prevSize >> 128)); // Encoded: 3-bit flag | 80-bit price | 56-bit id | 112-bit decreased amount
                     }
                     return (quoteAssetDebt, baseAssetDebt, id);
-                } else {
-                    return (0, 0, 0); // No state change; silent return permitted
                 }
             } else {
                 (price, prevSize, isBuy) = _cancelOrder((isCloid) ? 0 : price, id, userId); // Price is zero for cloid-based lookups

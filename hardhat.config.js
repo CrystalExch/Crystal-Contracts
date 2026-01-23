@@ -9,12 +9,13 @@ module.exports = {
       viaIR: false,
       optimizer: {
         enabled: true,
-        runs: 10000
+        runs: 10000,
       }
     }
   },
   mocha: {
-    timeout: 10000000
+    timeout: 10000000,
+    parallel: true
   },
   networks: {
     monad: {
@@ -28,9 +29,11 @@ module.exports = {
     hardhat: {
       allowUnlimitedContractSize: true,
       blockGasLimit: 150000000,
+      gas: 150000000,
+      hardfork: "prague",
       accounts: {
         count: 20,
-        accountsBalance: "1000000000000000000000000000000000000000000000000000000000000"
+        accountsBalance: "1000000000000000000000000000000000000000000"
       }
     }
   },
