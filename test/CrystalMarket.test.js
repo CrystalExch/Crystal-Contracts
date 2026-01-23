@@ -28577,7 +28577,7 @@ describe("CrystalMarket", function () {
         await failToken.setRevertTransferTo(maker.address, true);
 
         await crystal.connect(taker).registerUser(taker.address);
-        await crystal.connect(taker).marketOrder(marketAddr, false, 0, bidPrice, ethers.parseEther("5"), 0, ethers.ZeroAddress, taker.address);
+        await crystal.connect(taker).marketOrder(marketAddr, false, true, 0, 0, ethers.parseEther("5"), 0, ethers.ZeroAddress, taker.address);
       });
     });
 
