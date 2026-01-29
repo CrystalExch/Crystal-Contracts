@@ -272,7 +272,6 @@ contract CrystalMarket is ERC20 {
                 amountBase = amountBaseOptimal;
             } else {
                 uint256 amountQuoteOptimal = (amountBaseDesired * reserveQuote) / reserveBase;
-                require(amountQuoteOptimal <= amountQuoteDesired);
                 amountQuote = amountQuoteOptimal;
                 amountBase = amountBaseDesired;
             }
@@ -1308,7 +1307,7 @@ contract CrystalMarket is ERC20 {
                                 endprice = endprice >= maxPrice ? maxPrice : endprice <= tickSize ? tickSize : marketType == 0 ? (endprice - (endprice % tickSize)) : _toValidPrice(endprice, false); // Round down to valid tick
                                 if (pricememory == 0) {
                                     uint256 startprice = (((reserveQuote - _amountIn) * scaleFactor * 10000 * uint256(m.makerRebate) + ((reserveBase + _amountOut) * 9975 * 100000 - 1)) / ((reserveBase + _amountOut) * 9975 * 100000));
-                                    startprice = startprice >= maxPrice ? maxPrice : startprice <= tickSize ? tickSize : (marketType == 0 ? (startprice - (startprice % tickSize)) : _toValidPrice(startprice, false));
+                                    startprice = startprice <= tickSize ? tickSize : (marketType == 0 ? (startprice - (startprice % tickSize)) : _toValidPrice(startprice, false));
                                     pricememory = (startprice << 128) | endprice; // Initialize start price using pre-swap reserves
                                 } else {
                                     pricememory = (pricememory & MASK_OUT_0_128) | endprice;
@@ -1362,7 +1361,6 @@ contract CrystalMarket is ERC20 {
                                 sizeLeft -= ((((orderInfo >> 248) & 1) == 0) ? _amountIn : _amountOut);
                             } else {
                                 if (activated[marketId | (tick / 255)] & MASK_OUT_255_256 != slot) {
-                                    // Persist activated bitmap changes and exit swap loop
                                     activated[marketId | (tick / 255)] = slot | MASK_KEEP_255_256;
                                 }
                                 break;

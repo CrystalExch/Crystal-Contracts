@@ -1067,6 +1067,965 @@ describe("CrystalMarket", function () {
       const priceAndReferrer = 0n;
       await harness.exposed_marketOrder(1n, priceAndReferrer, orderInfo);
     });
+
+    it("settleBalances router output overflows for quote asset", async function () {
+      const { harness, quote } = await deployHarness();
+      const userId = 21n;
+      const maxBalance = (1n << 128n) - 1n;
+      await harness.setTokenBalance(0n, quote.target, maxBalance);
+      await expect(
+        harness.exposed_settleBalances(-1n, 0n, userId, 0n, 1n, 0n)
+      ).to.be.reverted;
+    });
+
+    it("settleBalances router output overflows for base asset", async function () {
+      const { harness, base } = await deployHarness();
+      const userId = 22n;
+      const maxBalance = (1n << 128n) - 1n;
+      await harness.setTokenBalance(0n, base.target, maxBalance);
+      await expect(
+        harness.exposed_settleBalances(0n, -1n, userId, 0n, 1n, 0n)
+      ).to.be.reverted;
+    });
+
+    it("settleBalances user output overflows for base asset", async function () {
+      const { harness, base } = await deployHarness();
+      const userId = 23n;
+      const maxBalance = (1n << 128n) - 1n;
+      await harness.setTokenBalance(userId, base.target, maxBalance);
+      await expect(
+        harness.exposed_settleBalances(0n, -1n, userId, 1n, 0n, 0n)
+      ).to.be.reverted;
+    });
+
+    it("decreaseOrder returns empty when userId mismatches", async function () {
+      const { harness } = await deployHarness({ marketType: 0 });
+      const userId = 24n;
+      await harness.setMarketState(
+        100n,
+        500n,
+        1n << 20n,
+        99970,
+        99990,
+        false,
+        0,
+        0
+      );
+      const [, id] = await harness.exposed_limitOrder.staticCall(
+        false,
+        true,
+        300n,
+        10n,
+        userId,
+        0n
+      );
+      await harness.exposed_limitOrder(false, true, 300n, 10n, userId, 0n);
+      const result = await harness.exposed_decreaseOrder.staticCall(
+        300n,
+        id,
+        1n,
+        userId + 1n
+      );
+      await harness.exposed_decreaseOrder(300n, id, 1n, userId + 1n);
+      expect(result[0]).to.equal(0n);
+      expect(result[1]).to.equal(0n);
+    });
+
+    it("marketOrder with no liquidity evaluates empty path", async function () {
+      const { harness } = await deployHarness({
+        marketType: 0,
+        tickSize: 1,
+        maxPrice: 1_000_000,
+      });
+      const userId = 25n;
+      await harness.setMarketState(
+        0n,
+        0n,
+        1n << 20n,
+        99970,
+        99990,
+        false,
+        0,
+        0
+      );
+      const orderInfo = (0n << 252n) | (1n << 244n) | (0n << 248n) | (userId << 160n);
+      const result = await harness.exposed_marketOrder.staticCall(1n, 0n, orderInfo);
+      await harness.exposed_marketOrder(1n, 0n, orderInfo);
+      expect(result[0]).to.equal(0n);
+      expect(result[1]).to.equal(0n);
+    });
+
+    it("marketOrder commits reserveBase change only", async function () {
+      const { harness } = await deployHarness({
+        marketType: 0,
+        tickSize: 1,
+        scaleFactor: 6,
+        maxPrice: 1_000_000,
+      });
+      const userId = 26n;
+      await harness.setMarketState(
+        1n,
+        0n,
+        1n << 20n,
+        99970,
+        99990,
+        true,
+        1n,
+        1n
+      );
+      const orderInfo = (2n << 252n) | (1n << 244n) | (1n << 248n) | (userId << 160n);
+      const result = await harness.exposed_marketOrder.staticCall(1n, 2n, orderInfo);
+      await harness.exposed_marketOrder(1n, 2n, orderInfo);
+      expect(result[0]).to.equal(1n);
+      expect(result[1]).to.equal(0n);
+    });
+
+    it("decreaseOrder rejects oversize decrease on active order", async function () {
+      const { harness } = await deployHarness({ marketType: 0 });
+      const userId = 27n;
+      await harness.setMarketState(
+        100n,
+        500n,
+        1n << 20n,
+        99970,
+        99990,
+        false,
+        0,
+        0
+      );
+      const [, id] = await harness.exposed_limitOrder.staticCall(
+        false,
+        true,
+        300n,
+        10n,
+        userId,
+        0n
+      );
+      await harness.exposed_limitOrder(false, true, 300n, 10n, userId, 0n);
+      const result = await harness.exposed_decreaseOrder.staticCall(
+        300n,
+        id,
+        (1n << 112n) + 1n,
+        userId
+      );
+      await harness.exposed_decreaseOrder(
+        300n,
+        id,
+        (1n << 112n) + 1n,
+        userId
+      );
+      expect(result[0]).to.equal(0n);
+      expect(result[1]).to.equal(0n);
+    });
+
+    it("marketOrder yields output with zero input", async function () {
+      const { harness, quote, owner, taker } = await deployHarness({
+        marketType: 0,
+        tickSize: 1,
+        scaleFactor: 6,
+        maxPrice: 1_000_000,
+      });
+      const makerId = 28n;
+      const takerId = 29n;
+      await harness.setUserIdToAddress(makerId, owner.address);
+      await harness.setUserIdToAddress(takerId, taker.address);
+      await harness.setMarketState(
+        0n,
+        100n,
+        0n,
+        99970,
+        99990,
+        false,
+        0,
+        0
+      );
+      await harness.exposed_limitOrder(false, true, 1n, 1n, makerId, 0n);
+      await harness.exposed_limitOrder(false, true, 2n, 1n, makerId, 0n);
+      await mintAndApprove(quote, taker, harness.target, 100n);
+      const orderInfo = (0n << 252n) | (1n << 248n) | (0n << 244n) | (takerId << 160n);
+      const result = await harness.connect(taker).exposed_marketOrder.staticCall(
+        1n,
+        0n,
+        orderInfo
+      );
+      await harness.connect(taker).exposed_marketOrder(1n, 0n, orderInfo);
+      expect(result[0]).to.equal(0n);
+      expect(result[1]).to.equal(1n);
+    });
+
+    it("marketOrder commits reserveBase-only change", async function () {
+      const { harness } = await deployHarness({
+        marketType: 0,
+        tickSize: 1,
+        scaleFactor: 6,
+        maxPrice: 1_000_000,
+      });
+      const userId = 30n;
+      await harness.setMarketState(
+        1n,
+        100n,
+        1n << 20n,
+        99970,
+        99990,
+        true,
+        1_000_000_000_000n,
+        100_000_000_000_000_000n
+      );
+      const orderInfo = (2n << 252n) | (1n << 244n) | (0n << 248n) | (userId << 160n);
+      const result = await harness.exposed_marketOrder.staticCall(2n, 2n, orderInfo);
+      await harness.exposed_marketOrder(2n, 2n, orderInfo);
+      expect(result[0]).to.equal(2n);
+      expect(result[1]).to.equal(0n);
+    });
+  });
+
+  describe("Coverage: Remaining Branches Follow-up", function () {
+    async function deployHarnessLocal(params = {}) {
+      const [owner, maker, taker] = await ethers.getSigners();
+      const Token = await ethers.getContractFactory("TestToken");
+      const quote = params.quote ?? (await Token.deploy("Quote Token", "QUOTE", 6));
+      const base = params.base ?? (await Token.deploy("Base Token", "BASE", 18));
+      const MockDeployer = await ethers.getContractFactory("MockCrystalForHarness");
+      const mockDeployer = await MockDeployer.deploy();
+      const marketId = params.marketId ?? 1;
+      const marketType = params.marketType ?? 0;
+      const scaleFactor = params.scaleFactor ?? 1;
+      const tickSize = params.tickSize ?? 1;
+      const maxPrice = params.maxPrice ?? 1_000_000;
+      const harnessAddr = await mockDeployer.deployHarness.staticCall(
+        quote.target,
+        base.target,
+        marketId,
+        marketType,
+        scaleFactor,
+        tickSize,
+        maxPrice
+      );
+      await mockDeployer.deployHarness(
+        quote.target,
+        base.target,
+        marketId,
+        marketType,
+        scaleFactor,
+        tickSize,
+        maxPrice
+      );
+      const harness = await ethers.getContractAt("CrystalMarketHarness", harnessAddr);
+      return { harness, quote, base, owner, maker, taker, marketId };
+    }
+
+    const TOP_BIT = 1n << 255n;
+    const packPriceLevel = (size, latestNativeId = 0n, latest = 0n, fillNext = 0n) =>
+      size | (latestNativeId << 113n) | (latest << 154n) | (fillNext << 205n);
+
+    it("removeLiquidityETH overflows base router credit", async function () {
+      const { crystal, market, maker, weth } = await loadFixture(deployFixture);
+
+      await crystal.connect(maker).addLiquidity(
+        market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
+      );
+
+      const lpBalance = await market.balanceOf(maker.address);
+      await market.connect(maker).approve(crystal.target, lpBalance);
+
+      await setRouterBalance(crystal.target, weth.target, MASK_KEEP_0_128);
+
+      await expect(
+        crystal.connect(maker).removeLiquidityETH(
+          market.target, maker.address, lpBalance / 2n, 0, 0
+        )
+      ).to.be.reverted;
+    });
+
+    it("removeLiquidityETH overflows quote router credit", async function () {
+      const { crystal, maker, weth, token1 } = await loadFixture(deployFixture);
+
+      const marketAddr = await crystal.deploy.staticCall(
+        false,
+        weth.target,
+        token1.target,
+        MARKET_TYPES.LOGARITHMIC_AMM,
+        0,
+        1,
+        1_000_000,
+        1_000_000,
+        99970,
+        99990
+      );
+      await crystal.deploy(
+        false,
+        weth.target,
+        token1.target,
+        MARKET_TYPES.LOGARITHMIC_AMM,
+        0,
+        1,
+        1_000_000,
+        1_000_000,
+        99970,
+        99990
+      );
+      const wethQuoteMarket = await ethers.getContractAt("CrystalMarket", marketAddr);
+
+      const amountQuote = 1_000_000n;
+      const amountBase = 1_000_000n;
+      await crystal.connect(maker).addLiquidity(
+        wethQuoteMarket.target, maker.address, amountQuote, amountBase, 0, 0
+      );
+
+      const lpBalance = await wethQuoteMarket.balanceOf(maker.address);
+      await wethQuoteMarket.connect(maker).approve(crystal.target, lpBalance);
+
+      await setRouterBalance(crystal.target, weth.target, MASK_KEEP_0_128);
+
+      await expect(
+        crystal.connect(maker).removeLiquidityETH(
+          wethQuoteMarket.target, maker.address, lpBalance / 2n, 0, 0
+        )
+      ).to.be.reverted;
+    });
+
+    it("limitOrder base lock overflow", async function () {
+      const { harness, base } = await deployHarnessLocal({ scaleFactor: 0, tickSize: 1, maxPrice: 1000 });
+      const userId = 1n;
+
+      await harness.setMarketState(50n, 200n, 1n << 20n, 100000, 100000, false, 0, 0);
+      await harness.setTokenBalance(userId, base.target, MASK_KEEP_0_128 << 128n);
+
+      await expect(
+        harness.exposed_limitOrder(false, false, 100n, 1n, userId, 0n)
+      ).to.be.reverted;
+    });
+
+    it("limitOrder cloid price tick check", async function () {
+      const { harness } = await deployHarnessLocal({ scaleFactor: 0, tickSize: 10, maxPrice: 1000 });
+      const userId = 2n;
+
+      await harness.setMarketState(90n, 200n, 1n << 20n, 100000, 100000, false, 0, 0);
+
+      await expect(
+        harness.exposed_limitOrder(true, true, 105n, 10n, userId, 3n)
+      ).to.be.reverted;
+    });
+
+    it("limitOrder id overflow", async function () {
+      const { harness, marketId } = await deployHarnessLocal({ scaleFactor: 0, tickSize: 1, maxPrice: 1000 });
+      const userId = 3n;
+      const marketIdShifted = BigInt(marketId) << 128n;
+
+      await harness.setMarketState(50n, 200n, 1n << 20n, 100000, 100000, false, 0, 0);
+      await harness.setPriceLevel(marketIdShifted | 100n, packPriceLevel(0n, MASK_KEEP_0_41));
+
+      await expect(
+        harness.exposed_limitOrder(true, true, 100n, 1n, userId, 0n)
+      ).to.be.reverted;
+    });
+
+    it("decreaseOrder cancel sell internal releases base", async function () {
+      const { harness, base } = await deployHarnessLocal({ scaleFactor: 0, tickSize: 1, maxPrice: 1000 });
+      const userId = 4n;
+
+      await harness.setMarketState(50n, 200n, 1n << 20n, 100000, 100000, false, 0, 0);
+      await harness.setTokenBalance(userId, base.target, 100n);
+
+      const [, id] = await harness.exposed_limitOrder.staticCall(false, false, 100n, 1n, userId, 0n);
+      await harness.exposed_limitOrder(false, false, 100n, 1n, userId, 0n);
+      await harness.exposed_limitOrder(false, false, 101n, 1n, userId, 0n);
+      await harness.exposed_decreaseOrder(100n, id, 1n, userId);
+    });
+
+    it("replaceOrder decrease returns empty on wrong userId", async function () {
+      const { harness } = await deployHarnessLocal({ scaleFactor: 0, tickSize: 1, maxPrice: 1000 });
+      const makerId = 5n;
+
+      await harness.setMarketState(50n, 200n, 1n << 20n, 100000, 100000, false, 0, 0);
+      const [, id] = await harness.exposed_limitOrder.staticCall(true, true, 100n, 10n, makerId, 0n);
+      await harness.exposed_limitOrder(true, true, 100n, 10n, makerId, 0n);
+
+      const wrongUserId = 6n;
+      await harness.exposed_replaceOrder(wrongUserId | (1n << 48n), 100n, id, 0n, 0n);
+    });
+
+    it("replaceOrder decrease cancel sell branch", async function () {
+      const { harness } = await deployHarnessLocal({ scaleFactor: 0, tickSize: 1, maxPrice: 1000 });
+      const userId = 7n;
+
+      await harness.setMarketState(50n, 200n, 1n << 20n, 100000, 100000, false, 0, 0);
+      const [, id] = await harness.exposed_limitOrder.staticCall(false, true, 100n, 1n, userId, 0n);
+      await harness.exposed_limitOrder(false, true, 100n, 1n, userId, 0n);
+      await harness.exposed_limitOrder(false, true, 101n, 1n, userId, 0n);
+
+      await harness.exposed_replaceOrder(userId | (1n << 48n), 100n, id, 0n, 0n);
+    });
+
+    it("marketOrder output to user internal overflows", async function () {
+      const { crystal, market, maker, taker, weth } = await loadFixture(deployFixture);
+
+      await crystal.connect(maker).addLiquidity(
+        market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
+      );
+
+      const scaleFactor = await market.scaleFactor();
+      const askPrice = 1100n * scaleFactor / (10n ** 12n);
+      await crystal.connect(maker).limitOrder(
+        market.target, false, 0, askPrice, ethers.parseEther("1"), maker.address
+      );
+
+      const userId = await crystal.addressToUserId(taker.address);
+      const outputSlot = calculateTokenBalanceSlot(userId, weth.target);
+      await setStorageAt(crystal.target, outputSlot, MASK_KEEP_0_128);
+
+      const options = userId | (1n << 68n);
+      await expect(
+        crystal.connect(taker).marketOrder(
+          market.target, true, true, options, 0, ethers.parseUnits("100", 6), askPrice, ethers.ZeroAddress, taker.address
+        )
+      ).to.be.reverted;
+    });
+
+    it("marketOrder output to router overflows", async function () {
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
+
+      await crystal.connect(maker).addLiquidity(
+        market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
+      );
+
+      const scaleFactor = await market.scaleFactor();
+      const bidPrice = 900n * scaleFactor / (10n ** 12n);
+      await crystal.connect(maker).limitOrder(
+        market.target, true, 0, bidPrice, ethers.parseUnits("10000", 6), maker.address
+      );
+
+      await setRouterBalance(crystal.target, quote.target, MASK_KEEP_0_128);
+
+      await expect(
+        crystal.connect(taker).marketOrder(
+          market.target, false, true, (1n << 60n), 0, ethers.parseEther("1"), bidPrice, ethers.ZeroAddress, taker.address
+        )
+      ).to.be.reverted;
+    });
+
+    it("cancelOrder output to router overflows", async function () {
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+
+      await crystal.connect(maker).addLiquidity(
+        market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
+      );
+
+      const scaleFactor = await market.scaleFactor();
+      const bidPrice = 900n * scaleFactor / (10n ** 12n);
+      const id = await crystal.connect(maker).limitOrder.staticCall(
+        market.target, true, 0, bidPrice, ethers.parseUnits("1000", 6), maker.address
+      );
+      await crystal.connect(maker).limitOrder(
+        market.target, true, 0, bidPrice, ethers.parseUnits("1000", 6), maker.address
+      );
+
+      const userId = await crystal.addressToUserId(maker.address);
+      await setRouterBalance(crystal.target, quote.target, MASK_KEEP_0_128);
+
+      await expect(
+        crystal.connect(maker).cancelOrder(
+          market.target, userId | (1n << 44n), bidPrice, id, maker.address
+        )
+      ).to.be.reverted;
+    });
+
+    it("cancelOrder output to user overflows", async function () {
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+
+      await crystal.connect(maker).addLiquidity(
+        market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
+      );
+
+      const scaleFactor = await market.scaleFactor();
+      const bidPrice = 900n * scaleFactor / (10n ** 12n);
+      const id = await crystal.connect(maker).limitOrder.staticCall(
+        market.target, true, 0, bidPrice, ethers.parseUnits("1000", 6), maker.address
+      );
+      await crystal.connect(maker).limitOrder(
+        market.target, true, 0, bidPrice, ethers.parseUnits("1000", 6), maker.address
+      );
+
+      const userId = await crystal.addressToUserId(maker.address);
+      const outputSlot = calculateTokenBalanceSlot(userId, quote.target);
+      await setStorageAt(crystal.target, outputSlot, MASK_KEEP_0_128);
+
+      await expect(
+        crystal.connect(maker).cancelOrder(
+          market.target, userId | (1n << 48n), bidPrice, id, maker.address
+        )
+      ).to.be.reverted;
+    });
+
+    it("batchOrders partial decrease uses high bits", async function () {
+      const { crystal, market, maker } = await loadFixture(deployFixture);
+
+      await crystal.connect(maker).addLiquidity(
+        market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
+      );
+
+      const scaleFactor = await market.scaleFactor();
+      const bidPrice = 900n * scaleFactor / (10n ** 12n);
+      const id = await crystal.connect(maker).limitOrder.staticCall(
+        market.target, true, 0, bidPrice, ethers.parseUnits("3000000", 6), maker.address
+      );
+      await crystal.connect(maker).limitOrder(
+        market.target, true, 0, bidPrice, ethers.parseUnits("3000000", 6), maker.address
+      );
+
+      const actions = [{
+        action: 12n,
+        param1: bidPrice,
+        param2: ethers.parseUnits("1000000", 6),
+        param3: id,
+        isRequireSuccess: false
+      }];
+
+      await crystal.connect(maker).batchOrders(market.target, actions, 0, MAX_UINT256, ethers.ZeroAddress, maker.address);
+    });
+
+    it("fallback partial decrease uses high bits", async function () {
+      const { crystal, market, maker } = await loadFixture(deployFixture);
+
+      await crystal.connect(maker).addLiquidity(
+        market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
+      );
+
+      const scaleFactor = await market.scaleFactor();
+      const bidPrice = 900n * scaleFactor / (10n ** 12n);
+      const id = await crystal.connect(maker).limitOrder.staticCall(
+        market.target, true, 0, bidPrice, ethers.parseUnits("2000000", 6), maker.address
+      );
+      await crystal.connect(maker).limitOrder(
+        market.target, true, 0, bidPrice, ethers.parseUnits("2000000", 6), maker.address
+      );
+
+      const userId = await crystal.addressToUserId(maker.address);
+      const action = 12n;
+      const decreaseAmount = ethers.parseUnits("1000000", 6);
+      const actionWord = (action << 252n) | (id << 192n) | (bidPrice << 112n) | decreaseAmount;
+      const calldata = ethers.solidityPacked(["uint256", "uint256"], [userId, actionWord]);
+
+      await maker.sendTransaction({ to: market.target, data: calldata });
+    });
+
+    it("batchOrders decrease cancel adjusts sell debt", async function () {
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+      const scaleFactor = await market.scaleFactor();
+      const quoteDecimals = await quote.decimals();
+      const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
+      const askPrice = 1100n * priceFactor;
+      const size = ethers.parseEther("1");
+
+      const id = await crystal.connect(maker).limitOrder.staticCall(
+        market.target, false, 0, askPrice, size, maker.address
+      );
+      await crystal.connect(maker).limitOrder(
+        market.target, false, 0, askPrice, size, maker.address
+      );
+
+      const actions = [{
+        action: 12n,
+        param1: askPrice,
+        param2: size,
+        param3: id,
+        isRequireSuccess: false
+      }];
+
+      await crystal.connect(maker).batchOrders(market.target, actions, 0, MAX_UINT256, ethers.ZeroAddress, maker.address);
+    });
+
+    it("fallback decrease cancel adjusts sell debt", async function () {
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+      const scaleFactor = await market.scaleFactor();
+      const quoteDecimals = await quote.decimals();
+      const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
+      const askPrice = 1100n * priceFactor;
+      const size = ethers.parseEther("1");
+
+      const id = await crystal.connect(maker).limitOrder.staticCall(
+        market.target, false, 0, askPrice, size, maker.address
+      );
+      await crystal.connect(maker).limitOrder(
+        market.target, false, 0, askPrice, size, maker.address
+      );
+
+      const userId = await crystal.addressToUserId(maker.address);
+      const actionWord = (12n << 252n) | (id << 192n) | (askPrice << 112n) | size;
+      const calldata = ethers.solidityPacked(["uint256", "uint256"], [userId, actionWord]);
+
+      await maker.sendTransaction({ to: market.target, data: calldata });
+    });
+
+    it("fallback decrease cancel uses low bits", async function () {
+      const { harness, owner } = await deployHarnessLocal({ scaleFactor: 1, tickSize: 1, maxPrice: 1000 });
+      const userId = 20n;
+
+      await harness.setMarketState(0n, 1000n, 0n, 100000, 100000, false, 0, 0);
+      const baseSlot = ethers.keccak256(
+        ethers.AbiCoder.defaultAbiCoder().encode(["address", "uint256"], [harness.target, 10n])
+      );
+      const slot0 = BigInt(await ethers.provider.getStorage(harness.target, baseSlot));
+      const highestBid = slot0 & ((1n << 80n) - 1n);
+      const lowestAsk = (slot0 >> 80n) & ((1n << 80n) - 1n);
+      const minSize = (slot0 >> 160n) & ((1n << 40n) - 1n);
+      const isAMMEnabled = (slot0 >> 248n) & 1n;
+      expect(highestBid).to.equal(0n);
+      expect(lowestAsk).to.equal(1000n);
+      expect(minSize).to.equal(0n);
+      expect(isAMMEnabled).to.equal(0n);
+      expect(await harness.maxPrice()).to.equal(1000n);
+      const orderResult = await harness.exposed_limitOrder.staticCall(true, true, 10n, 1n, userId, 0n);
+      await harness.exposed_limitOrder(true, true, 10n, 1n, userId, 0n);
+      await harness.exposed_limitOrder(true, true, 1n, 1n, userId, 0n);
+
+      const actionWord = (12n << 252n) | (orderResult[1] << 192n) | (10n << 112n) | 1n;
+      const userWord = userId | (1n << 44n);
+      const calldata = ethers.solidityPacked(["uint256", "uint256"], [userWord, actionWord]);
+
+      await owner.sendTransaction({ to: harness.target, data: calldata, gasLimit: 5_000_000 });
+    });
+
+    it("fallback decrease cancel uses low bits on sell side", async function () {
+      const { harness, owner } = await deployHarnessLocal({ scaleFactor: 1, tickSize: 1, maxPrice: 1000 });
+      const userId = 23n;
+
+      await harness.setMarketState(0n, 1000n, 1n << 20n, 100000, 100000, false, 0, 0);
+      const orderResult = await harness.exposed_limitOrder.staticCall(false, true, 10n, 1n, userId, 0n);
+      await harness.exposed_limitOrder(false, true, 10n, 1n, userId, 0n);
+      await harness.exposed_limitOrder(false, true, 20n, 1n, userId, 0n);
+
+      const actionWord = (12n << 252n) | (orderResult[1] << 192n) | (10n << 112n) | 1n;
+      const userWord = userId | (1n << 44n);
+      const calldata = ethers.solidityPacked(["uint256", "uint256"], [userWord, actionWord]);
+
+      await owner.sendTransaction({ to: harness.target, data: calldata });
+    });
+
+    it("fallback cancel skips missing order and unknown action", async function () {
+      const { harness, owner } = await deployHarnessLocal({ scaleFactor: 1, tickSize: 1, maxPrice: 1000 });
+      const userId = 21n;
+
+      await harness.setMarketState(0n, 1000n, 1n << 20n, 100000, 100000, false, 0, 0);
+      const otherUserId = 30n;
+      const orderResult = await harness.exposed_limitOrder.staticCall(true, true, 10n, 1n, otherUserId, 0n);
+      await harness.exposed_limitOrder(true, true, 10n, 1n, otherUserId, 0n);
+      const userWord = userId | (1n << 44n);
+      const cancelAction = (1n << 252n) | (10n << 112n) | orderResult[1];
+      const unknownAction = (13n << 252n);
+      const calldata = ethers.solidityPacked(["uint256", "uint256", "uint256"], [userWord, cancelAction, unknownAction]);
+
+      await owner.sendTransaction({ to: harness.target, data: calldata });
+    });
+
+    it("fallback partial decrease uses high bits on buy side", async function () {
+      const { harness, owner } = await deployHarnessLocal({ scaleFactor: 1, tickSize: 1, maxPrice: 1000 });
+      const userId = 22n;
+
+      await harness.setMarketState(0n, 1000n, 1n << 20n, 100000, 100000, false, 0, 0);
+      const orderResult = await harness.exposed_limitOrder.staticCall(true, true, 10n, 2000n, userId, 0n);
+      await harness.exposed_limitOrder(true, true, 10n, 2000n, userId, 0n);
+
+      const actionWord = (12n << 252n) | (orderResult[1] << 192n) | (10n << 112n) | 1000n;
+      const userWord = userId | (1n << 44n);
+      const calldata = ethers.solidityPacked(["uint256", "uint256"], [userWord, actionWord]);
+
+      await owner.sendTransaction({ to: harness.target, data: calldata });
+    });
+
+    it("marketOrder size zero returns empty", async function () {
+      const { harness } = await deployHarnessLocal({ scaleFactor: 0, tickSize: 1, maxPrice: 1000 });
+      const userId = 8n;
+
+      await harness.setMarketState(0n, 0n, 1n << 20n, 100000, 100000, false, 0, 0);
+      const orderInfo = (0n << 252n) | (0n << 248n) | (0n << 244n) | (userId << 160n);
+      await harness.exposed_marketOrder(0n, 1n, orderInfo);
+    });
+
+    it("slippage fallback exact output keeps reserves unchanged", async function () {
+      const { harness } = await deployHarnessLocal({ scaleFactor: 0, tickSize: 1, maxPrice: 1000000 });
+      const userId = 9n;
+
+      await harness.setMarketState(0n, 10n, 1n << 20n, 100000, 100000, true, 1000, 1);
+      const orderInfo = (2n << 252n) | (1n << 248n) | (0n << 244n) | (userId << 160n);
+      await harness.exposed_marketOrder(1n, 1n, orderInfo);
+    });
+
+    it("slippage triggers activated sync when slot differs", async function () {
+      const { harness, marketId } = await deployHarnessLocal({ scaleFactor: 0, tickSize: 1, maxPrice: 1000000 });
+      const makerId = 10n;
+      const takerId = 11n;
+      const marketIdShifted = BigInt(marketId) << 128n;
+
+      await harness.setUserIdToAddress(makerId, (await ethers.getSigners())[0].address);
+      await harness.setUserIdToAddress(takerId, (await ethers.getSigners())[1].address);
+
+      await harness.setMarketState(0n, 100n, 1n << 20n, 100000, 100000, false, 0, 0);
+      await harness.exposed_limitOrder(false, true, 1n, 1n, makerId, 0n);
+      await harness.exposed_limitOrder(false, true, 2n, 1n, makerId, 0n);
+
+      const slotKey = marketIdShifted | 0n;
+      const slot = await harness.getActivatedSlot(slotKey);
+      await harness.setActivatedSlot(slotKey, slot | TOP_BIT);
+
+      const orderInfo = (0n << 252n) | (0n << 248n) | (0n << 244n) | (1n << 236n) | (takerId << 160n);
+      await harness.exposed_marketOrder(2n, 1n, orderInfo);
+    });
+
+    it("orderbook traversal buy slot nonzero path", async function () {
+      const { harness, marketId } = await deployHarnessLocal({ scaleFactor: 0, tickSize: 1, maxPrice: 1000000 });
+      const makerId = 12n;
+      const takerId = 13n;
+      const marketIdShifted = BigInt(marketId) << 128n;
+
+      await harness.setUserIdToAddress(makerId, (await ethers.getSigners())[0].address);
+      await harness.setUserIdToAddress(takerId, (await ethers.getSigners())[1].address);
+
+      await harness.setMarketState(0n, 100n, 1n << 20n, 100000, 100000, false, 0, 0);
+      await harness.exposed_limitOrder(false, true, 1n, 1n, makerId, 0n);
+      await harness.exposed_limitOrder(false, true, 600n, 1n, makerId, 0n);
+
+      const slotKey = marketIdShifted | 0n;
+      const slot = await harness.getActivatedSlot(slotKey);
+      await harness.setActivatedSlot(slotKey, slot | (1n << 0n) | TOP_BIT);
+
+      const orderInfo = (0n << 252n) | (0n << 248n) | (0n << 244n) | (1n << 236n) | (takerId << 160n);
+      await harness.exposed_marketOrder(1n, 1000n, orderInfo);
+    });
+
+    it("orderbook traversal sell slot nonzero path", async function () {
+      const { harness, marketId } = await deployHarnessLocal({ scaleFactor: 3, tickSize: 1, maxPrice: 1000000 });
+      const makerId = 14n;
+      const takerId = 15n;
+      const marketIdShifted = BigInt(marketId) << 128n;
+
+      await harness.setUserIdToAddress(makerId, (await ethers.getSigners())[0].address);
+      await harness.setUserIdToAddress(takerId, (await ethers.getSigners())[1].address);
+
+      await harness.setMarketState(300n, 1000n, 1n << 20n, 100000, 100000, false, 0, 0);
+      await harness.exposed_limitOrder(true, true, 300n, 1n, makerId, 0n);
+      await harness.exposed_limitOrder(true, true, 10n, 1n, makerId, 0n);
+
+      const slotKey = marketIdShifted | 1n;
+      const slot = await harness.getActivatedSlot(slotKey);
+      await harness.setActivatedSlot(slotKey, slot | (1n << 65n) | TOP_BIT);
+
+      const orderInfo = (0n << 252n) | (0n << 248n) | (1n << 244n) | (1n << 236n) | (takerId << 160n);
+      await harness.exposed_marketOrder(3n, 1n, orderInfo);
+    });
+
+    it("orderbook traversal sell clears slot2 when slot empty", async function () {
+      const { harness, marketId } = await deployHarnessLocal({ scaleFactor: 1, tickSize: 1, maxPrice: 1000000 });
+      const makerId = 16n;
+      const takerId = 17n;
+      const [, maker, taker] = await ethers.getSigners();
+      const marketIdShifted = BigInt(marketId) << 128n;
+
+      await harness.setUserIdToAddress(makerId, maker.address);
+      await harness.setUserIdToAddress(takerId, taker.address);
+      await harness.setMarketState(0n, 1000000n, 1n << 20n, 100000, 100000, false, 0, 0);
+
+      await harness.exposed_limitOrder(true, true, 255n, 1n, makerId, 0n);
+      await harness.exposed_limitOrder(true, true, 1n, 10n, makerId, 0n);
+
+      const slotKey = marketIdShifted | 1n;
+      const slot = await harness.getActivatedSlot(slotKey);
+      await harness.setActivatedSlot(slotKey, slot | (1n << 1n));
+
+      const orderInfo = (0n << 252n) | (0n << 248n) | (1n << 244n) | (1n << 236n) | (takerId << 160n);
+      await harness.exposed_marketOrder(1n, 1n, orderInfo);
+    });
+
+    it("taker internal transfer failure credits maker", async function () {
+      const FailingToken = await ethers.getContractFactory("FailingToken");
+      const failQuote = await FailingToken.deploy("Fail Quote", "FQ");
+      const Token = await ethers.getContractFactory("TestToken");
+      const base = await Token.deploy("Base Token", "BASE", 18);
+      const { harness } = await deployHarnessLocal({
+        quote: failQuote,
+        base,
+        scaleFactor: 0,
+        tickSize: 1,
+        maxPrice: 1000000
+      });
+
+      await failQuote.setRevertAllTransfers(true);
+
+      const makerId = 16n;
+      const takerId = 17n;
+      await harness.setUserIdToAddress(makerId, (await ethers.getSigners())[0].address);
+      await harness.setUserIdToAddress(takerId, (await ethers.getSigners())[1].address);
+
+      await harness.setMarketState(0n, 100n, 1n << 20n, 100000, 100000, false, 0, 0);
+      await harness.exposed_limitOrder(false, true, 1n, 1n, makerId, 0n);
+      await harness.exposed_limitOrder(false, true, 2n, 1n, makerId, 0n);
+
+      const orderInfo = (0n << 252n) | (0n << 248n) | (0n << 244n) | (1n << 236n) | (takerId << 160n);
+      await harness.exposed_marketOrder(1n, 100n, orderInfo);
+    });
+
+    it("taker internal transfer success pays maker externally", async function () {
+      const Token = await ethers.getContractFactory("TestToken");
+      const quote = await Token.deploy("Quote Token", "QUOTE", 6);
+      const base = await Token.deploy("Base Token", "BASE", 18);
+      const { harness } = await deployHarnessLocal({
+        quote,
+        base,
+        scaleFactor: 0,
+        tickSize: 1,
+        maxPrice: 1000000
+      });
+
+      const makerId = 18n;
+      const takerId = 19n;
+      const [makerSigner, takerSigner] = await ethers.getSigners();
+      await harness.setUserIdToAddress(makerId, makerSigner.address);
+      await harness.setUserIdToAddress(takerId, takerSigner.address);
+
+      await quote.mint(harness.target, 1000n);
+
+      await harness.setMarketState(0n, 100n, 1n << 20n, 100000, 100000, false, 0, 0);
+      await harness.exposed_limitOrder(false, true, 1n, 1n, makerId, 0n);
+      await harness.exposed_limitOrder(false, true, 2n, 1n, makerId, 0n);
+
+      const orderInfo = (0n << 252n) | (0n << 248n) | (0n << 244n) | (1n << 236n) | (takerId << 160n);
+      await harness.exposed_marketOrder(1n, 100n, orderInfo);
+    });
+
+    it("amm buy reserve overflow reverts", async function () {
+      const maxPrice = 1_000_000_000_000_000_000_000_000n;
+      const { harness } = await deployHarnessLocal({ scaleFactor: 0, tickSize: 1, maxPrice });
+      const userId = 20n;
+
+      await harness.setMarketState(
+        0n,
+        maxPrice - 1n,
+        1n << 20n,
+        100000,
+        100000,
+        true,
+        MASK_KEEP_0_112 - 1n,
+        1_000_000_000_000n
+      );
+
+      const orderInfo = (0n << 252n) | (1n << 248n) | (0n << 244n) | (userId << 160n);
+      await expect(harness.exposed_marketOrder(1n, maxPrice - 1n, orderInfo)).to.be.reverted;
+    });
+
+    it("amm sell reserve overflow reverts", async function () {
+      const maxPrice = 1_000_000_000_000_000_000_000_000n;
+      const { harness } = await deployHarnessLocal({ scaleFactor: 6, tickSize: 1, maxPrice });
+      const userId = 21n;
+
+      await harness.setMarketState(
+        1n,
+        0n,
+        1n << 20n,
+        100000,
+        100000,
+        true,
+        MASK_KEEP_0_112 - 1n,
+        MASK_KEEP_0_112 - 1n
+      );
+
+      const orderInfo = (0n << 252n) | (1n << 248n) | (1n << 244n) | (userId << 160n);
+      await expect(harness.exposed_marketOrder(1n, 1n, orderInfo)).to.be.reverted;
+    });
+
+    it("amm sell clamps startprice to tickSize", async function () {
+      const { harness } = await deployHarnessLocal({ scaleFactor: 6, tickSize: 1000, maxPrice: 1000000 });
+      const userId = 22n;
+
+      await harness.setMarketState(1n, 0n, 1n << 20n, 100000, 100000, true, 100, 1_000_000);
+      const orderInfo = (0n << 252n) | (0n << 248n) | (1n << 244n) | (userId << 160n);
+      await harness.exposed_marketOrder(1n, 1n, orderInfo);
+    });
+
+    it("slippage commit only changes reserveBase", async function () {
+      const { harness } = await deployHarnessLocal({ scaleFactor: 6, tickSize: 1, maxPrice: 1000000 });
+      const userId = 23n;
+
+      await harness.setMarketState(1n, 0n, 1n << 20n, 100000, 100000, true, 5, 1_000_000);
+      const orderInfo = (2n << 252n) | (0n << 248n) | (1n << 244n) | (userId << 160n);
+      await harness.exposed_marketOrder(3n, 2n, orderInfo);
+    });
+
+    it("amm buy clamps startprice to tickSize", async function () {
+      const { harness } = await deployHarnessLocal({ scaleFactor: 0, tickSize: 1000, maxPrice: 1000000 });
+      const userId = 18n;
+
+      await harness.setMarketState(0n, 10000n, 1n << 20n, 100000, 100000, true, 1, 1000000);
+      const orderInfo = (0n << 252n) | (0n << 248n) | (0n << 244n) | (userId << 160n);
+      await harness.exposed_marketOrder(1n, 10000n, orderInfo);
+    });
+
+    it("amm sell clamps startprice to maxPrice", async function () {
+      const { harness } = await deployHarnessLocal({ scaleFactor: 0, tickSize: 1, maxPrice: 5 });
+      const userId = 19n;
+
+      await harness.setMarketState(1n, 0n, 1n << 20n, 100000, 100000, true, 1000000, 10);
+      const orderInfo = (0n << 252n) | (0n << 248n) | (1n << 244n) | (userId << 160n);
+      await harness.exposed_marketOrder(1n, 1n, orderInfo);
+    });
+
+    it("amm buy uses non-linear price rounding", async function () {
+      const { harness } = await deployHarnessLocal({ marketType: 1, scaleFactor: 0, tickSize: 1, maxPrice: 1000000 });
+      const userId = 20n;
+
+      await harness.setMarketState(0n, 2000n, 1n << 20n, 100000, 100000, true, 1000, 1000);
+      const orderInfo = (0n << 252n) | (0n << 248n) | (0n << 244n) | (userId << 160n);
+      await harness.exposed_marketOrder(10n, 2000n, orderInfo);
+    });
+
+    it("amm buy syncs activated slot when exact fill ends swap", async function () {
+      const { harness } = await deployHarnessLocal({ scaleFactor: 1, tickSize: 1, maxPrice: 1000 });
+      const makerId = 32n;
+      const takerId = 33n;
+      const [, maker, taker] = await ethers.getSigners();
+
+      await harness.setUserIdToAddress(makerId, maker.address);
+      await harness.setUserIdToAddress(takerId, taker.address);
+
+      const base = await harness.baseAsset();
+      await harness.setTokenBalance(makerId, base, 100n << 128n);
+
+      await harness.setMarketState(0n, 1000n, 0n, 100000, 100000, false, 0, 0);
+      const order1 = await harness.exposed_limitOrder.staticCall(false, true, 1n, 1n, makerId, 0n);
+      await harness.exposed_limitOrder(false, true, 1n, 1n, makerId, 0n);
+      const order2 = await harness.exposed_limitOrder.staticCall(false, true, 2n, 1n, makerId, 0n);
+      await harness.exposed_limitOrder(false, true, 2n, 1n, makerId, 0n);
+      const order3 = await harness.exposed_limitOrder.staticCall(false, true, 260n, 1n, makerId, 0n);
+      await harness.exposed_limitOrder(false, true, 260n, 1n, makerId, 0n);
+      expect(order1[0]).to.equal(1n);
+      expect(order2[0]).to.equal(1n);
+      expect(order3[0]).to.equal(1n);
+
+      await harness.setMarketState(0n, 1n, 0n, 100000, 100000, true, 1, 100);
+
+      const orderInfo = (0n << 252n) | (0n << 248n) | (0n << 244n) | (1n << 236n) | (takerId << 160n);
+      await harness.exposed_marketOrder(2n, 10n, orderInfo, { gasLimit: 30_000_000 });
+    });
+
+    it("amm swap completes and syncs activated slot", async function () {
+      const { harness, marketId } = await deployHarnessLocal({ scaleFactor: 0, tickSize: 1, maxPrice: 1000000 });
+      const makerId = 21n;
+      const takerId = 22n;
+      const marketIdShifted = BigInt(marketId) << 128n;
+
+      await harness.setUserIdToAddress(makerId, (await ethers.getSigners())[0].address);
+      await harness.setUserIdToAddress(takerId, (await ethers.getSigners())[1].address);
+
+      await harness.setMarketState(0n, 100n, 1n << 20n, 100000, 100000, true, 10, 10);
+      await harness.exposed_limitOrder(false, true, 1n, 1n, makerId, 0n);
+      await harness.exposed_limitOrder(false, true, 3n, 1n, makerId, 0n);
+
+      const slotKey = marketIdShifted | 0n;
+      const slot = await harness.getActivatedSlot(slotKey);
+      await harness.setActivatedSlot(slotKey, slot | TOP_BIT);
+
+      const orderInfo = (0n << 252n) | (0n << 248n) | (0n << 244n) | (1n << 236n) | (takerId << 160n);
+      await harness.exposed_marketOrder(2n, 2n, orderInfo);
+    });
   });
 
   describe("ERC20 LP Token Functionality", function () {
@@ -25010,6 +25969,19 @@ describe("CrystalMarket", function () {
           market.target, maker.address, amountQuoteDesired, amountBaseDesired, 0, 0
         );
       });
+
+      it("Should fail line 275 - amountQuoteOptimal <= amountQuoteDesired require", async function () {
+        const { crystal, market, quote, base, owner, maker } = await deployMarketWithAMM();
+
+        const { reserveQuote, reserveBase } = await market.getReserves.staticCall();
+
+        const amountBaseDesired = ethers.parseUnits("1000", 6);
+        const amountQuoteDesired = ethers.parseEther("10");
+
+        await crystal.connect(maker).addLiquidity(
+          market.target, maker.address, amountQuoteDesired, amountBaseDesired, 0, 0
+        );
+      });
     });
 
     describe("removeLiquidity router slot overflow (lines 326, 332)", function () {
@@ -27211,11 +28183,34 @@ describe("CrystalMarket", function () {
       const { crystal, market, quote, weth, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
-        market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
+        market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("3"), 0, 0
       );
 
       await crystal.connect(maker).addLiquidity(
-        market.target, maker.address, ethers.parseUnits("5000", 6), ethers.parseEther("5"), 0, 0
+        market.target, maker.address, ethers.parseUnits("20000", 6), ethers.parseEther("1"), 0, 0
+      );
+    });
+
+    it("Should hit line 337 - removeLiquidity with AMM disabled", async function () {
+      const { crystal, market, maker, owner } = await loadFixture(deployFixture);
+
+      await crystal.connect(maker).addLiquidity(
+        market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
+      );
+
+      const info = await crystal.getMarket(market.target);
+      await crystal.connect(owner).changeMarketParams(
+        market.target,
+        info.minSize,
+        info.takerFee,
+        info.makerRebate,
+        false,
+        true
+      );
+
+      const liquidity = await market.balanceOf(maker.address);
+      await crystal.connect(maker).removeLiquidity(
+        market.target, maker.address, liquidity, 0, 0
       );
     });
 
@@ -28059,7 +29054,6 @@ describe("CrystalMarket", function () {
       await quote.connect(taker).approve(crystal.target, MAX_UINT256);
       await base.connect(taker).approve(crystal.target, MAX_UINT256);
 
-      // Deploy market WITHOUT AMM - pure orderbook for overflow testing
       const marketAddr = await crystal.deploy.staticCall(
         true, quote.target, base.target, 0, 21, 1, 1_000_000_000_000_000, 1_000_000, 99970, 99990
       );
@@ -28068,7 +29062,6 @@ describe("CrystalMarket", function () {
       );
       const market = await ethers.getContractAt("CrystalMarket", marketAddr);
 
-      // NO AMM liquidity - all trades go through orderbook
       return { crystal, market, quote, base, weth, owner, maker, taker };
     }
 
