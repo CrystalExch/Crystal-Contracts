@@ -253,8 +253,12 @@ contract ReentrancyAttacker {
     address public vault;
     address public quoteAsset;
     address public baseAsset;
-    bool public attackDeposit;
     bool public attacked;
+    bool public reenterSucceeded;
+    uint8 public reenterAction; // 1 = deposit, 2 = withdraw
+    uint256 public reenterAmountQuote;
+    uint256 public reenterAmountBase;
+    uint256 public reenterShares;
 
     function setup(address _factory, address _vault, address _quoteAsset, address _baseAsset) external {
         factory = _factory;
@@ -263,8 +267,11 @@ contract ReentrancyAttacker {
         baseAsset = _baseAsset;
     }
 
-    function setAttackDeposit(bool _attackDeposit) external {
-        attackDeposit = _attackDeposit;
+    function setReenter(uint8 action, uint256 amountQuote, uint256 amountBase, uint256 shares) external {
+        reenterAction = action;
+        reenterAmountQuote = amountQuote;
+        reenterAmountBase = amountBase;
+        reenterShares = shares;
     }
 
     function approveToken(address token, address spender, uint256 amount) external {
@@ -272,32 +279,113 @@ contract ReentrancyAttacker {
     }
 
     function attackDepositReentrancy(uint256 amountQuote, uint256 amountBase) external payable {
-        attackDeposit = true;
         attacked = false;
+        reenterSucceeded = false;
         IVaultFactory(factory).deposit{value: msg.value}(
             vault, quoteAsset, baseAsset, amountQuote, amountBase, 0, 0
         );
     }
 
     function attackWithdrawReentrancy(uint256 shares) external {
-        attackDeposit = false;
         attacked = false;
+        reenterSucceeded = false;
         IVaultFactory(factory).withdraw(vault, quoteAsset, baseAsset, shares, 0, 0);
     }
 
     receive() external payable {
         if (!attacked) {
             attacked = true;
-            if (attackDeposit) {
+            if (reenterAction == 1) {
                 // Try to reenter deposit during ETH refund callback
-                try IVaultFactory(factory).deposit{value: 0}(
-                    vault, quoteAsset, baseAsset, 1, 1, 0, 0
-                ) {} catch {}
-            } else {
+                try IVaultFactory(factory).deposit{value: msg.value}(
+                    vault, quoteAsset, baseAsset, reenterAmountQuote, reenterAmountBase, 0, 0
+                ) {
+                    reenterSucceeded = true;
+                } catch {}
+            } else if (reenterAction == 2) {
                 // Try to reenter withdraw during ETH transfer callback
-                try IVaultFactory(factory).withdraw(
-                    vault, quoteAsset, baseAsset, 1, 0, 0
-                ) {} catch {}
+                uint256 shares = reenterShares;
+                if (shares == 0) {
+                    shares = IERC20(vault).balanceOf(address(this));
+                }
+                if (shares != 0) {
+                    try IVaultFactory(factory).withdraw(
+                        vault, quoteAsset, baseAsset, shares, 0, 0
+                    ) {
+                        reenterSucceeded = true;
+                    } catch {}
+                }
+            }
+        }
+    }
+}
+
+/// @notice Contract that attempts reentrancy attacks against Crystal core functions
+contract CrystalReentrancyAttacker {
+    address public crystal;
+    address public token;
+    bool public attacked;
+    bool public reenterSucceeded;
+    uint8 public reenterAction; // 1 = withdraw, 2 = routerWithdraw
+    uint256 public reenterAmount;
+    bytes[] private reenterCalldata;
+
+    function setup(address _crystal, address _token) external {
+        crystal = _crystal;
+        token = _token;
+    }
+
+    function depositCrystal(uint256 amount) external payable {
+        ICrystal(crystal).deposit{value: msg.value}(token, amount);
+    }
+
+    function routerDepositCrystal(uint256 amount) external payable {
+        ICrystal(crystal).routerDeposit{value: msg.value}(token, amount);
+    }
+
+    function attackWithdraw(uint256 amount, uint8 action, uint256 amountReenter) external {
+        attacked = false;
+        reenterSucceeded = false;
+        reenterAction = action;
+        reenterAmount = amountReenter;
+        ICrystal(crystal).withdraw(address(this), token, amount);
+    }
+
+    function attackRouterWithdraw(uint256 amount, uint8 action, uint256 amountReenter) external {
+        attacked = false;
+        reenterSucceeded = false;
+        reenterAction = action;
+        reenterAmount = amountReenter;
+        ICrystal(crystal).routerWithdraw(address(this), token, amount);
+    }
+
+    function setReenterCalldata(bytes[] calldata data) external {
+        delete reenterCalldata;
+        for (uint256 i = 0; i < data.length; ++i) {
+            reenterCalldata.push(data[i]);
+        }
+    }
+
+    receive() external payable {
+        if (!attacked) {
+            attacked = true;
+            if (reenterCalldata.length != 0) {
+                for (uint256 i = 0; i < reenterCalldata.length; ++i) {
+                    (bool success, ) = crystal.call(reenterCalldata[i]);
+                    if (success) {
+                        reenterSucceeded = true;
+                    }
+                }
+            } else {
+                if (reenterAction == 1) {
+                    try ICrystal(crystal).withdraw(address(this), token, reenterAmount) {
+                        reenterSucceeded = true;
+                    } catch {}
+                } else if (reenterAction == 2) {
+                    try ICrystal(crystal).routerWithdraw(address(this), token, reenterAmount) {
+                        reenterSucceeded = true;
+                    } catch {}
+                }
             }
         }
     }

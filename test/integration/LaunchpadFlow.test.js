@@ -70,7 +70,7 @@ describe("Integration: Launchpad Flow", function () {
       expect(amountOut).to.be.greaterThan(0n);
     });
 
-    it.skip("quoteSell() should return expected amounts", async function () {
+    it("quoteSell() should return expected amounts", async function () {
       const { crystal, launchpadToken, user1 } = await launchpadFixture();
 
       const buyAmount = ethers.parseEther("0.5");
@@ -80,9 +80,10 @@ describe("Integration: Launchpad Flow", function () {
       expect(balance).to.be.greaterThan(0n);
       await launchpadToken.connect(user1).approve(crystal.target, balance);
 
-      const result = await crystal.quoteSell.staticCall(true, launchpadToken.target, balance / 2n, 0);
+      const sellAmount = balance / 2n;
+      const result = await crystal.quoteSell.staticCall(true, launchpadToken.target, sellAmount, 0);
 
-      expect(result[1]).to.be.greaterThan(0n);
+      expect(result[0]).to.equal(sellAmount);
     });
   });
 

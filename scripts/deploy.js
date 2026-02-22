@@ -6,8 +6,8 @@ const RPC_URL = "https://rpc.monad.xyz"
 const CHAIN_ID = 143 // Monad Mainnet
 const GAS_PRICE = 150000000000n // 150 gwei
 
-const USDC = "0xf817257fed379853cDe0fa4F97AB987181B1E5Ea" // Canonical Stablecoin
-const WETH = "0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701" // Wrapped Native Token
+const USDC = "0x754704Bc059F8C67012fEd69BC8A327a5aafb603" // Canonical Stablecoin
+const WETH = "0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A" // Wrapped Native Token
 
 const MARKETS = [ // [Canonical, Quote Asset, Base Asset, Market Type, Scale Factor, Tick Size, Max Price, Min Size, Taker Fee, Maker Rebate]
   [
@@ -22,17 +22,8 @@ const MARKETS = [ // [Canonical, Quote Asset, Base Asset, Market Type, Scale Fac
     99970n, // 0.03%
     99995n // 0.005%
   ],
-  [false, USDC, WETH, 0, 15, 1, 1_000_000n, 1_000_000n, 99970n, 99995n],
-  [true, USDC, "", 0, 13, 1, 1_000_000n, 1_000_000n, 99970n, 99995n],
-  [true, USDC, "", 0, 2, 1, 1_000_000n, 1_000_000n, 99970n, 99995n],
-  [true, USDC, "", 0, 5, 1, 1_000_000n, 1_000_000n, 99970n, 99995n],
-  [true, USDC, "", 0, 4, 1, 100000n, 1_000_000n, 99990n, 100000n],
-  [true, WETH, "", 0, 4, 1, 100000n, 100000000000000000n, 99990n, 100000n],
-  [true, WETH, "", 0, 4, 1, 100000n, 100000000000000000n, 99990n, 100000n],
-  [true, WETH, "", 0, 4, 1, 100000n, 100000000000000000n, 99990n, 100000n],
-  [true, WETH, "", 2, 9, 1, 1_000_000_000_000_000n, 100000000000000000n, 99950n, 99995n],
-  [true, WETH, "", 2, 9, 1, 1_000_000_000_000_000n, 100000000000000000n, 99950n, 99995n],
-  [true, WETH, "", 2, 9, 1, 1_000_000_000_000_000n, 100000000000000000n, 99950n, 99995n],
+  [false, USDC, WETH, 0, 17, 1, 1_000_000n, 1_000_000n, 99970n, 99995n], // Duplicate WETH/USDC market, non-canonical
+  [true, USDC, "0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a", 0, 4, 1, 100_000n, 1_000_000n, 99990n, 100000n],
 ]
 
 async function deploy(factory, signer, provider, args = []) {

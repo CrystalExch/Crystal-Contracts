@@ -1,0 +1,58 @@
+const { ethers } = require("ethers")
+require("dotenv").config()
+
+const RPC_URL = "https://rpc.monad.xyz"
+const CHAIN_ID = 143 // Monad Mainnet
+const GAS_PRICE = 150000000000n // 150 gwei
+
+const USDC = "0x754704Bc059F8C67012fEd69BC8A327a5aafb603" // Canonical Stablecoin
+const WETH = "0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A" // Wrapped Native Token
+
+const MARKETS = [ // [Canonical, Quote Asset, Base Asset, Market Type, Scale Factor, Tick Size, Max Price, Min Size, Taker Fee, Maker Rebate]
+  [
+    true,
+    USDC,
+    WETH,
+    2, // Dynamic Price Ticks, AMM Enabled
+    21, // USDC is 6 Decimals, WETH is 18, 21 - 18 + 6 = 9, Minimum Price Tick of 0.000000001
+    1,
+    1_000_000_000_000_000n, // 1,000,000 USDC per WETH
+    1_000_000n, // 1 USDC
+    99970n, // 0.03%
+    99995n // 0.005%
+  ],
+]
+
+async function call(contract, signer, provider, fn, args = []) {
+  const data = contract.interface.encodeFunctionData(fn, args)
+  const gas = await provider.estimateGas({ from: signer.address, to: await contract.getAddress(), data })
+  const signed = await signer.signTransaction({
+    to: await contract.getAddress(),
+    data,
+    gasLimit: gas,
+    gasPrice: GAS_PRICE,
+    chainId: CHAIN_ID,
+    nonce: await provider.getTransactionCount(signer.address)
+  })
+  return (await provider.broadcastTransaction(signed)).wait()
+}
+
+async function main() {
+  const provider = new ethers.JsonRpcProvider(RPC_URL)
+  const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider)
+
+  const crystal = new ethers.Contract(process.env.CRYSTAL_ADDRESS, Crystal.interface, wallet)
+
+  const markets = []
+  for (const params of MARKETS) {
+    const predicted = await crystal.deploy.staticCall(...params)
+    await call(crystal, wallet, provider, "deploy", params)
+    markets.push(predicted)
+  }
+
+  console.log({
+    markets
+  })
+}
+
+main().catch(e => { console.error(e); process.exit(1) })

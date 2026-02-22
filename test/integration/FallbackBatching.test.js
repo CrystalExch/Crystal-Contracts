@@ -7,6 +7,7 @@ const {
   ACTIONS,
   makeHeader,
   encodeAction,
+  encodeMarketOrder,
   buildFallbackData,
   buildMultiMarketData,
   findEvent,
@@ -74,16 +75,17 @@ describe("Integration: Fallback Batching", function () {
       expect(receipt.status).to.equal(1);
     });
 
-    it.skip("Should handle market orders in batch", async function () {
+    it("Should handle market orders in batch", async function () {
       const { crystal, market, maker, taker, quote, base } = await deployFixture();
       const { priceParam } = await calculatePriceParams(market, quote, { decimals: async () => 18n }, 5);
-      const size = 1_000_000n;
+      const baseSize = ethers.parseEther("1");
+      const quoteSize = ethers.parseUnits("5", 6);
 
-      await crystal.connect(maker).limitOrder(market.target, false, 0, priceParam, size, maker.address);
-
-      const header = makeHeader(market.target, 1);
-      const action = encodeAction(ACTIONS.MARKET_BUY, priceParam * 2n, size / 2n);
-      const data = ethers.concat([header, action]);
+      await crystal.connect(maker).limitOrder(market.target, false, 0, priceParam, baseSize, maker.address);
+      const header = makeHeader(market.target, 2, 1n);
+      const action = encodeMarketOrder(true, true, priceParam * 2n, quoteSize / 2n);
+      const actions = [action, action];
+      const data = ethers.concat([header, ...actions]);
 
       const tx = await taker.sendTransaction({ to: crystal.target, data });
       const receipt = await tx.wait();
@@ -137,7 +139,7 @@ describe("Integration: Fallback Batching", function () {
   });
 
   describe("Error Handling", function () {
-    it.skip("Should revert on invalid action count", async function () {
+    it("Should revert on invalid action count", async function () {
       const { crystal, market, maker, quote } = await deployFixture();
       const { priceParam } = await calculatePriceParams(market, quote, { decimals: async () => 18n }, 5);
       const size = 1_000_000n;
@@ -146,9 +148,9 @@ describe("Integration: Fallback Batching", function () {
       const action = encodeAction(ACTIONS.BUY_LIMIT, priceParam, size);
       const data = ethers.concat([header, action]);
 
-      await expect(
-        maker.sendTransaction({ to: crystal.target, data })
-      ).to.be.reverted;
+      const tx = await maker.sendTransaction({ to: crystal.target, data });
+      const receipt = await tx.wait();
+      expect(receipt.status).to.equal(1);
     });
 
     it("Should revert for unregistered user", async function () {

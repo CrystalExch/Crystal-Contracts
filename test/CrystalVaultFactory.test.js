@@ -389,11 +389,39 @@ describe("CrystalVaultFactory", function () {
       const attacker = await ReentrancyAttacker.deploy();
 
       await attacker.setup(factory.target, vaultAddr, eth, token1.target);
+      await attacker.setReenter(0, 0, 0, 0);
       await token1.transfer(attacker.target, ethers.parseEther("10"));
       await attacker.approveToken(token1.target, factory.target, MAX_UINT256);
 
       await attacker.attackDepositReentrancy(ethers.parseEther("0.5"), ethers.parseEther("0.5"), { value: ethers.parseEther("1") });
       expect(await attacker.attacked()).to.be.true;
+      expect(await attacker.reenterSucceeded()).to.be.false;
+    });
+
+    it("Should block reentrancy from deposit into withdraw", async function () {
+      const { crystal, weth, token1, owner } = await loadFixture(vaultFixture);
+      const eth = ETH_ADDRESS;
+
+      const CrystalVaultFactory = await ethers.getContractFactory("CrystalVaultFactory");
+      const factory = await CrystalVaultFactory.deploy(crystal.target, owner.address, weth.target, 100, 100, 0);
+
+      await token1.connect(owner).approve(factory.target, MAX_UINT256);
+      const vaultTx = await factory.connect(owner).deploy(eth, token1.target, ethers.parseEther("1"), ethers.parseEther("1"), 0, 0, false, ["ETH Vault", "", "", "", ""], { value: ethers.parseEther("2") });
+      const receipt = await vaultTx.wait();
+      const vaultEvent = receipt.logs.map(log => { try { return factory.interface.parseLog(log); } catch { return null; } }).find(ev => ev && ev.name === "VaultDeployed");
+      const vaultAddr = vaultEvent.args.vault;
+
+      const ReentrancyAttacker = await ethers.getContractFactory("ReentrancyAttacker");
+      const attacker = await ReentrancyAttacker.deploy();
+
+      await attacker.setup(factory.target, vaultAddr, eth, token1.target);
+      await attacker.setReenter(2, 0, 0, 0);
+      await token1.transfer(attacker.target, ethers.parseEther("10"));
+      await attacker.approveToken(token1.target, factory.target, MAX_UINT256);
+
+      await attacker.attackDepositReentrancy(ethers.parseEther("0.5"), ethers.parseEther("0.5"), { value: ethers.parseEther("1") });
+      expect(await attacker.attacked()).to.be.true;
+      expect(await attacker.reenterSucceeded()).to.be.false;
     });
 
     it("Should revert with wrong quote asset", async function () {
@@ -561,13 +589,17 @@ describe("CrystalVaultFactory", function () {
       await token1.transfer(attacker.target, ethers.parseEther("10"));
       await attacker.approveToken(token1.target, factory.target, MAX_UINT256);
 
+      await attacker.setReenter(1, ethers.parseEther("0.5"), ethers.parseEther("0.5"), 0);
       await attacker.attackDepositReentrancy(ethers.parseEther("0.5"), ethers.parseEther("0.5"), { value: ethers.parseEther("0.5") });
 
       const shares = await vault.balanceOf(attacker.target);
       expect(shares).to.be.greaterThan(0n);
 
-      await attacker.attackWithdrawReentrancy(shares);
+      const reenterShares = shares / 4n > 0n ? shares / 4n : 1n;
+      await attacker.setReenter(2, 0, 0, reenterShares);
+      await attacker.attackWithdrawReentrancy(shares / 2n);
       expect(await attacker.attacked()).to.be.true;
+      expect(await attacker.reenterSucceeded()).to.be.false;
     });
 
     it("Should revert with wrong quote asset", async function () {

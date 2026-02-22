@@ -27349,6 +27349,94 @@ describe("CrystalMarket", function () {
       await harness.exposed_toValidPrice(500_000_000_000_000n, false);
     });
 
+    it("Should skip settleBalances output paths when debt is non-negative", async function () {
+      const { harness } = await deployHarnessOnly();
+      const userId = 30n;
+
+      await harness.exposed_settleBalances(0n, 0n, userId, 0n, 1n, 0n);
+      await harness.exposed_settleBalances(0n, 0n, userId, 1n, 0n, 0n);
+    });
+
+    it("Should keep activated slot2 when other ticks remain", async function () {
+      const { harness } = await deployHarnessOnly();
+      const userId = 31n;
+
+      await harness.setMarketState(
+        0n, 1000n, 1n << 20n, 99970, 99990, false, 0, 0
+      );
+
+      const [, id1] = await harness.exposed_limitOrder.staticCall(
+        false, true, 1n, 1n, userId, 0n
+      );
+      await harness.exposed_limitOrder(false, true, 1n, 1n, userId, 0n);
+
+      await harness.exposed_limitOrder(false, true, 2n, 1n, userId, 0n);
+
+      await harness.exposed_cancelOrder(1n, id1, userId);
+    });
+
+    it("Should revert limitOrder when base lock overflows", async function () {
+      const { harness, base } = await deployHarnessOnly();
+      const userId = 32n;
+
+      await harness.setMarketState(
+        0n, 1000n, 1n << 20n, 99970, 99990, false, 0, 0
+      );
+
+      const maxLocked = ((1n << 128n) - 1n) << 128n;
+      await harness.setTokenBalance(userId, base.target, maxLocked);
+
+      await expect(
+        harness.exposed_limitOrder(false, false, 100n, 1n, userId, 0n)
+      ).to.be.reverted;
+    });
+
+    it("Should revert limitOrder when order id overflows uint41", async function () {
+      const { harness } = await deployHarnessOnly();
+      const userId = 33n;
+      const marketIdShifted = 1n << 128n;
+      const price = 100n;
+
+      await harness.setMarketState(
+        0n, 1000n, 1n << 20n, 99970, 99990, false, 0, 0
+      );
+
+      const maxOrderId = (1n << 41n) - 1n;
+      const priceLevel = 1n | (maxOrderId << 113n);
+      await harness.setPriceLevel(marketIdShifted | price, priceLevel);
+
+      await expect(
+        harness.exposed_limitOrder(true, true, price, 1n, userId, 0n)
+      ).to.be.reverted;
+    });
+
+    it("Should hit fallback decrease cancel path with low-bit size", async function () {
+      const { harness } = await deployHarnessOnly();
+      const userId = 34n;
+      const price = 100n;
+      const lowerPrice = 90n;
+      const size = 10n;
+
+      await harness.setMarketState(
+        0n, 1000n, 1n << 20n, 99970, 99990, false, 0, 0
+      );
+
+      const [, id] = await harness.exposed_limitOrder.staticCall(
+        true, true, price, size, userId, 0n
+      );
+      await harness.exposed_limitOrder(true, true, price, size, userId, 0n);
+      await harness.exposed_limitOrder(true, true, lowerPrice, 1n, userId, 0n);
+
+      const balanceMode = 1n;
+      const userWord = (balanceMode << 44n) | userId;
+      const header = ethers.zeroPadValue(ethers.toBeHex(userWord), 32);
+      const action = encodeAction(12n, price, size, id);
+      const data = ethers.concat([header, action]);
+
+      const [caller] = await ethers.getSigners();
+      await caller.sendTransaction({ to: harness.target, data });
+    });
+
     it("Should revert _settleBalances when internal balance is insufficient", async function () {
       const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();

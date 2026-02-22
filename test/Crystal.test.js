@@ -5348,7 +5348,7 @@ describe("Crystal Core Protocol Tests", function () {
     });
   });
 
-  describe.skip("Coverage: Malicious market edge cases", function () {
+  describe("Coverage: Malicious market edge cases", function () {
     let crystal, maliciousMarket, failingMarket, tokenA, tokenB;
     const ethAddress = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
     const futureDeadline = 9999999999;
@@ -5394,7 +5394,7 @@ describe("Crystal Core Protocol Tests", function () {
 
 
 
-      const getMarketByTokensSlot = 19n;
+      const getMarketByTokensSlot = 27n;
 
 
       const innerSlot = ethers.keccak256(ethers.concat([
@@ -5429,7 +5429,7 @@ describe("Crystal Core Protocol Tests", function () {
       ]);
 
 
-      const getMarketSlot = 2n;
+      const getMarketSlot = 10n;
       const marketSlot = ethers.keccak256(ethers.concat([
         ethers.zeroPadValue(market.target, 32),
         ethers.zeroPadValue(ethers.toBeHex(getMarketSlot), 32)
@@ -5490,8 +5490,6 @@ describe("Crystal Core Protocol Tests", function () {
 
 
       const storedMarket = await crystal.getMarketByTokens(weth.target, tokenA.target);
-      console.log("Expected market:", maliciousMarket.target);
-      console.log("Stored market:", storedMarket);
       expect(storedMarket.toLowerCase()).to.equal(maliciousMarket.target.toLowerCase());
     });
 
