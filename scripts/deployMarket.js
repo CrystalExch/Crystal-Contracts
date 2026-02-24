@@ -1,3 +1,4 @@
+const hardhat = require("hardhat")
 const { ethers } = require("ethers")
 require("dotenv").config()
 
@@ -6,15 +7,14 @@ const CHAIN_ID = 143 // Monad Mainnet
 const GAS_PRICE = 150000000000n // 150 gwei
 
 const USDC = "0x754704Bc059F8C67012fEd69BC8A327a5aafb603" // Canonical Stablecoin
-const WETH = "0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A" // Wrapped Native Token
 
 const MARKETS = [ // [Canonical, Quote Asset, Base Asset, Market Type, Scale Factor, Tick Size, Max Price, Min Size, Taker Fee, Maker Rebate]
   [
     true,
     USDC,
-    WETH,
+    '0x01bFF41798a0BcF287b996046Ca68b395DbC1071',
     2, // Dynamic Price Ticks, AMM Enabled
-    21, // USDC is 6 Decimals, WETH is 18, 21 - 18 + 6 = 9, Minimum Price Tick of 0.000000001
+    9, // USDC is 6 Decimals, WETH is 18, 21 - 18 + 6 = 9, Minimum Price Tick of 0.000000001
     1,
     1_000_000_000_000_000n, // 1,000,000 USDC per WETH
     1_000_000n, // 1 USDC
@@ -41,6 +41,7 @@ async function main() {
   const provider = new ethers.JsonRpcProvider(RPC_URL)
   const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider)
 
+  const Crystal = await hardhat.ethers.getContractFactory("Crystal")
   const crystal = new ethers.Contract(process.env.CRYSTAL_ADDRESS, Crystal.interface, wallet)
 
   const markets = []
