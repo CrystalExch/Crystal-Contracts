@@ -24,6 +24,18 @@ const MARKETS = [ // [Canonical, Quote Asset, Base Asset, Market Type, Scale Fac
   ],
   [false, USDC, WETH, 0, 17, 1, 1_000_000n, 1_000_000n, 99970n, 99995n], // Duplicate WETH/USDC market, non-canonical
   [true, USDC, "0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a", 0, 4, 1, 100_000n, 1_000_000n, 99990n, 100000n],
+  [
+    true,
+    USDC,
+    '0x01bFF41798a0BcF287b996046Ca68b395DbC1071',
+    2, // Dynamic Price Ticks, AMM Enabled
+    9, // USDC is 6 Decimals, WETH is 18, 21 - 18 + 6 = 9, Minimum Price Tick of 0.000000001
+    1,
+    1_000_000_000_000_000n, // 1,000,000 USDC per WETH
+    1_000_000n, // 1 USDC
+    99970n, // 0.03%
+    99995n // 0.005%
+  ],
 ]
 
 async function deploy(factory, signer, provider, args = []) {

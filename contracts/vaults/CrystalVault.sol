@@ -52,7 +52,7 @@ contract CrystalVault is ERC20 {
     /// @notice Whether the vault has been permanently closed.
     bool public closed;
 
-    /// @notice Vault metadata (name, description, etc.).
+    /// @notice Vault metadata.
     ICrystalVault.VaultMetaData public metadata;
 
     /// @notice Crystal core contract address.
@@ -64,7 +64,7 @@ contract CrystalVault is ERC20 {
     /// @notice Base asset token address.
     address public immutable baseAsset;
 
-    /// @notice Vault owner / strategist.
+    /// @notice Vault owner.
     address public immutable owner;
 
     /// @notice Factory contract that deployed this vault.

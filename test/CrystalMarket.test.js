@@ -15202,7 +15202,6 @@ describe("CrystalMarket", function () {
         0
       );
 
-      const packedWorstPrice = (BigInt(user1.address) << 80n);
       await crystal.connect(taker).marketOrder(
         market.target,
         true,
@@ -15210,8 +15209,8 @@ describe("CrystalMarket", function () {
         0,
         0,
         ethers.parseUnits("500", 6),
-        packedWorstPrice,
-        ethers.ZeroAddress,
+        0,
+        user1.address,
         taker.address
       );
 
@@ -25868,7 +25867,7 @@ describe("CrystalMarket", function () {
       const tickSize = await market.tickSize();
       const maxPrice = await market.maxPrice();
 
-      await crystal.changeMarketParams(market.target, 0, 99970, 99990, true, false);
+      await crystal.changeMarketParams(market.target, 1, 99970, 99990, true, false);
 
       await crystal.addLiquidity(
         market.target, owner.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -25913,7 +25912,7 @@ describe("CrystalMarket", function () {
       );
       const market = await ethers.getContractAt("CrystalMarket", marketAddr);
 
-      await crystal.changeMarketParams(market.target, 0, 99970, 99990, true, false);
+      await crystal.changeMarketParams(market.target, 1, 99970, 99990, true, false);
 
       return { crystal, market, quote, base, weth, owner, maker, taker };
     }
@@ -25946,7 +25945,7 @@ describe("CrystalMarket", function () {
         );
         const market = await ethers.getContractAt("CrystalMarket", marketAddr);
 
-        await crystal.changeMarketParams(market.target, 0, 99970, 99990, true, false);
+        await crystal.changeMarketParams(market.target, 1, 99970, 99990, true, false);
 
         const scaleFactor = await market.scaleFactor();
         const bidPrice = 900n * scaleFactor / (10n ** 12n);
@@ -26011,7 +26010,7 @@ describe("CrystalMarket", function () {
         );
         const market = await ethers.getContractAt("CrystalMarket", marketAddr);
 
-        await crystal.changeMarketParams(market.target, 0, 99970, 99990, true, false);
+        await crystal.changeMarketParams(market.target, 1, 99970, 99990, true, false);
 
         await crystal.addLiquidity(market.target, owner.address, ethers.parseEther("100"), ethers.parseEther("100"), 0, 0);
 
@@ -26048,7 +26047,7 @@ describe("CrystalMarket", function () {
         );
         const market2 = await ethers.getContractAt("CrystalMarket", marketAddr);
 
-        await crystal2.changeMarketParams(market2.target, 0, 99970, 99990, true, false);
+        await crystal2.changeMarketParams(market2.target, 1, 99970, 99990, true, false);
         await crystal2.addLiquidity(market2.target, ownerSigner.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0);
 
         const lpBalance = await market2.balanceOf(ownerSigner.address);
@@ -26301,7 +26300,7 @@ describe("CrystalMarket", function () {
         );
         const market = await ethers.getContractAt("CrystalMarket", marketAddr);
 
-        await crystal.changeMarketParams(market.target, 0, 99970, 99990, true, false);
+        await crystal.changeMarketParams(market.target, 1, 99970, 99990, true, false);
 
         await crystal.addLiquidity(
           market.target, owner.address, ethers.parseUnits("10000", 6), ethers.parseEther("100"), 0, 0
@@ -26877,7 +26876,7 @@ describe("CrystalMarket", function () {
         );
         const market = await ethers.getContractAt("CrystalMarket", marketAddr);
 
-        await crystal.changeMarketParams(market.target, 0, 99970, 99990, true, false);
+        await crystal.changeMarketParams(market.target, 1, 99970, 99990, true, false);
 
         await crystal.addLiquidity(
           market.target, owner.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -27147,7 +27146,7 @@ describe("CrystalMarket", function () {
         );
         const market = await ethers.getContractAt("CrystalMarket", marketAddr);
 
-        await crystal.changeMarketParams(market.target, 0, 99970, 99990, true, false);
+        await crystal.changeMarketParams(market.target, 1, 99970, 99990, true, false);
 
         const scaleFactor = await market.scaleFactor();
         const veryHighBid = 2000n * scaleFactor / (10n ** 12n);

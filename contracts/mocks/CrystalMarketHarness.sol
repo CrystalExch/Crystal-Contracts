@@ -48,12 +48,11 @@ contract CrystalMarketHarness is CrystalMarket {
         uint256 _scaleFactor,
         uint256 makerRebate,
         uint256 high
-    ) external pure returns (uint256) {
+    ) external view returns (uint256) {
         return _exactInputBuySolve(
             reserveQuote,
             reserveBase,
             targetPrice,
-            _scaleFactor,
             makerRebate,
             high
         );
@@ -66,12 +65,11 @@ contract CrystalMarketHarness is CrystalMarket {
         uint256 _scaleFactor,
         uint256 makerRebate,
         uint256 high
-    ) external pure returns (uint256) {
+    ) external view returns (uint256) {
         return _exactOutputBuySolve(
             reserveQuote,
             reserveBase,
             targetPrice,
-            _scaleFactor,
             makerRebate,
             high
         );
@@ -84,12 +82,11 @@ contract CrystalMarketHarness is CrystalMarket {
         uint256 _scaleFactor,
         uint256 makerRebate,
         uint256 high
-    ) external pure returns (uint256) {
+    ) external view returns (uint256) {
         return _exactInputSellSolve(
             reserveQuote,
             reserveBase,
             targetPrice,
-            _scaleFactor,
             makerRebate,
             high
         );
@@ -102,12 +99,11 @@ contract CrystalMarketHarness is CrystalMarket {
         uint256 _scaleFactor,
         uint256 makerRebate,
         uint256 high
-    ) external pure returns (uint256) {
+    ) external view returns (uint256) {
         return _exactOutputSellSolve(
             reserveQuote,
             reserveBase,
             targetPrice,
-            _scaleFactor,
             makerRebate,
             high
         );

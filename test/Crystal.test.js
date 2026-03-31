@@ -431,21 +431,6 @@ describe("Crystal Core Protocol Tests", function () {
     });
 
     describe("MinSize while loop edge cases", function () {
-      it("handles graduatedMinSize = 0", async function () {
-        const Crystal = await ethers.getContractFactory("Crystal");
-        const params = { ...validLaunchpadParams, graduatedMinSize: 0 };
-
-        const crystal = await Crystal.deploy(
-          weth.target,
-          owner.address,
-          owner.address,
-          25,
-          86401,
-          params
-        );
-        await crystal.waitForDeployment();
-      });
-
       it("handles graduatedMinSize = 1 (no trailing zeros)", async function () {
         const Crystal = await ethers.getContractFactory("Crystal");
         const params = { ...validLaunchpadParams, graduatedMinSize: 1 };
@@ -21257,16 +21242,7 @@ describe("Crystal Core Protocol Tests", function () {
         harness.quoteSell(false, tokenAddress, 0, amountOut)
       ).to.be.reverted;
     });
-
-    it("executeCloseInactiveMarket with zero market", async function () {
-      const token = await testTokenFactory.deploy();
-      const block = await ethers.provider.getBlock("latest");
-      const timestamp = BigInt(block.timestamp) - 8n * 86400n;
-      const slot = mappingSlot(ethers.ZeroAddress, 22n);
-      await setStorage(harness.target, slot, timestamp);
-      await harness.connect(owner).executeCloseInactiveMarket(token.target);
-    });
-
+    
     it("registerUser invalid account type reverts", async function () {
       await expect(
         harness.testRegisterUserInvalidType(user1.address)
@@ -22040,26 +22016,6 @@ describe("Crystal Core Protocol Tests", function () {
       await harness.connect(owner).executeCloseInactiveMarket(base.target);
     });
 
-    it("executeCloseInactiveMarket for launchpad rewards", async function () {
-      const tokenAddress = await createLaunchpadToken("CLP", user1);
-      const amountIn = ethers.parseEther("1");
-      await harness.connect(user1).buy(true, tokenAddress, amountIn, 0, {
-        value: amountIn
-      });
-      const block = await ethers.provider.getBlock("latest");
-      const oldTimestamp = BigInt(block.timestamp) - 366n * 86400n;
-      await harness.setLaunchpadCreateTimestamp(tokenAddress, oldTimestamp);
-      await harness.setMarketByTokens(weth.target, tokenAddress, ethers.ZeroAddress);
-      await harness.connect(owner).queueCloseInactiveMarket(tokenAddress);
-      const pendingSlot = mappingSlot(ethers.ZeroAddress, 22n);
-      await setStorage(
-        harness.target,
-        pendingSlot,
-        BigInt(block.timestamp) - 8n * 86400n
-      );
-      await harness.connect(owner).executeCloseInactiveMarket(tokenAddress);
-    });
-
     it("getAmountsOut rejects empty market", async function () {
       const token = await testTokenFactory.deploy();
       await expect(
@@ -22480,24 +22436,6 @@ describe("Crystal Core Protocol Tests", function () {
       await expect(
         harness.connect(user1).createToken("T", "T", "", "D", "", "", "", "")
       ).to.be.reverted;
-    });
-
-    it("executeCloseInactiveMarket on launchpad token (line 2464 true branch)", async function () {
-      const tx = await harness.connect(user1).createToken("Test", "TST", "", "Desc", "", "", "", "");
-      const receipt = await tx.wait();
-      const event = receipt.logs.find(log => {
-        try { return harness.interface.parseLog(log)?.name === "TokenCreated"; } catch { return false; }
-      });
-      const tokenAddress = harness.interface.parseLog(event).args.token;
-      await harness.setMarketByTokens(weth.target, tokenAddress, ethers.ZeroAddress);
-      const market = await harness.getMarketByTokens(weth.target, tokenAddress);
-      expect(market).to.equal(ethers.ZeroAddress);
-      const slot = pendingClosedMarketsSlot(ethers.ZeroAddress);
-      const oldTimestamp = Math.floor(Date.now() / 1000) - (86400 * 10);
-      await setStorage(harness.target, slot, oldTimestamp);
-      await expect(
-        harness.connect(owner).executeCloseInactiveMarket(tokenAddress)
-      ).to.not.be.reverted;
     });
   });
 });

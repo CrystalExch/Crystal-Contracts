@@ -22,7 +22,7 @@ interface IVaultFactory {
         uint256 amountQuote,
         uint256 amountBase,
         uint256 maxShares,
-        uint256 lockup,
+        uint40 lockup,
         bool decreaseOnWithdraw,
         VaultMetaData memory metadata
     ) external payable returns (address vault);
