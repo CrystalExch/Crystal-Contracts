@@ -24,9 +24,9 @@ The storage helpers in [`CrystalStorage.sol`](./contracts/libraries/CrystalStora
 
 | Namespace | Constant | Purpose |
 | --------- | -------- | ------- |
-| Orders | `ORDERS_KEY = 0x100` | Both cloid and non-cloid resting limit orders |
-| Price Levels | `PRICELEVELS_KEY = 0x200` | Packed per-price liquidity state and first-level activated tick bitmaps |
-| Groups | `GROUPS_KEY = 0x300` | Second-level bitmap tracking which first-level bitmap words are non-empty |
+| `ORDERS_KEY` | `0x100` | Both cloid and non-cloid resting limit orders |
+| `PRICELEVELS_KEY` | `0x200` | Packed per-price liquidity state and first-level activated tick bitmaps |
+| `GROUPS_KEY` | `0x300` | Second-level bitmap tracking which first-level bitmap words are non-empty |
 
 Within those namespaces, Crystal uses packed words rather than one-slot-per-field storage:
 
@@ -37,6 +37,10 @@ Within those namespaces, Crystal uses packed words rather than one-slot-per-fiel
 | Order | `113..153` | Owner `userId` |
 | Order | `154..204` | `fillBefore` pointer |
 | Order | `205..255` | `fillAfter` pointer |
+| Verify cloid | `0..79` | Odd cloid price |
+| Verify cloid | `80..127` | Odd cloid market id |
+| Verify cloid | `128..207` | Even cloid price |
+| Verify cloid | `208..255` | Even cloid market id |
 | Price level | `0..111` | Total resting liquidity at that price |
 | Price level | `113..153` | Latest native order id |
 | Price level | `154..204` | Latest resting order pointer |
