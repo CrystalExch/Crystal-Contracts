@@ -9,13 +9,13 @@ module.exports = {
       viaIR: false,
       optimizer: {
         enabled: true,
-        runs: 9000,
+        runs: 8000,
       }
     }
   },
   mocha: {
-    timeout: 10000000,
-    parallel: true
+    timeout: 100000,
+    parallel: false
   },
   networks: {
     monad: {

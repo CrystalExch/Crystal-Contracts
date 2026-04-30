@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-contract WrappedMonad {
-    string public name = "Wrapped Monad";
-    string public symbol = "WMON";
+contract WETH {
+    string public name = "Wrapped Ethereum";
+    string public symbol = "WETH";
     uint8 public decimals = 18;
 
     event Approval(address indexed src, address indexed guy, uint256 wad);

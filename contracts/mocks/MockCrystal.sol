@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+import {IERC20} from '../interfaces/IERC20.sol';
 import {ICrystal} from "../interfaces/ICrystal.sol";
 import {ICrystalVault} from "../interfaces/ICrystalVault.sol";
 import {CrystalVault} from "../vaults/CrystalVault.sol";
 
-interface IMockERC20 {
-    function transferFrom(address from, address to, uint256 amount) external returns (bool);
-    function approve(address spender, uint256 amount) external returns (bool);
-}
+import {CrystalMarketHarness} from "./CrystalMarketHarness.sol";
 
 /// @notice Mock Factory for deploying vaults with MockCrystal
 contract MockFactory {
@@ -44,10 +42,10 @@ contract MockFactory {
         uint256 amountQuote,
         uint256 amountBase
     ) external returns (uint256 shares) {
-        IMockERC20(quoteAsset).transferFrom(msg.sender, address(this), amountQuote);
-        IMockERC20(baseAsset).transferFrom(msg.sender, address(this), amountBase);
-        IMockERC20(quoteAsset).approve(vault, amountQuote);
-        IMockERC20(baseAsset).approve(vault, amountBase);
+        IERC20(quoteAsset).transferFrom(msg.sender, address(this), amountQuote);
+        IERC20(baseAsset).transferFrom(msg.sender, address(this), amountBase);
+        IERC20(quoteAsset).approve(vault, amountQuote);
+        IERC20(baseAsset).approve(vault, amountBase);
         (shares, , ) = ICrystalVault(vault).deposit(msg.sender, amountQuote, amountBase, 0, 0);
     }
 
@@ -74,6 +72,16 @@ contract MockFactory {
 /// @notice Mock Crystal contract that returns fake orders but reverts on batch calls
 /// @dev Used to test the revert paths in CrystalVault's withdraw and cancelAll functions
 contract MockCrystal {
+    address public quoteAsset;
+    address public baseAsset;
+    uint256 public marketId;
+    uint256 public marketType;
+    uint256 public scaleFactor;
+    uint256 public tickSize;
+    uint256 public maxPrice;
+
+    CrystalMarketHarness public harness;
+
     bool public shouldRevertOnBatch = true;
     uint256 public fakeOrderCount = 1;
     bool public allBuyOrders = true; // if true, all orders are buy orders
@@ -91,6 +99,41 @@ contract MockCrystal {
     constructor(address _quoteAsset, address _baseAsset) {
         configuredQuoteAsset = _quoteAsset;
         configuredBaseAsset = _baseAsset;
+    }
+
+    /// @notice Returns parameters for CrystalMarket constructor
+    function parameters() external view returns (
+        address,
+        address,
+        uint256,
+        uint256,
+        uint256,
+        uint256,
+        uint256
+    ) {
+        return (quoteAsset, baseAsset, marketId, marketType, scaleFactor, tickSize, maxPrice);
+    }
+
+    /// @notice Deploy a CrystalMarketHarness with the specified parameters
+    function deployHarness(
+        address _quoteAsset,
+        address _baseAsset,
+        uint256 _marketId,
+        uint256 _marketType,
+        uint256 _scaleFactor,
+        uint256 _tickSize,
+        uint256 _maxPrice
+    ) external returns (address) {
+        quoteAsset = _quoteAsset;
+        baseAsset = _baseAsset;
+        marketId = _marketId;
+        marketType = _marketType;
+        scaleFactor = _scaleFactor;
+        tickSize = _tickSize;
+        maxPrice = _maxPrice;
+
+        harness = new CrystalMarketHarness();
+        return address(harness);
     }
 
     function setConfiguredQuoteAsset(address _quoteAsset) external {
@@ -161,7 +204,7 @@ contract MockCrystal {
         });
     }
 
-    function registerUser(address) external returns (uint256) {
+    function registerUser(address) external pure returns (uint256) {
         return 1; // Return fake user ID
     }
 

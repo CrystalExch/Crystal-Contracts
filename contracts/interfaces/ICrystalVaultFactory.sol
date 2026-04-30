@@ -43,17 +43,73 @@ interface ICrystalVaultFactory {
 
     function minSize(address token) external view returns (uint256);
 
-    function defaultQuoteMin() external view returns (uint256);
-
-    function defaultBaseMin() external view returns (uint256);
+    function minDeposit() external view returns (uint256);
 
     function maxOrderCap() external view returns (uint16);
 
     function maxLockup() external view returns (uint40);
+
+    function changeGov(address newGov) external;
+
+    function changeMaxOrderCap(uint16 newCap) external;
+
+    function changeMaxLockup(uint40 newLockup) external;
+
+    function changeTokenMinSize(address token, uint256 newMinSize) external;
+
+    function deploy(
+        address quoteAsset,
+        address baseAsset,
+        uint256 amountQuote,
+        uint256 amountBase,
+        uint256 maxShares,
+        uint40 lockup,
+        bool decreaseOnWithdraw,
+        ICrystalVault.VaultMetaData memory metadata
+    ) external payable returns (address vault);
 
     function previewDeposit(address vault, uint256 amountQuoteDesired, uint256 amountBaseDesired) external view returns (uint256 shares, uint256 amountQuote, uint256 amountBase);
 
     function previewWithdrawal(address vault, uint256 shares) external view returns (uint256 amountQuote, uint256 amountBase);
 
     function balanceOf(address vault, address user) external view returns (uint256 shares, uint256 amountQuote, uint256 amountBase);
+
+    function deposit(
+        address vault,
+        address quoteAsset,
+        address baseAsset,
+        uint256 amountQuoteDesired,
+        uint256 amountBaseDesired,
+        uint256 amountQuoteMin,
+        uint256 amountBaseMin
+    ) external payable returns (uint256 shares, uint256 amountQuote, uint256 amountBase);
+
+    function withdraw(
+        address vault,
+        address quoteAsset,
+        address baseAsset,
+        uint256 shares,
+        uint256 amountQuoteMin,
+        uint256 amountBaseMin
+    ) external returns (uint256 amountQuote, uint256 amountBase);
+
+    function lock(address vault) external;
+
+    function unlock(address vault) external;
+
+    function close(address vault) external returns (uint256 amountQuote, uint256 amountBase);
+
+    function changeMaxShares(address vault, uint256 newMaxShares) external;
+
+    function changeLockup(address vault, uint40 newLockup) external;
+
+    function changeOrderCap(address vault, uint16 newCap) external;
+
+    function changeDecreaseOnWithdraw(address vault, bool newDecrease) external;
+
+    function changeMarket(address vault) external;
+
+    function claimFees(address vault) external;
+
+    function clearCloidSlots(address vault, uint256 userId, uint256[] calldata ids) external;
 }

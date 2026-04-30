@@ -21,7 +21,7 @@ const {
 const MASK_KEEP_0_128 = (1n << 128n) - 1n;
 const MASK_KEEP_0_112 = (1n << 112n) - 1n;
 const MASK_KEEP_0_41 = (1n << 41n) - 1n;
-const TOKEN_BALANCES_SLOT = 16n;
+const TOKEN_BALANCES_SLOT = 11n;
 const abiCoder = ethers.AbiCoder.defaultAbiCoder();
 const toBytes32 = (value) => ethers.zeroPadValue(ethers.toBeHex(value), 32);
 const mappingSlot = (key, slot) =>
@@ -126,8 +126,8 @@ describe("CrystalMarket", function () {
       const quote =
         params.quote ?? (await Token.deploy("Quote Token", "QUOTE", 6));
       const base = params.base ?? (await Token.deploy("Base Token", "BASE", 18));
-      const MockDeployer = await ethers.getContractFactory("MockCrystalForHarness");
-      const mockDeployer = await MockDeployer.deploy();
+      const MockDeployer = await ethers.getContractFactory("MockCrystal");
+      const mockDeployer = await MockDeployer.deploy(quote, base);
       const marketId = params.marketId ?? 1;
       const marketType = params.marketType ?? 0;
       const scaleFactor = params.scaleFactor ?? 1;
@@ -168,8 +168,8 @@ describe("CrystalMarket", function () {
       const Token = await ethers.getContractFactory("TestToken");
       const quote = await Token.deploy("Quote Token", "QUOTE", 6);
       const base = await Token.deploy("Base Token", "BASE", 18);
-      const MockDeployer = await ethers.getContractFactory("MockCrystalForHarness");
-      const mockDeployer = await MockDeployer.deploy();
+      const MockDeployer = await ethers.getContractFactory("MockCrystal");
+      const mockDeployer = await MockDeployer.deploy(quote, base);
 
       await expect(
         mockDeployer.deployHarness(
@@ -695,8 +695,8 @@ describe("CrystalMarket", function () {
       const slot1 = TOP_BIT | (1n << 45n);
       await harness.setActivatedSlot(marketIdShifted | 1n, slot1);
 
-      const slot2 = TOP_BIT | 1n | (1n << 1n);
-      await harness.setActivated2Slot(marketIdShifted | 0n, slot2);
+      const groups = TOP_BIT | 1n | (1n << 1n);
+      await harness.setGroupsSlot(marketIdShifted | 0n, groups);
 
       await harness.setPriceLevel(marketIdShifted | 10n, packPriceLevel(5n));
       await harness.setPriceLevel(marketIdShifted | 20n, packPriceLevel(7n));
@@ -742,8 +742,8 @@ describe("CrystalMarket", function () {
       const slot1 = TOP_BIT | (1n << 45n);
       await harness.setActivatedSlot(marketIdShifted | 1n, slot1);
 
-      const slot2 = TOP_BIT | 1n | (1n << 1n);
-      await harness.setActivated2Slot(marketIdShifted | 0n, slot2);
+      const groups = TOP_BIT | 1n | (1n << 1n);
+      await harness.setGroupsSlot(marketIdShifted | 0n, groups);
 
       await harness.setPriceLevel(marketIdShifted | 5n, packPriceLevel(10n));
       await harness.setPriceLevel(marketIdShifted | 10n, packPriceLevel(5n));
@@ -958,8 +958,8 @@ describe("CrystalMarket", function () {
       await harness.setPriceLevel(marketIdShifted | 100n, packPriceLevel(nearMaxSize));
       const slot0 = TOP_BIT | (1n << 100n);
       await harness.setActivatedSlot(marketIdShifted | 0n, slot0);
-      const slot2 = TOP_BIT | 1n;
-      await harness.setActivated2Slot(marketIdShifted | 0n, slot2);
+      const groups = TOP_BIT | 1n;
+      await harness.setGroupsSlot(marketIdShifted | 0n, groups);
 
       await quote.mint(harness.target, 1000000n);
       await harness.setTokenBalance(userId, quote.target, 1000000n);
@@ -1285,8 +1285,8 @@ describe("CrystalMarket", function () {
       const Token = await ethers.getContractFactory("TestToken");
       const quote = params.quote ?? (await Token.deploy("Quote Token", "QUOTE", 6));
       const base = params.base ?? (await Token.deploy("Base Token", "BASE", 18));
-      const MockDeployer = await ethers.getContractFactory("MockCrystalForHarness");
-      const mockDeployer = await MockDeployer.deploy();
+      const MockDeployer = await ethers.getContractFactory("MockCrystal");
+      const mockDeployer = await MockDeployer.deploy(quote, base);
       const marketId = params.marketId ?? 1;
       const marketType = params.marketType ?? 0;
       const scaleFactor = params.scaleFactor ?? 1;
@@ -1814,7 +1814,7 @@ describe("CrystalMarket", function () {
       await harness.exposed_marketOrder(3n, 1n, orderInfo);
     });
 
-    it("orderbook traversal sell clears slot2 when slot empty", async function () {
+    it("orderbook traversal sell clears groups when slot empty", async function () {
       const { harness, marketId } = await deployHarnessLocal({ scaleFactor: 1, tickSize: 1, maxPrice: 1000000 });
       const makerId = 16n;
       const takerId = 17n;
@@ -2700,12 +2700,13 @@ describe("CrystalMarket", function () {
       expect(level2.size).to.equal(size);
     });
 
-    it("Should return empty level for non-existent price", async function () {
+    it("Should return empty level or revert for non-existent price", async function () {
       const { crystal, market } = await loadFixture(deployFixture);
       const nonExistentPrice = 999999999n;
 
-      const level = await crystal.getPriceLevel(market.target, nonExistentPrice);
-      expect(level.size).to.equal(0n);
+      await expect(
+        crystal.getPriceLevel(market.target, nonExistentPrice)
+      ).to.be.reverted;
     });
   });
 
@@ -19252,7 +19253,7 @@ describe("CrystalMarket", function () {
     });
 
     describe("Additional Coverage Tests", function () {
-      it("Should exercise activated2 slot update (line 3277-3279)", async function () {
+      it("Should exercise groups slot update (line 3277-3279)", async function () {
         const { crystal, market, maker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
@@ -19700,8 +19701,8 @@ describe("CrystalMarket", function () {
       const quote = await Token.deploy("Quote Token", "QUOTE", 6);
       const base = await Token.deploy("Base Token", "BASE", 18);
 
-      const MockDeployer = await ethers.getContractFactory("MockCrystalForHarness");
-      const mockDeployer = await MockDeployer.deploy();
+      const MockDeployer = await ethers.getContractFactory("MockCrystal");
+      const mockDeployer = await MockDeployer.deploy(quote, base);
 
       const harnessAddr = await mockDeployer.deployHarness.staticCall(
         quote.target, base.target, 1, 2, 21, 1, 1_000_000_000_000_000
@@ -19862,8 +19863,8 @@ describe("CrystalMarket", function () {
         const Token = await ethers.getContractFactory("TestToken");
         const quote = await Token.deploy("Quote", "QUOTE", 6);
         const base = await Token.deploy("Base", "BASE", 18);
-        const MockDeployer = await ethers.getContractFactory("MockCrystalForHarness");
-        const mockDeployer = await MockDeployer.deploy();
+        const MockDeployer = await ethers.getContractFactory("MockCrystal");
+        const mockDeployer = await MockDeployer.deploy(quote, base);
         const harnessAddr = await mockDeployer.deployHarness.staticCall(
           quote.target, base.target, 1, 2, 21, 1, 1_000_000_000_000_000
         );
@@ -19933,8 +19934,8 @@ describe("CrystalMarket", function () {
         const Token = await ethers.getContractFactory("TestToken");
         const quote = await Token.deploy("Quote", "QUOTE", 6);
         const base = await Token.deploy("Base", "BASE", 18);
-        const MockDeployer = await ethers.getContractFactory("MockCrystalForHarness");
-        const mockDeployer = await MockDeployer.deploy();
+        const MockDeployer = await ethers.getContractFactory("MockCrystal");
+        const mockDeployer = await MockDeployer.deploy(quote, base);
         const harnessAddr = await mockDeployer.deployHarness.staticCall(
           quote.target, base.target, 1, 2, 21, 1, 1_000_000_000_000_000
         );
@@ -21642,8 +21643,8 @@ describe("CrystalMarket", function () {
         const Token = await ethers.getContractFactory("TestToken");
         const quote = await Token.deploy("Quote", "QUOTE", 6);
         const base = await Token.deploy("Base", "BASE", 18);
-        const MockDeployer = await ethers.getContractFactory("MockCrystalForHarness");
-        const mockDeployer = await MockDeployer.deploy();
+        const MockDeployer = await ethers.getContractFactory("MockCrystal");
+        const mockDeployer = await MockDeployer.deploy(quote, base);
         const harnessAddr = await mockDeployer.deployHarness.staticCall(
           quote.target, base.target, 1, 2, 21, 1, 1_000_000_000_000_000
         );
@@ -21690,8 +21691,8 @@ describe("CrystalMarket", function () {
         await quote.mint(taker.address, ethers.parseUnits("1000000000", 6));
         await base.mint(taker.address, ethers.parseEther("1000000000"));
 
-        const MockDeployer = await ethers.getContractFactory("MockCrystalForHarness");
-        const mockDeployer = await MockDeployer.deploy();
+        const MockDeployer = await ethers.getContractFactory("MockCrystal");
+        const mockDeployer = await MockDeployer.deploy(quote, base);
 
         await quote.connect(maker).approve(mockDeployer.target, MAX_UINT256);
         await base.connect(maker).approve(mockDeployer.target, MAX_UINT256);
@@ -21735,25 +21736,6 @@ describe("CrystalMarket", function () {
         await harness.setPriceLevel(key, value);
         const stored = await harness.getPriceLevel(key);
         expect(stored).to.equal(value);
-      });
-
-      it("Should set and get orders", async function () {
-        const { harness } = await deployHarnessWithCrystal();
-        const key = 88888n;
-        const value = (1n << 210n) | (1n << 160n) | (1n << 113n) | ethers.parseEther("0.5");
-
-        await harness.setOrder(key, value);
-        const stored = await harness.getOrder(key);
-        expect(stored).to.equal(value);
-      });
-
-      it("Should set cloidVerify for cross-market testing", async function () {
-        const { harness } = await deployHarnessWithCrystal();
-        const key = 77777n;
-        const value = (1n << 200n) | (1n << 128n) | (1n << 80n);
-
-        await harness.setCloidVerify(key, value);
-
       });
     });
 
@@ -22019,7 +22001,7 @@ describe("CrystalMarket", function () {
         const quote = await Token.deploy("Quote", "QUOTE", 6);
         const base1 = await Token.deploy("Base1", "BASE1", 18);
         const base2 = await Token.deploy("Base2", "BASE2", 18);
-        const WETH = await ethers.getContractFactory("WrappedMonad");
+        const WETH = await ethers.getContractFactory("WETH");
         const weth = await WETH.deploy();
 
         const Crystal = await ethers.getContractFactory("Crystal");
@@ -22214,8 +22196,8 @@ describe("CrystalMarket", function () {
         const Token = await ethers.getContractFactory("TestToken");
         const quote = await Token.deploy("Quote", "QUOTE", 6);
         const base = await Token.deploy("Base", "BASE", 18);
-        const Mock = await ethers.getContractFactory("MockCrystalForHarness");
-        const mock = await Mock.deploy();
+        const MockDeployer = await ethers.getContractFactory("MockCrystal");
+        const mock = await MockDeployer.deploy(quote, base);
         const harnessAddr = await mock.deployHarness.staticCall(
           quote.target,
           base.target,
@@ -22246,8 +22228,8 @@ describe("CrystalMarket", function () {
         const Token = await ethers.getContractFactory("TestToken");
         const quote = await Token.deploy("Quote", "QUOTE", 6);
         const base = await Token.deploy("Base", "BASE", 18);
-        const Mock = await ethers.getContractFactory("MockCrystalForHarness");
-        const mock = await Mock.deploy();
+        const MockDeployer = await ethers.getContractFactory("MockCrystal");
+        const mock = await MockDeployer.deploy(quote, base);
         const harnessAddr = await mock.deployHarness.staticCall(
           quote.target,
           base.target,
@@ -22992,7 +22974,7 @@ describe("CrystalMarket", function () {
         async function deployFailingMarketForTransfers() {
           const [owner, maker, taker] = await ethers.getSigners();
 
-          const WETH = await ethers.getContractFactory("WrappedMonad");
+          const WETH = await ethers.getContractFactory("WETH");
           const weth = await WETH.deploy();
 
           const Failing = await ethers.getContractFactory("FailingToken");
@@ -23109,7 +23091,7 @@ describe("CrystalMarket", function () {
         async function deployTwoMarketsForCloid() {
           const [owner, maker] = await ethers.getSigners();
 
-          const WETH = await ethers.getContractFactory("WrappedMonad");
+          const WETH = await ethers.getContractFactory("WETH");
           const weth = await WETH.deploy();
 
           const Token = await ethers.getContractFactory("TestToken");
@@ -25823,7 +25805,7 @@ describe("CrystalMarket", function () {
       const quote = await TestToken.deploy("Quote", "QUOTE", 6);
       const base = await TestToken.deploy("Base", "BASE", 18);
 
-      const WETH = await ethers.getContractFactory("WrappedMonad");
+      const WETH = await ethers.getContractFactory("WETH");
       const weth = await WETH.deploy();
 
       const Crystal = await ethers.getContractFactory("Crystal");
@@ -25882,7 +25864,7 @@ describe("CrystalMarket", function () {
       const quote = await FailingToken.deploy("FailQuote", "FQUOTE");
       const base = await FailingToken.deploy("FailBase", "FBASE");
 
-      const WETH = await ethers.getContractFactory("WrappedMonad");
+      const WETH = await ethers.getContractFactory("WETH");
       const weth = await WETH.deploy();
 
       const Crystal = await ethers.getContractFactory("Crystal");
@@ -25924,7 +25906,7 @@ describe("CrystalMarket", function () {
         const quote = await TestToken.deploy("Quote", "QUOTE", 6);
         const base = await TestToken.deploy("Base", "BASE", 18);
 
-        const WETH = await ethers.getContractFactory("WrappedMonad");
+        const WETH = await ethers.getContractFactory("WETH");
         const weth = await WETH.deploy();
 
         const Crystal = await ethers.getContractFactory("Crystal");
@@ -25989,7 +25971,7 @@ describe("CrystalMarket", function () {
         const TestToken = await ethers.getContractFactory("TestToken");
         const base = await TestToken.deploy("Base", "BASE", 18);
 
-        const WETH = await ethers.getContractFactory("WrappedMonad");
+        const WETH = await ethers.getContractFactory("WETH");
         const weth = await WETH.deploy();
 
         const Crystal = await ethers.getContractFactory("Crystal");
@@ -26026,7 +26008,7 @@ describe("CrystalMarket", function () {
         const TestToken = await ethers.getContractFactory("TestToken");
         const quote = await TestToken.deploy("Quote", "QUOTE", 6);
 
-        const WETH = await ethers.getContractFactory("WrappedMonad");
+        const WETH = await ethers.getContractFactory("WETH");
         const weth2 = await WETH.deploy();
 
         const Crystal = await ethers.getContractFactory("Crystal");
@@ -26274,7 +26256,7 @@ describe("CrystalMarket", function () {
         const quote = await TestToken.deploy("Quote", "QUOTE", 6);
         const base = await TestToken.deploy("Base", "BASE", 18);
 
-        const WETH = await ethers.getContractFactory("WrappedMonad");
+        const WETH = await ethers.getContractFactory("WETH");
         const weth = await WETH.deploy();
 
         const Crystal = await ethers.getContractFactory("Crystal");
@@ -26541,7 +26523,7 @@ describe("CrystalMarket", function () {
     });
 
     describe("Activated bitmap edge cases (lines 1653, 1675, 1700, 1714)", function () {
-      it("Should hit line 1653 - slot == 0 update activated2", async function () {
+      it("Should hit line 1653 - slot == 0 update groups", async function () {
         const { crystal, market, maker, taker, scaleFactor } = await deployMarketWithAMM();
 
         const askPrice = 1100n * scaleFactor / (10n ** 12n);
@@ -26552,7 +26534,7 @@ describe("CrystalMarket", function () {
         );
       });
 
-      it("Should hit line 1675 - sell side slot == 0 update activated2", async function () {
+      it("Should hit line 1675 - sell side slot == 0 update groups", async function () {
         const { crystal, market, maker, taker, scaleFactor } = await deployMarketWithAMM();
 
         const bidPrice = 900n * scaleFactor / (10n ** 12n);
@@ -26836,7 +26818,7 @@ describe("CrystalMarket", function () {
         const quote = await TestToken.deploy("Quote", "QUOTE", 6);
         const base = await TestToken.deploy("Base", "BASE", 18);
 
-        const WETH = await ethers.getContractFactory("WrappedMonad");
+        const WETH = await ethers.getContractFactory("WETH");
         const weth = await WETH.deploy();
 
         const Crystal = await ethers.getContractFactory("Crystal");
@@ -27125,7 +27107,7 @@ describe("CrystalMarket", function () {
         const quote = await TestToken.deploy("Quote", "QUOTE", 6);
         const base = await TestToken.deploy("Base", "BASE", 18);
 
-        const WETH = await ethers.getContractFactory("WrappedMonad");
+        const WETH = await ethers.getContractFactory("WETH");
         const weth = await WETH.deploy();
 
         const Crystal = await ethers.getContractFactory("Crystal");
@@ -27305,8 +27287,8 @@ describe("CrystalMarket", function () {
       const Token = await ethers.getContractFactory("TestToken");
       const quote = await Token.deploy("Quote", "QUOTE", 6);
       const base = await Token.deploy("Base", "BASE", 18);
-      const MockDeployer = await ethers.getContractFactory("MockCrystalForHarness");
-      const mockDeployer = await MockDeployer.deploy();
+      const MockDeployer = await ethers.getContractFactory("MockCrystal");
+      const mockDeployer = await MockDeployer.deploy(quote, base);
 
       const harnessAddr = await mockDeployer.deployHarness.staticCall(
         quote.target, base.target, 1, 0, 1, 1, 1_000_000_000_000_000
@@ -27356,7 +27338,7 @@ describe("CrystalMarket", function () {
       await harness.exposed_settleBalances(0n, 0n, userId, 1n, 0n, 0n);
     });
 
-    it("Should keep activated slot2 when other ticks remain", async function () {
+    it("Should keep activated groups when other ticks remain", async function () {
       const { harness } = await deployHarnessOnly();
       const userId = 31n;
 
@@ -27530,7 +27512,7 @@ describe("CrystalMarket", function () {
       const FailingToken = await ethers.getContractFactory("FailingToken");
       const quote = await FailingToken.deploy("FailQuote", "FQUOTE");
       const base = await FailingToken.deploy("FailBase", "FBASE");
-      const WETH = await ethers.getContractFactory("WrappedMonad");
+      const WETH = await ethers.getContractFactory("WETH");
       const weth = await WETH.deploy();
       const Crystal = await ethers.getContractFactory("Crystal");
       const crystal = await Crystal.deploy(
@@ -27575,7 +27557,7 @@ describe("CrystalMarket", function () {
       const FailingToken = await ethers.getContractFactory("FailingToken");
       const quote = await FailingToken.deploy("FailQuote", "FQUOTE");
       const base = await FailingToken.deploy("FailBase", "FBASE");
-      const WETH = await ethers.getContractFactory("WrappedMonad");
+      const WETH = await ethers.getContractFactory("WETH");
       const weth = await WETH.deploy();
       const Crystal = await ethers.getContractFactory("Crystal");
       const crystal = await Crystal.deploy(
@@ -27908,7 +27890,7 @@ describe("CrystalMarket", function () {
       const FailingToken = await ethers.getContractFactory("FailingToken");
       const quote = await FailingToken.deploy("FailQuote", "FQUOTE");
       const base = await FailingToken.deploy("FailBase", "FBASE");
-      const WETH = await ethers.getContractFactory("WrappedMonad");
+      const WETH = await ethers.getContractFactory("WETH");
       const weth = await WETH.deploy();
       const Crystal = await ethers.getContractFactory("Crystal");
       const crystal = await Crystal.deploy(
@@ -27948,7 +27930,7 @@ describe("CrystalMarket", function () {
       const FailingToken = await ethers.getContractFactory("FailingToken");
       const quote = await FailingToken.deploy("FailQuote", "FQUOTE");
       const base = await FailingToken.deploy("FailBase", "FBASE");
-      const WETH = await ethers.getContractFactory("WrappedMonad");
+      const WETH = await ethers.getContractFactory("WETH");
       const weth = await WETH.deploy();
       const Crystal = await ethers.getContractFactory("Crystal");
       const crystal = await Crystal.deploy(
@@ -28010,7 +27992,7 @@ describe("CrystalMarket", function () {
       const FailingToken = await ethers.getContractFactory("FailingToken");
       const quote = await FailingToken.deploy("FailQuote", "FQUOTE");
       const base = await FailingToken.deploy("FailBase", "FBASE");
-      const WETH = await ethers.getContractFactory("WrappedMonad");
+      const WETH = await ethers.getContractFactory("WETH");
       const weth = await WETH.deploy();
       const Crystal = await ethers.getContractFactory("Crystal");
       const crystal = await Crystal.deploy(
@@ -28050,7 +28032,7 @@ describe("CrystalMarket", function () {
       const FailingToken = await ethers.getContractFactory("FailingToken");
       const quote = await FailingToken.deploy("FailQuote", "FQUOTE");
       const base = await FailingToken.deploy("FailBase", "FBASE");
-      const WETH = await ethers.getContractFactory("WrappedMonad");
+      const WETH = await ethers.getContractFactory("WETH");
       const weth = await WETH.deploy();
       const Crystal = await ethers.getContractFactory("Crystal");
       const crystal = await Crystal.deploy(
@@ -28941,7 +28923,7 @@ describe("CrystalMarket", function () {
       const quote = await FailingToken.deploy("FailQuote", "FQUOTE");
       const base = await FailingToken.deploy("FailBase", "FBASE");
 
-      const WETH = await ethers.getContractFactory("WrappedMonad");
+      const WETH = await ethers.getContractFactory("WETH");
       const weth = await WETH.deploy();
 
       const Crystal = await ethers.getContractFactory("Crystal");
@@ -29077,7 +29059,7 @@ describe("CrystalMarket", function () {
       const quote = await FailingToken.deploy("FailQuote", "FQUOTE");
       const base = await FailingToken.deploy("FailBase", "FBASE");
 
-      const WETH = await ethers.getContractFactory("WrappedMonad");
+      const WETH = await ethers.getContractFactory("WETH");
       const weth = await WETH.deploy();
 
       const Crystal = await ethers.getContractFactory("Crystal");
@@ -29119,7 +29101,7 @@ describe("CrystalMarket", function () {
       const quote = await FailingToken.deploy("FailQuote", "FQUOTE");
       const base = await FailingToken.deploy("FailBase", "FBASE");
 
-      const WETH = await ethers.getContractFactory("WrappedMonad");
+      const WETH = await ethers.getContractFactory("WETH");
       const weth = await WETH.deploy();
 
       const Crystal = await ethers.getContractFactory("Crystal");
@@ -29339,7 +29321,7 @@ describe("CrystalMarket", function () {
       const quote = await FailingToken.deploy("FailQuote", "FQUOTE");
       const base = await FailingToken.deploy("FailBase", "FBASE");
 
-      const WETH = await ethers.getContractFactory("WrappedMonad");
+      const WETH = await ethers.getContractFactory("WETH");
       const weth = await WETH.deploy();
 
       const Crystal = await ethers.getContractFactory("Crystal");
@@ -29487,7 +29469,7 @@ describe("CrystalMarket", function () {
         const base1 = await Token.deploy("Base1", "BASE1", 18);
         const base2 = await Token.deploy("Base2", "BASE2", 18);
 
-        const WETH = await ethers.getContractFactory("WrappedMonad");
+        const WETH = await ethers.getContractFactory("WETH");
         const weth = await WETH.deploy();
 
         const Crystal = await ethers.getContractFactory("Crystal");
@@ -29538,7 +29520,7 @@ describe("CrystalMarket", function () {
         const base1 = await Token.deploy("Base1", "BASE1", 18);
         const base2 = await Token.deploy("Base2", "BASE2", 18);
 
-        const WETH = await ethers.getContractFactory("WrappedMonad");
+        const WETH = await ethers.getContractFactory("WETH");
         const weth = await WETH.deploy();
 
         const Crystal = await ethers.getContractFactory("Crystal");
@@ -29614,7 +29596,7 @@ describe("CrystalMarket", function () {
       it("Should handle transfer failure and credit internal balance", async function () {
         const [owner, maker, taker] = await ethers.getSigners();
 
-        const WETH = await ethers.getContractFactory("WrappedMonad");
+        const WETH = await ethers.getContractFactory("WETH");
         const weth = await WETH.deploy();
 
         const FailingToken = await ethers.getContractFactory("FailingToken");
@@ -29670,7 +29652,7 @@ describe("CrystalMarket", function () {
         const base1 = await Token.deploy("Base1", "BASE1", 18);
         const base2 = await Token.deploy("Base2", "BASE2", 18);
 
-        const WETH = await ethers.getContractFactory("WrappedMonad");
+        const WETH = await ethers.getContractFactory("WETH");
         const weth = await WETH.deploy();
 
         const Crystal = await ethers.getContractFactory("Crystal");
@@ -29718,7 +29700,7 @@ describe("CrystalMarket", function () {
         const base1 = await Token.deploy("Base1", "BASE1", 18);
         const base2 = await Token.deploy("Base2", "BASE2", 18);
 
-        const WETH = await ethers.getContractFactory("WrappedMonad");
+        const WETH = await ethers.getContractFactory("WETH");
         const weth = await WETH.deploy();
 
         const Crystal = await ethers.getContractFactory("Crystal");
@@ -29768,7 +29750,7 @@ describe("CrystalMarket", function () {
         const base1 = await Token.deploy("Base1", "BASE1", 18);
         const base2 = await Token.deploy("Base2", "BASE2", 18);
 
-        const WETH = await ethers.getContractFactory("WrappedMonad");
+        const WETH = await ethers.getContractFactory("WETH");
         const weth = await WETH.deploy();
 
         const Crystal = await ethers.getContractFactory("Crystal");
@@ -29815,7 +29797,7 @@ describe("CrystalMarket", function () {
         const base1 = await Token.deploy("Base1", "BASE1", 18);
         const base2 = await Token.deploy("Base2", "BASE2", 18);
 
-        const WETH = await ethers.getContractFactory("WrappedMonad");
+        const WETH = await ethers.getContractFactory("WETH");
         const weth = await WETH.deploy();
 
         const Crystal = await ethers.getContractFactory("Crystal");

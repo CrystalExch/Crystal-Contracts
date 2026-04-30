@@ -181,8 +181,6 @@ interface ICrystal {
 
     function approvedForwarder(address, address) external view returns (bool);
 
-    function marketToMarketId(address) external view returns (uint256);
-
     function marketIdToMarket(uint256) external view returns (address);
 
     function getMarketByTokens(address, address) external view returns (address);

@@ -8,7 +8,7 @@ const { DEFAULT_DEPLOY_PARAMS, DEFAULT_MARKET_PARAMS, MARKET_TYPES, MAX_UINT256 
 async function deployFixture() {
   const [owner, maker, taker, vaultOperator, depositor, user1, user2, gov] = await ethers.getSigners();
 
-  const WETH = await ethers.getContractFactory("WrappedMonad");
+  const WETH = await ethers.getContractFactory("WETH");
   const weth = await WETH.deploy();
 
   const Token = await ethers.getContractFactory("TestToken");

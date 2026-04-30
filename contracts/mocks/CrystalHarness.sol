@@ -55,7 +55,6 @@ contract CrystalHarness is Crystal {
 
     /// @notice Set market mappings for testing (without private storage access)
     function setMarketMappings(address market, uint256 marketId) external {
-        marketToMarketId[market] = marketId;
         marketIdToMarket[marketId] = market;
         allMarkets.push(market);
     }

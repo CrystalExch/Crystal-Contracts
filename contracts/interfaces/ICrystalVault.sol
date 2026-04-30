@@ -36,13 +36,21 @@ interface ICrystalVault {
 
     function lastDepositTimestamp(address user) external view returns (uint256);
 
-    function description() external view returns (string memory);
+    function metadata() external view returns (
+        string memory name,
+        string memory description,
+        string memory social1,
+        string memory social2,
+        string memory social3
+    );
 
     function market() external view returns (address);
 
     function orderCap() external view returns (uint16);
 
     function lockup() external view returns (uint40);
+
+    function decrease() external view returns (bool);
 
     function locked() external view returns (bool);
 
@@ -76,5 +84,9 @@ interface ICrystalVault {
 
     function withdraw(address user, uint256 shares, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 amountQuote, uint256 amountBase);
 
-    function execute(Action[] calldata actions) external returns (bytes memory);
+    function cancelAll() external;
+
+    function sweep() external;
+
+    function execute(Action[] calldata actions, uint256 bid) external payable;
 }

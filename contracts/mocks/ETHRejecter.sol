@@ -2,46 +2,8 @@
 pragma solidity ^0.8.28;
 
 import {IERC20} from '../interfaces/IERC20.sol';
-
-interface IVaultFactory {
-    function deposit(address vault, address quoteAsset, address baseAsset, uint256 amountQuoteDesired, uint256 amountBaseDesired, uint256 amountQuoteMin, uint256 amountBaseMin) external payable returns (uint256 shares, uint256 amountQuote, uint256 amountBase);
-    function withdraw(address vault, address quoteAsset, address baseAsset, uint256 shares, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 amountQuote, uint256 amountBase);
-}
-
-struct Action {
-    bool isRequireSuccess;
-    uint256 action;
-    uint256 param1;
-    uint256 param2;
-    uint256 param3;
-}
-
-struct Batch {
-    address market;
-    Action[] actions;
-    uint256 options;
-}
-
-interface ICrystal {
-    function addLiquidity(address market, address to, uint256 amountQuoteDesired, uint256 amountBaseDesired, uint256 amountQuoteMin, uint256 amountBaseMin) external payable returns (uint256 amountQuote, uint256 amountBase, uint256 liquidity);
-    function removeLiquidity(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 amountQuote, uint256 amountBase);
-    function removeLiquidityETH(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 amountQuote, uint256 amountBase);
-    function swapExactTokensForETH(uint256 amountIn, uint256 amountOutMin, address[] memory path, address to, uint256 deadline, address referrer) external returns (uint256[] memory amounts);
-    function swapExactETHForTokens(uint256 amountOutMin, address[] memory path, address to, uint256 deadline, address referrer) external payable returns (uint256[] memory amounts);
-    function swapETHForExactTokens(uint256 amountOut, address[] memory path, address to, uint256 deadline, address referrer) external payable returns (uint256[] memory amounts);
-    function swapTokensForExactETH(uint256 amountOut, uint256 amountInMax, address[] memory path, address to, uint256 deadline, address referrer) external returns (uint256[] memory amounts);
-    function swap(bool isExactInput, address tokenIn, address tokenOut, uint256 orderType, uint256 size, uint256 worstPrice, uint256 deadline, address referrer) external payable returns (uint256 userId, uint256 balance, uint256 id);
-    function batchOrders(address market, Action[] calldata actions, uint256 options, uint256 deadline, address referrer, address user) external payable;
-    function multiBatchOrders(Batch[] calldata batches, uint256 deadline, address referrer) external payable;
-    function deposit(address token, uint256 amount) external payable returns (uint256 userId);
-    function withdraw(address to, address token, uint256 amount) external;
-    function claimFees(address to, address[] calldata tokens) external returns (uint256[] memory amounts);
-    function addClaimableFee(address to, address[] calldata tokens, uint256[] calldata amounts) external payable;
-    function routerDeposit(address token, uint256 amount) external payable;
-    function routerWithdraw(address to, address token, uint256 amount) external;
-    function sell(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external returns (uint256, uint256);
-    function buy(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external payable returns (uint256, uint256, bool);
-}
+import {ICrystal} from "../interfaces/ICrystal.sol";
+import {ICrystalVaultFactory} from "../interfaces/ICrystalVaultFactory.sol";
 
 /// @notice Contract that rejects ETH transfers - used for testing ETH transfer failure branches
 contract ETHRejecter {
@@ -57,7 +19,7 @@ contract ETHRejecter {
         uint256 amountQuote,
         uint256 amountBase
     ) external payable {
-        IVaultFactory(factory).deposit{value: msg.value}(
+        ICrystalVaultFactory(factory).deposit{value: msg.value}(
             vault, quoteAsset, baseAsset, amountQuote, amountBase, 0, 0
         );
     }
@@ -70,7 +32,7 @@ contract ETHRejecter {
         uint256 shares
     ) external {
         // Transfer shares to this contract first if needed
-        IVaultFactory(factory).withdraw(vault, quoteAsset, baseAsset, shares, 0, 0);
+        ICrystalVaultFactory(factory).withdraw(vault, quoteAsset, baseAsset, shares, 0, 0);
     }
 
     // Crystal functions for testing TransferFailed branches
@@ -124,7 +86,7 @@ contract ETHRejecter {
     function batchOrdersCrystal(
         address crystal,
         address market,
-        Action[] calldata actions,
+        ICrystal.Action[] calldata actions,
         uint256 options,
         uint256 deadline
     ) external payable {
@@ -133,7 +95,7 @@ contract ETHRejecter {
 
     function multiBatchOrdersCrystal(
         address crystal,
-        Batch[] calldata batches,
+        ICrystal.Batch[] calldata batches,
         uint256 deadline
     ) external payable {
         ICrystal(crystal).multiBatchOrders{value: msg.value}(batches, deadline, address(0));
@@ -227,7 +189,7 @@ contract ETHToggler {
         uint256 amountQuote,
         uint256 amountBase
     ) external payable {
-        IVaultFactory(factory).deposit{value: msg.value}(
+        ICrystalVaultFactory(factory).deposit{value: msg.value}(
             vault, quoteAsset, baseAsset, amountQuote, amountBase, 0, 0
         );
     }
@@ -239,7 +201,7 @@ contract ETHToggler {
         address baseAsset,
         uint256 shares
     ) external {
-        IVaultFactory(factory).withdraw(vault, quoteAsset, baseAsset, shares, 0, 0);
+        ICrystalVaultFactory(factory).withdraw(vault, quoteAsset, baseAsset, shares, 0, 0);
     }
 
     receive() external payable {
@@ -281,7 +243,7 @@ contract ReentrancyAttacker {
     function attackDepositReentrancy(uint256 amountQuote, uint256 amountBase) external payable {
         attacked = false;
         reenterSucceeded = false;
-        IVaultFactory(factory).deposit{value: msg.value}(
+        ICrystalVaultFactory(factory).deposit{value: msg.value}(
             vault, quoteAsset, baseAsset, amountQuote, amountBase, 0, 0
         );
     }
@@ -289,7 +251,7 @@ contract ReentrancyAttacker {
     function attackWithdrawReentrancy(uint256 shares) external {
         attacked = false;
         reenterSucceeded = false;
-        IVaultFactory(factory).withdraw(vault, quoteAsset, baseAsset, shares, 0, 0);
+        ICrystalVaultFactory(factory).withdraw(vault, quoteAsset, baseAsset, shares, 0, 0);
     }
 
     receive() external payable {
@@ -297,7 +259,7 @@ contract ReentrancyAttacker {
             attacked = true;
             if (reenterAction == 1) {
                 // Try to reenter deposit during ETH refund callback
-                try IVaultFactory(factory).deposit{value: msg.value}(
+                try ICrystalVaultFactory(factory).deposit{value: msg.value}(
                     vault, quoteAsset, baseAsset, reenterAmountQuote, reenterAmountBase, 0, 0
                 ) {
                     reenterSucceeded = true;
@@ -309,7 +271,7 @@ contract ReentrancyAttacker {
                     shares = IERC20(vault).balanceOf(address(this));
                 }
                 if (shares != 0) {
-                    try IVaultFactory(factory).withdraw(
+                    try ICrystalVaultFactory(factory).withdraw(
                         vault, quoteAsset, baseAsset, shares, 0, 0
                     ) {
                         reenterSucceeded = true;

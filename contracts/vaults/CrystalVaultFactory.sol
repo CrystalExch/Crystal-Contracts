@@ -3,9 +3,10 @@ pragma solidity ^0.8.28;
 
 import {IERC20} from "../interfaces/IERC20.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
+import {ICrystal} from "../interfaces/ICrystal.sol";
 import {ICrystalVault} from "../interfaces/ICrystalVault.sol";
-import {CrystalVault} from "./CrystalVault.sol";
 import {ICrystalVaultFactory} from "../interfaces/ICrystalVaultFactory.sol";
+import {CrystalVault} from "./CrystalVault.sol";
 
 /**
  * @title CrystalVaultFactory
@@ -57,7 +58,7 @@ contract CrystalVaultFactory {
     /// @notice Global maximum lockup duration for vaults.
     uint40 public maxLockup;
 
-    /// @notice Prevents reentrancy using transient storage
+    /// @notice Prevents reentrancy using transient storage.
     modifier nonReentrant() {
         assembly {
             if tload(0x0) {
@@ -69,6 +70,14 @@ contract CrystalVaultFactory {
         assembly {
             tstore(0x0, 0)
         }
+    }
+    
+    /// @notice Reverts if called by any address other than gov.
+    modifier onlyOwner() {
+        if (msg.sender != gov) {
+            revert ICrystal.Unauthorized(msg.sender);
+        }
+        _;
     }
 
     /**
@@ -89,6 +98,11 @@ contract CrystalVaultFactory {
         maxOrderCap = _maxOrderCap;
         maxLockup = _lockup;
     }
+
+    /**
+     * @notice Accepts native token transfers for ETH deposits
+     */
+    receive() external payable {}
 
     /**
      * @notice Deploys a new CrystalVault and registers it in factory storage.
@@ -128,8 +142,7 @@ contract CrystalVaultFactory {
      *
      * @param newGov New governance address.
      */
-    function changeGov(address newGov) external {
-        require(msg.sender == gov);
+    function changeGov(address newGov) external onlyOwner {
         gov = newGov;
     }
 
@@ -138,8 +151,7 @@ contract CrystalVaultFactory {
      *
      * @param newCap New maximum order cap.
      */
-    function changeMaxOrderCap(uint16 newCap) external {
-        require(msg.sender == gov);
+    function changeMaxOrderCap(uint16 newCap) external onlyOwner {
         maxOrderCap = newCap;
     }
 
@@ -148,8 +160,7 @@ contract CrystalVaultFactory {
      *
      * @param newLockup New maximum lockup duration.
      */
-    function changeMaxLockup(uint40 newLockup) external {
-        require(msg.sender == gov);
+    function changeMaxLockup(uint40 newLockup) external onlyOwner {
         maxLockup = newLockup;
     }
 
@@ -159,8 +170,7 @@ contract CrystalVaultFactory {
      * @param token Token address (WETH for ETH sentinel).
      * @param newMinSize Minimum initial deposit amount.
      */
-    function changeTokenMinSize(address token, uint256 newMinSize) external {
-        require(msg.sender == gov);
+    function changeTokenMinSize(address token, uint256 newMinSize) external onlyOwner {
         minSize[token == eth ? weth : token] = newMinSize;
     }
 
@@ -472,6 +482,4 @@ contract CrystalVaultFactory {
         require(msg.sender == getVault[vault].owner);
         ICrystalVault(vault).clearCloidSlots(userId, ids);
     }
-
-    receive() external payable {}
 }

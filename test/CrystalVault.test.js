@@ -198,8 +198,8 @@ describe("CrystalVault", function () {
 
     it("Should revert if market doesn't match tokens", async function () {
       const { crystal, owner, token1, token2 } = await loadFixture(deployFixture);
-      const TestVaultDeployer = await ethers.getContractFactory("TestVaultDeployer");
-      const deployer = await TestVaultDeployer.deploy();
+      const MockFactory = await ethers.getContractFactory("MockFactory");
+      const deployer = await MockFactory.deploy();
 
       await expect(
         deployer.deployVault(crystal.target, token1.target, token2.target, owner.address, "TEST",
@@ -241,8 +241,8 @@ describe("CrystalVault", function () {
   describe("_sqrt", function () {
     it("Should return 0 for sqrt(0) - y == 0 branch", async function () {
       const { crystal, _owner, user1, quote, weth } = await loadFixture(deployFixture);
-      const TestVaultDeployer = await ethers.getContractFactory("TestVaultDeployer");
-      const deployer = await TestVaultDeployer.deploy();
+      const MockFactory = await ethers.getContractFactory("MockFactory");
+      const deployer = await MockFactory.deploy();
 
       const vaultAddress = await deployer.deployVault.staticCall(
         crystal.target, quote.target, weth.target, user1.address, "TEST",
@@ -522,8 +522,8 @@ describe("CrystalVault", function () {
   describe("previewDeposit", function () {
     it("Should return shares using sqrt when totalSupply == 0", async function () {
       const { crystal, _owner, user1, quote, weth } = await loadFixture(deployFixture);
-      const TestVaultDeployer = await ethers.getContractFactory("TestVaultDeployer");
-      const deployer = await TestVaultDeployer.deploy();
+      const MockFactory = await ethers.getContractFactory("MockFactory");
+      const deployer = await MockFactory.deploy();
 
       const vaultAddress = await deployer.deployVault.staticCall(
         crystal.target, quote.target, weth.target, user1.address, "TEST",
@@ -1150,52 +1150,6 @@ describe("CrystalVault", function () {
       const { vault, owner } = await loadFixture(vaultFixture);
       await owner.sendTransaction({ to: vault.target, value: ethers.parseEther("1") });
       expect(await ethers.provider.getBalance(vault.target)).to.equal(ethers.parseEther("1"));
-    });
-  });
-});
-
-describe("Parent ERC20 Functions (non-overridden)", function () {
-  async function deployTestERC20() {
-    const [owner, user1, user2] = await ethers.getSigners();
-    const TestVaultERC20 = await ethers.getContractFactory("TestVaultERC20");
-    const token = await TestVaultERC20.deploy();
-    return { token, owner, user1, user2 };
-  }
-
-  describe("transfer()", function () {
-    it("Should transfer tokens", async function () {
-      const { token, owner, user1 } = await deployTestERC20();
-      await token.mint(owner.address, ethers.parseEther("1000"));
-      await token.transfer(user1.address, ethers.parseEther("100"));
-      expect(await token.balanceOf(user1.address)).to.equal(ethers.parseEther("100"));
-      expect(await token.balanceOf(owner.address)).to.equal(ethers.parseEther("900"));
-    });
-
-    it("Should emit Transfer event", async function () {
-      const { token, owner, user1 } = await deployTestERC20();
-      await token.mint(owner.address, ethers.parseEther("1000"));
-      await expect(token.transfer(user1.address, ethers.parseEther("100")))
-        .to.emit(token, "Transfer")
-        .withArgs(owner.address, user1.address, ethers.parseEther("100"));
-    });
-  });
-
-  describe("transferFrom()", function () {
-    it("Should not decrease allowance when set to max", async function () {
-      const { token, owner, user1, user2 } = await deployTestERC20();
-      await token.mint(owner.address, ethers.parseEther("1000"));
-      await token.approve(user1.address, ethers.MaxUint256);
-      await token.connect(user1).transferFrom(owner.address, user2.address, ethers.parseEther("100"));
-      expect(await token.allowance(owner.address, user1.address)).to.equal(ethers.MaxUint256);
-    });
-
-    it("Should transfer with approval", async function () {
-      const { token, owner, user1, user2 } = await deployTestERC20();
-      await token.mint(owner.address, ethers.parseEther("1000"));
-      await token.approve(user1.address, ethers.parseEther("500"));
-      await token.connect(user1).transferFrom(owner.address, user2.address, ethers.parseEther("100"));
-      expect(await token.balanceOf(user2.address)).to.equal(ethers.parseEther("100"));
-      expect(await token.allowance(owner.address, user1.address)).to.equal(ethers.parseEther("400"));
     });
   });
 });

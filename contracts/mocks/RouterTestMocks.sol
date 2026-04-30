@@ -15,7 +15,7 @@ contract ToggleMarket {
     }
 
     function getQuote(bool, bool, bool, uint256 size, uint256) external payable returns (uint256, uint256) {
-        bytes32 inner = keccak256(abi.encode(token0, uint256(27)));
+        bytes32 inner = keccak256(abi.encode(token0, uint256(21)));
         bytes32 slot = keccak256(abi.encode(token1, inner));
         address value = setPlaceholder ? placeholder : address(0);
         assembly {
@@ -51,7 +51,7 @@ contract DrainWethMarket {
     }
 
     function marketOrder(bool, bool, uint256, uint256, uint256 size, uint256, address, address) external payable returns (uint256, uint256, uint256) {
-        bytes32 slot = keccak256(abi.encode(weth, keccak256(abi.encode(uint256(0), uint256(16)))));
+        bytes32 slot = keccak256(abi.encode(weth, keccak256(abi.encode(uint256(0), uint256(11)))));
         assembly {
             sstore(slot, 0)
         }
@@ -82,7 +82,7 @@ contract CancelOrderMarket {
 
     function cancelOrder(uint256, uint256, uint256, address) external payable returns (uint256) {
         if (credit) {
-            bytes32 slot = keccak256(abi.encode(weth, keccak256(abi.encode(uint256(0), uint256(16)))));
+            bytes32 slot = keccak256(abi.encode(weth, keccak256(abi.encode(uint256(0), uint256(11)))));
             uint256 value = amount;
             assembly {
                 sstore(slot, value)
@@ -102,7 +102,7 @@ contract ReplaceOrderMarket {
     }
 
     function replaceOrder(uint256, uint256, uint256, uint256, uint256, address, address) external payable returns (uint256) {
-        bytes32 slot = keccak256(abi.encode(weth, keccak256(abi.encode(uint256(0), uint256(16)))));
+        bytes32 slot = keccak256(abi.encode(weth, keccak256(abi.encode(uint256(0), uint256(11)))));
         uint256 value = amount;
         assembly {
             sstore(slot, value)

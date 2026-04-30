@@ -6,6 +6,7 @@ import {ICrystal} from "../interfaces/ICrystal.sol";
 import {ICrystalVault} from "../interfaces/ICrystalVault.sol";
 import {ICrystalVaultFactory} from "../interfaces/ICrystalVaultFactory.sol";
 import {ERC20} from "../libraries/ERC20.sol";
+import {CrystalMath} from "../libraries/CrystalMath.sol";
 
 /**
  * @title CrystalVault
@@ -70,6 +71,14 @@ contract CrystalVault is ERC20 {
     /// @notice Factory contract that deployed this vault.
     address public immutable factory;
 
+    /// @notice Reverts if called by any address other than the vault factory.
+    modifier onlyFactory() {
+        if (msg.sender != factory) {
+            revert ICrystal.Unauthorized(msg.sender);
+        }
+        _;
+    }
+
     /**
      * @notice Initializes a new CrystalVault.
      *
@@ -97,40 +106,9 @@ contract CrystalVault is ERC20 {
     }
 
     /**
-     * @notice Computes the integer square root of the input.
-     *
-     * @dev Used during initial share minting.
-     *
-     * @param y Input value.
-     *
-     * @return z Floor of the square root.
+     * @notice Accepts native token transfers for priority bid
      */
-    function _sqrt(uint256 y) internal pure returns (uint256 z) {
-        unchecked {
-            if (y > 3) {
-                z = y;
-                uint x = (y >> 1) + 1;
-                while (x < z) {
-                    z = x;
-                    x = (y / x + x) >> 1;
-                }
-            } else if (y != 0) {
-                z = 1;
-            }
-        }
-    }
-
-    /**
-     * @notice Returns the smaller of two values.
-     *
-     * @param a First value.
-     * @param b Second value.
-     *
-     * @return Minimum of `a` and `b`.
-     */
-    function _min(uint256 a, uint256 b) internal pure returns (uint256) {
-        return a < b ? a : b;
-    }
+    receive() external payable {}
 
     /**
      * @notice Returns total and available balances for both vault assets.
@@ -168,8 +146,8 @@ contract CrystalVault is ERC20 {
      *
      * @dev Only callable by the factory.
      */
-    function lock() external {
-        require(msg.sender == factory && !locked);
+    function lock() external onlyFactory {
+        require(!locked);
         locked = true;
     }
 
@@ -178,8 +156,8 @@ contract CrystalVault is ERC20 {
      *
      * @dev Only callable by the factory.
      */
-    function unlock() external {
-        require(msg.sender == factory && locked && !closed);
+    function unlock() external onlyFactory {
+        require(locked && !closed);
         locked = false;
     }
 
@@ -188,8 +166,7 @@ contract CrystalVault is ERC20 {
      *
      * @param _maxShares New max share value (0 = uncapped).
      */
-    function changeMaxShares(uint256 _maxShares) external {
-        require(msg.sender == factory);
+    function changeMaxShares(uint256 _maxShares) external onlyFactory {
         maxShares = _maxShares;
     }
 
@@ -198,8 +175,7 @@ contract CrystalVault is ERC20 {
      *
      * @dev Cancels all existing orders before switching markets.
      */
-    function changeMarket() external {
-        require(factory == msg.sender);
+    function changeMarket() external onlyFactory {
         cancelAll();
         address newMarket = ICrystal(crystal).getMarketByTokens(quoteAsset, baseAsset);
         require(ICrystal(crystal).getMarket(newMarket).quoteAsset == quoteAsset);
@@ -211,9 +187,9 @@ contract CrystalVault is ERC20 {
      *
      * @param newCap New order cap value.
      */
-    function changeOrderCap(uint16 newCap) external {
+    function changeOrderCap(uint16 newCap) external onlyFactory {
         uint256 maxOrderCap = ICrystalVaultFactory(factory).maxOrderCap();
-        require(factory == msg.sender && newCap <= maxOrderCap);
+        require(newCap <= maxOrderCap);
         (uint256[] memory cloids, ) = ICrystal(crystal).getAllOrdersByCloid(address(this), orderCap);
         for (uint256 i = 0; i < cloids.length; ++i) {
             require(newCap > cloids[i]);
@@ -226,8 +202,7 @@ contract CrystalVault is ERC20 {
      *
      * @param newDecrease New decrease-on-withdraw flag.
      */
-    function changeDecreaseOnWithdraw(bool newDecrease) external {
-        require(factory == msg.sender);
+    function changeDecreaseOnWithdraw(bool newDecrease) external onlyFactory {
         decrease = newDecrease;
     }
 
@@ -236,17 +211,16 @@ contract CrystalVault is ERC20 {
      *
      * @param newLockup New lockup duration.
      */
-    function changeLockup(uint40 newLockup) external {
+    function changeLockup(uint40 newLockup) external onlyFactory {
         uint256 maxLockup = ICrystalVaultFactory(factory).maxLockup();
-        require(factory == msg.sender && newLockup <= maxLockup);
+        require(newLockup <= maxLockup);
         lockup = newLockup;
     }
 
     /**
      * @notice Claims accrued trading fees to the vault owner.
      */
-    function claimFees() external {
-        require(factory == msg.sender);
+    function claimFees() external onlyFactory {
         address[] memory tokens = new address[](2);
         tokens[0] = quoteAsset;
         tokens[1] = baseAsset;
@@ -259,8 +233,7 @@ contract CrystalVault is ERC20 {
      * @param userId Crystal user id.
      * @param ids Cloid slot ids to clear.
      */
-    function clearCloidSlots(uint256 userId, uint256[] calldata ids) external {
-        require(factory == msg.sender);
+    function clearCloidSlots(uint256 userId, uint256[] calldata ids) external onlyFactory {
         ICrystal(crystal).clearCloidSlots(userId, ids);
     }
 
@@ -279,7 +252,7 @@ contract CrystalVault is ERC20 {
         if (totalSupply == 0) {
             amountQuote = amountQuoteDesired;
             amountBase = amountBaseDesired;
-            shares = _sqrt(amountQuote * amountBase);
+            shares = CrystalMath._sqrt(amountQuote * amountBase);
         } else {
             uint256 amountBaseOptimal = (amountQuoteDesired * baseBalance) / quoteBalance;
             if (amountBaseOptimal <= amountBaseDesired) {
@@ -290,7 +263,7 @@ contract CrystalVault is ERC20 {
                 amountQuote = amountQuoteOptimal;
                 amountBase = amountBaseDesired;
             }
-            shares = _min((amountQuote * totalSupply) / quoteBalance, (amountBase * totalSupply) / baseBalance);
+            shares = CrystalMath._min((amountQuote * totalSupply) / quoteBalance, (amountBase * totalSupply) / baseBalance);
         }
     }
 
@@ -321,14 +294,14 @@ contract CrystalVault is ERC20 {
      * @return amountQuote Quote amount deposited.
      * @return amountBase Base amount deposited.
      */
-    function deposit(address user, uint256 amountQuoteDesired, uint256 amountBaseDesired, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 shares, uint256 amountQuote, uint256 amountBase) {
-        require(factory == msg.sender && !locked && amountQuoteDesired != 0 && amountBaseDesired != 0);
+    function deposit(address user, uint256 amountQuoteDesired, uint256 amountBaseDesired, uint256 amountQuoteMin, uint256 amountBaseMin) external onlyFactory returns (uint256 shares, uint256 amountQuote, uint256 amountBase) {
+        require(!locked && amountQuoteDesired != 0 && amountBaseDesired != 0);
         (uint256 quoteBalance, uint256 baseBalance, , ) = getBalances();
 
         if (totalSupply == 0) {
             amountQuote = amountQuoteDesired;
             amountBase = amountBaseDesired;
-            shares = _sqrt(amountQuote * amountBase);
+            shares = CrystalMath._sqrt(amountQuote * amountBase);
         } else {
             uint256 amountBaseOptimal = (amountQuoteDesired * baseBalance) / quoteBalance;
             if (amountBaseOptimal <= amountBaseDesired) {
@@ -339,7 +312,7 @@ contract CrystalVault is ERC20 {
                 amountQuote = amountQuoteOptimal;
                 amountBase = amountBaseDesired;
             }
-            shares = _min((amountQuote * totalSupply) / quoteBalance, (amountBase * totalSupply) / baseBalance);
+            shares = CrystalMath._min((amountQuote * totalSupply) / quoteBalance, (amountBase * totalSupply) / baseBalance);
         }
 
         require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && shares != 0 && (maxShares == 0 || totalSupply + shares <= maxShares));
@@ -365,8 +338,8 @@ contract CrystalVault is ERC20 {
      * @return amountQuote Quote amount returned.
      * @return amountBase Base amount returned.
      */
-    function withdraw(address user, uint256 shares, uint256 amountQuoteMin, uint256 amountBaseMin) external returns (uint256 amountQuote, uint256 amountBase) {
-        require(factory == msg.sender && shares != 0 && shares <= balanceOf[user] && lastDepositTimestamp[user] + lockup <= block.timestamp);
+    function withdraw(address user, uint256 shares, uint256 amountQuoteMin, uint256 amountBaseMin) external onlyFactory returns (uint256 amountQuote, uint256 amountBase) {
+        require(shares != 0 && shares <= balanceOf[user] && lastDepositTimestamp[user] + lockup <= block.timestamp);
         (uint256 quoteBalance, uint256 baseBalance, uint256 availableQuote, uint256 availableBase) = getBalances();
         amountQuote = (quoteBalance * shares) / totalSupply;
         amountBase = (baseBalance * shares) / totalSupply;
@@ -500,6 +473,4 @@ contract CrystalVault is ERC20 {
             }
         }
     }
-
-    receive() external payable {}
 }

@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {CrystalMarket} from "../core/CrystalMarket.sol";
 import {ICrystal} from "../interfaces/ICrystal.sol";
+import {CrystalMath as CM} from "../libraries/CrystalMath.sol";
+import {CrystalStorage as CS} from "../libraries/CrystalStorage.sol";
+import {CrystalMarket} from "../core/CrystalMarket.sol";
 
 /// @notice Test harness for CrystalMarket that exposes internal functions for testing
 /// @dev Storage variables are private in CrystalMarket, so we access them via assembly
@@ -13,31 +15,26 @@ contract CrystalMarketHarness is CrystalMarket {
     // slot 8: userIdToAddress mapping
     // slot 9: addressToUserId mapping
     // slot 10: _getMarket mapping
-    // slot 11: activated mapping
-    // slot 12: activated2 mapping
-    // slot 13: priceLevels mapping
-    // slot 14: orders mapping
-    // slot 15: cloidVerify mapping
-    // slot 16: tokenBalances mapping
+    // slot 11: tokenBalances mapping
 
     /// @notice Expose _priceToTick for direct testing of price range branches
     function exposed_priceToTick(uint256 p) external view returns (uint256) {
-        return _priceToTick(p);
+        return CM._priceToTick(p, tickSize);
     }
 
     /// @notice Expose _toValidPrice for direct testing
     function exposed_toValidPrice(uint256 p, bool roundUp) external pure returns (uint256) {
-        return _toValidPrice(p, roundUp);
+        return CM._toValidPrice(p, roundUp);
     }
 
     /// @notice Expose _tickToPrice for direct testing
     function exposed_tickToPrice(uint256 tick) external view returns (uint256) {
-        return _tickToPrice(tick);
+        return CM._tickToPrice(tick, tickSize);
     }
 
     /// @notice Expose _sqrt for direct testing
     function exposed_sqrt(uint256 y) external pure returns (uint256) {
-        return _sqrt(y);
+        return CM._sqrt(y);
     }
 
     /// @notice Expose exact input/output AMM solvers for direct testing
@@ -45,16 +42,17 @@ contract CrystalMarketHarness is CrystalMarket {
         uint256 reserveQuote,
         uint256 reserveBase,
         uint256 targetPrice,
-        uint256 _scaleFactor,
+        uint256 scaleFactor,
         uint256 makerRebate,
         uint256 high
-    ) external view returns (uint256) {
-        return _exactInputBuySolve(
+    ) external pure returns (uint256) {
+        return CM._exactInputBuySolve(
             reserveQuote,
             reserveBase,
             targetPrice,
             makerRebate,
-            high
+            high,
+            scaleFactor
         );
     }
 
@@ -62,16 +60,17 @@ contract CrystalMarketHarness is CrystalMarket {
         uint256 reserveQuote,
         uint256 reserveBase,
         uint256 targetPrice,
-        uint256 _scaleFactor,
+        uint256 scaleFactor,
         uint256 makerRebate,
         uint256 high
-    ) external view returns (uint256) {
-        return _exactOutputBuySolve(
+    ) external pure returns (uint256) {
+        return CM._exactOutputBuySolve(
             reserveQuote,
             reserveBase,
             targetPrice,
             makerRebate,
-            high
+            high,
+            scaleFactor
         );
     }
 
@@ -79,16 +78,17 @@ contract CrystalMarketHarness is CrystalMarket {
         uint256 reserveQuote,
         uint256 reserveBase,
         uint256 targetPrice,
-        uint256 _scaleFactor,
+        uint256 scaleFactor,
         uint256 makerRebate,
         uint256 high
-    ) external view returns (uint256) {
-        return _exactInputSellSolve(
+    ) external pure returns (uint256) {
+        return CM._exactInputSellSolve(
             reserveQuote,
             reserveBase,
             targetPrice,
             makerRebate,
-            high
+            high,
+            scaleFactor
         );
     }
 
@@ -96,16 +96,17 @@ contract CrystalMarketHarness is CrystalMarket {
         uint256 reserveQuote,
         uint256 reserveBase,
         uint256 targetPrice,
-        uint256 _scaleFactor,
+        uint256 scaleFactor,
         uint256 makerRebate,
         uint256 high
-    ) external view returns (uint256) {
-        return _exactOutputSellSolve(
+    ) external pure returns (uint256) {
+        return CM._exactOutputSellSolve(
             reserveQuote,
             reserveBase,
             targetPrice,
             makerRebate,
-            high
+            high,
+            scaleFactor
         );
     }
 
@@ -183,12 +184,12 @@ contract CrystalMarketHarness is CrystalMarket {
 
     /// @notice Expose _searchSlotUp for testing
     function exposed_searchSlotUp(uint256 slot, uint256 tick) external pure returns (uint256) {
-        return _searchSlotUp(slot, tick);
+        return CM._searchSlotUp(slot, tick);
     }
 
     /// @notice Expose _searchSlotDown for testing
     function exposed_searchSlotDown(uint256 slot, uint256 tick) external pure returns (uint256) {
-        return _searchSlotDown(slot, tick);
+        return CM._searchSlotDown(slot, tick);
     }
 
     /// @notice Get the tickSize immutable
@@ -214,7 +215,7 @@ contract CrystalMarketHarness is CrystalMarket {
     /// @notice Direct setter for token balances using assembly (for overflow testing)
     /// @dev tokenBalances is at slot 16
     function setTokenBalance(uint256 userId, address token, uint256 bal) external {
-        bytes32 slot = keccak256(abi.encode(token, keccak256(abi.encode(userId, uint256(16)))));
+        bytes32 slot = keccak256(abi.encode(token, keccak256(abi.encode(userId, uint256(11)))));
         assembly {
             sstore(slot, bal)
         }
@@ -222,79 +223,35 @@ contract CrystalMarketHarness is CrystalMarket {
 
     /// @notice Get token balance using assembly
     function getTokenBalance(uint256 userId, address token) external view returns (uint256 bal) {
-        bytes32 slot = keccak256(abi.encode(token, keccak256(abi.encode(userId, uint256(16)))));
+        bytes32 slot = keccak256(abi.encode(token, keccak256(abi.encode(userId, uint256(11)))));
         assembly {
             bal := sload(slot)
         }
     }
 
     /// @notice Set activated slot using assembly
-    /// @dev activated is at slot 11
     function setActivatedSlot(uint256 key, uint256 value) external {
-        bytes32 slot = keccak256(abi.encode(key, uint256(11)));
-        assembly {
-            sstore(slot, value)
-        }
+        CS._writeMapping((key & MASK_OUT_0_128) | ((((key & MASK_KEEP_0_128) + 1) * 256 - 1) >> 7), (((key & MASK_KEEP_0_128) + 1) * 256 - 1) & 127, CS.PRICELEVELS_KEY, value);
     }
 
     /// @notice Get activated slot
     function getActivatedSlot(uint256 key) external view returns (uint256 value) {
-        bytes32 slot = keccak256(abi.encode(key, uint256(11)));
-        assembly {
-            value := sload(slot)
-        }
+        value = CS._readMapping((key & MASK_OUT_0_128) | ((((key & MASK_KEEP_0_128) + 1) * 256 - 1) >> 7), (((key & MASK_KEEP_0_128) + 1) * 256 - 1) & 127, CS.PRICELEVELS_KEY);
     }
 
-    /// @notice Set activated2 slot using assembly
-    /// @dev activated2 is at slot 12
-    function setActivated2Slot(uint256 key, uint256 value) external {
-        bytes32 slot = keccak256(abi.encode(key, uint256(12)));
-        assembly {
-            sstore(slot, value)
-        }
+    /// @notice Set groups slot using assembly
+    function setGroupsSlot(uint256 key, uint256 value) external {
+        CS._writeMapping((key & MASK_OUT_0_128) | ((key & MASK_KEEP_0_128) >> 7), (key & MASK_KEEP_0_128) & 127, CS.GROUPS_KEY, value);
     }
 
     /// @notice Set priceLevels using assembly
-    /// @dev priceLevels is at slot 13
     function setPriceLevel(uint256 key, uint256 value) external {
-        bytes32 slot = keccak256(abi.encode(key, uint256(13)));
-        assembly {
-            sstore(slot, value)
-        }
+        CS._writeMapping((key & MASK_OUT_0_128) | ((((key & MASK_KEEP_0_128) << 8) / 255) >> 7), (((key & MASK_KEEP_0_128) << 8) / 255) & 127, CS.PRICELEVELS_KEY, value);
     }
 
     /// @notice Get priceLevel
     function getPriceLevel(uint256 key) external view returns (uint256 value) {
-        bytes32 slot = keccak256(abi.encode(key, uint256(13)));
-        assembly {
-            value := sload(slot)
-        }
-    }
-
-    /// @notice Set orders using assembly
-    /// @dev orders is at slot 14
-    function setOrder(uint256 key, uint256 value) external {
-        bytes32 slot = keccak256(abi.encode(key, uint256(14)));
-        assembly {
-            sstore(slot, value)
-        }
-    }
-
-    /// @notice Get order
-    function getOrder(uint256 key) external view returns (uint256 value) {
-        bytes32 slot = keccak256(abi.encode(key, uint256(14)));
-        assembly {
-            value := sload(slot)
-        }
-    }
-
-    /// @notice Set cloidVerify using assembly
-    /// @dev cloidVerify is at slot 15
-    function setCloidVerify(uint256 key, uint256 value) external {
-        bytes32 slot = keccak256(abi.encode(key, uint256(15)));
-        assembly {
-            sstore(slot, value)
-        }
+        value = CS._readMapping((key & MASK_OUT_0_128) | ((((key & MASK_KEEP_0_128) << 8) / 255) >> 7), (((key & MASK_KEEP_0_128) << 8) / 255) & 127, CS.PRICELEVELS_KEY);
     }
 
     /// @notice Set core market state for this harness address
@@ -321,11 +278,6 @@ contract CrystalMarketHarness is CrystalMarket {
             sstore(baseSlot, slot0)
             sstore(add(baseSlot, 1), slot1)
         }
-    }
-
-    /// @notice Get mask constant for testing
-    function getMaskKeep0128() external pure returns (uint256) {
-        return 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
     }
 
     /// @notice Set userIdToAddress mapping
