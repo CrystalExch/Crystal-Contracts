@@ -4,6 +4,87 @@ Crystal is a fully on-chain central limit order book exchange, created to bridge
 
 ## Documentation
 
+Crystal uses a singleton architecture, where all external methods and state live in the central exchange contract. In order to bring a protocol as complex as an orderbook to the blockchain, a couple optimizations have been made. Notably, Crystal manually reserves memory to store intermediary variables and emit events during the order matching process. The schema used is outlined here:
+
+| Offset | Field                         | Description                                                                                     |
+| ------ | ----------------------------- | ----------------------------------------------------------------------------------------------- |
+| 0x00   | Scratch                       | Used by Solidity                                                                                |
+| 0x20   | Scratch                       | Used by Solidity                                                                                |
+| 0x40   | Free memory pointer           | Set to 0x100, Solidity default is 0x80                                                          |
+| 0x60   | Original exact input buy size | Preserves original input size for market-to-limit orders                                        |
+| 0x80   | Trade event price             | High 128 bits = start price, low 128 bits = end price                                           |
+| 0xa0   | AMM reserves                  | High 128 bits = reserveQuote, low 128 bits = reserveBase                                        |
+| 0xc0   | Referrer address              | Optional field applicable only to market orders                                                 |
+| 0xe0   | OrdersUpdated event length    | Tracks the number of 32-byte order updates to be emitted                                        |
+| 0x100  | OrdersUpdated event data      | Free memory pointer is moved after this region                                                  |
+
+Additionally, Crystal packs multiple values into singular storage slots to represent state such as price levels and resting orders in order to save gas. These slots are made consecutive to take advantage of [MIP-8](https://github.com/monad-crypto/MIPs/blob/main/MIPS/MIP-8.md), making so that storage slots within a consecutive 128-slot page share warm access.
+
+The storage helpers in [`CrystalStorage.sol`](./contracts/libraries/CrystalStorage.sol) expose three namespaced regions:
+
+| Namespace | Constant | Purpose |
+| --------- | -------- | ------- |
+| Orders | `ORDERS_KEY = 0x100` | Both cloid and non-cloid resting limit orders |
+| Price Levels | `PRICELEVELS_KEY = 0x200` | Packed per-price liquidity state and first-level activated tick bitmaps |
+| Groups | `GROUPS_KEY = 0x300` | Second-level bitmap tracking which first-level bitmap words are non-empty |
+
+Within those namespaces, Crystal uses packed words rather than one-slot-per-field storage:
+
+| Packed word | Bits | Meaning |
+| ----------- | ---- | ------- |
+| Order | `0..111` | Remaining size |
+| Order | `112` | Balance mode flag |
+| Order | `113..153` | Owner `userId` |
+| Order | `154..204` | `fillBefore` pointer |
+| Order | `205..255` | `fillAfter` pointer |
+| Price level | `0..111` | Total resting liquidity at that price |
+| Price level | `113..153` | Latest native order id |
+| Price level | `154..204` | Latest resting order pointer |
+| Price level | `205..255` | `fillNext` pointer |
+
+Orders are addressed in two ways:
+
+- Native orders are keyed by `marketId | (price << 48) | (id >> 7)` with `id & 127` used as the page-local offset.
+- Cloid orders are keyed by `userId << 128 | (((cloid - 1) >> 1) / 42)` with the offset selecting one of the packed order or verification words for that cloid pair.
+
+For cloid-backed orders, storage is intentionally laid out as repeating triplets where `n = ((cloid - 1) >> 1) % 42`:
+
+| Local offset pattern | Meaning |
+| -------------------- | ------- |
+| `3n + 0` | Odd cloid order word |
+| `3n + 1` | Even cloid order word |
+| `3n + 2` | Shared cloid verification word |
+
+In other words, the physical layout is:
+
+`order, order, verifyCloid, order, order, verifyCloid, ...`
+
+Each cloid pair shares one verification word that stores the market and price metadata for both cloids, while the two adjacent order words store the packed order state. The key buckets cloIds in groups of `42` pairs, so each bucket consumes `42 * 3 = 126` consecutive storage words and fits within a single warm 128-slot page.
+
+The namespaced storage helpers use the pattern:
+
+`keccak256(abi.encode(key, slot)) + offset`
+
+The `key` and namespace `slot` are hashed once to find the base page, while `offset` is added afterwards rather than included in the hash. This is what allows Crystal to walk through consecutive storage words inside the same page and benefit from warm page access instead of paying for a fresh mapping hash on every neighboring word.
+
+Active price discovery is also hierarchical:
+
+- Price levels are arranged in a linear sequence where every `255` price-level words are followed by `1` first-level bitmap word.
+- Importantly, price levels are stored by their corresponding tick, where consecutive ticks are defined as the closest valid price levels.
+- The price-level index uses `tick + floor(tick / 255)`, which is equivalent to `(tick << 8) / 255`, so an extra bitmap word is inserted every 255 prices.
+
+Each first-level bitmap word stores 255 bits and indicates which of those 255 price levels currently contain resting liquidity. Conceptually, the first layer looks like this:
+
+`255 price levels -> 1 activated bitmap -> 255 price levels -> 1 activated bitmap -> ...`
+
+A second-level bitmap word tracks which first-level bitmap words are non-empty:
+
+- bit `i` in a groups word means first-level bitmap word `i` for that market range is non-empty
+- when a first-level bitmap becomes empty, its corresponding bit in the groups layer is cleared
+- when a first-level bitmap becomes non-empty, its corresponding bit in the groups layer is set
+
+To find the next active price level when both the second-level and first-level activated slots are empty, `_searchUp` and `_searchDown` iterate across the second-level bitmap until they find an active group, then find the correct first-level activated slot by finding the closest nonzero bit. The same process is repeated within the first-level activated slot where the closest nonzero bit is found, which corresponds to the tick of the next active price level. If either the second-level or first-level activated slots are non-empty to begin with, the process starts with finding the next active bit within the lowest level non-empty bitmap.
+
 Further documentation is available at [docs.crystal.exchange](https://docs.crystal.exchange)
 
 ## Repository Structure
