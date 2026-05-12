@@ -30,7 +30,7 @@ import {CrystalMath} from "../libraries/CrystalMath.sol";
  */
 contract CrystalVault is ERC20 {
     /// @notice Timestamp of the user's last deposit, used to enforce lockup.
-    mapping(address => uint256) public lastDepositTimestamp;
+    mapping(address => uint256) public unlockTimestamp;
 
     /// @notice Maximum total shares allowed (0 = uncapped).
     uint256 public maxShares;
@@ -323,7 +323,7 @@ contract CrystalVault is ERC20 {
         ICrystal(crystal).deposit(baseAsset, amountBase);
 
         _mint(user, shares);
-        lastDepositTimestamp[user] = block.timestamp;
+        unlockTimestamp[user] = block.timestamp + lockup;
         require(balanceOf[owner] * 20 > totalSupply);
     }
 
@@ -339,7 +339,7 @@ contract CrystalVault is ERC20 {
      * @return amountBase Base amount returned.
      */
     function withdraw(address user, uint256 shares, uint256 amountQuoteMin, uint256 amountBaseMin) external onlyFactory returns (uint256 amountQuote, uint256 amountBase) {
-        require(shares != 0 && shares <= balanceOf[user] && lastDepositTimestamp[user] + lockup <= block.timestamp);
+        require(shares != 0 && shares <= balanceOf[user] && unlockTimestamp[user] <= block.timestamp);
         (uint256 quoteBalance, uint256 baseBalance, uint256 availableQuote, uint256 availableBase) = getBalances();
         amountQuote = (quoteBalance * shares) / totalSupply;
         amountBase = (baseBalance * shares) / totalSupply;
@@ -409,6 +409,9 @@ contract CrystalVault is ERC20 {
                 }
             }
         }
+        if (balanceOf[user] == 0) {
+            unlockTimestamp[user] = 0;
+        }
         if (amountQuote > 0) {
             ICrystal(crystal).withdraw(msg.sender, quoteAsset, amountQuote);
         }
@@ -461,6 +464,7 @@ contract CrystalVault is ERC20 {
         data[0] = bytes32((1 << 252) | (bid << 172) | (actions.length << 160) | uint160(market));
         for (uint256 i; i < actions.length; ++i) {
             action = actions[i];
+            require(action.action < 13);
             if (action.action == 2 || action.action == 3 || action.action == 4 || action.action == 5) {
                 require(action.cloid != 0 && action.cloid < orderCap);
             }

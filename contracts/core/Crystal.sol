@@ -442,8 +442,7 @@ contract Crystal is ICrystal {
             if (inputAmount != 0 && outputAmount != 0) {
                 emit ICrystal.LaunchpadTrade(token, msg.sender, true, inputAmount, outputAmount, launchpadMarket.virtualNativeReserve, launchpadMarket.virtualTokenReserve);
             }
-            if (launchpadMarket.virtualNativeReserve >= ((launchpadMarket.k / GRADUATED_TOKEN_SUPPLY))) {
-                // Graduate token from bonding curve to orderbook
+            if (launchpadMarket.virtualNativeReserve >= ((launchpadMarket.k / GRADUATED_TOKEN_SUPPLY))) { // Graduate token from bonding curve to orderbook
                 address market = launchpadMarket.market;
                 delete launchpadTokenToMarket[token];
                 getMarketByTokens[weth][token] = market;
@@ -467,8 +466,7 @@ contract Crystal is ICrystal {
                 emit ICrystal.Mint(market, address(this), m.reserveQuote, m.reserveBase);
             }
         }
-        if (isExactInput ? inputAmount < amountIn : outputAmount < amountOut) {
-            // Token is graduated, swap through orderbook
+        if (isExactInput ? inputAmount < amountIn : outputAmount < amountOut) { // Token is graduated, swap through orderbook
             uint256 newInputAmount = (msg.value - inputAmount);
             IWETH(weth).deposit{value: newInputAmount}();
             {
@@ -1179,13 +1177,14 @@ contract Crystal is ICrystal {
         }
         for (uint256 i; i < ids.length; ++i) {
             uint256 id = ids[i];
-            require(id != 0);
-            (uint256 key, uint256 offset) = CS._getCloidOrder(userId, id);
-            if ((CS._readMapping(key, offset, CS.ORDERS_KEY) & MASK_OUT_113_154) == 0) { // Slot is inactive and safe to clear
-                CS._writeMapping(key, offset, CS.ORDERS_KEY, 0);
-                (key, offset) = CS._getVerifyCloid(userId, id);
-                uint256 verifyCloid = CS._readMapping(key, offset, CS.ORDERS_KEY) & (id & 1 == 0 ? MASK_KEEP_0_128 : MASK_OUT_0_128);
-                CS._writeMapping(key, offset, CS.ORDERS_KEY, verifyCloid);
+            if (id > 0 && id < 1024) {
+                (uint256 key, uint256 offset) = CS._getCloidOrder(userId, id);
+                if ((CS._readMapping(key, offset, CS.ORDERS_KEY) & MASK_OUT_113_154) == 0) { // Slot is inactive and safe to clear
+                    CS._writeMapping(key, offset, CS.ORDERS_KEY, 0);
+                    (key, offset) = CS._getVerifyCloid(userId, id);
+                    uint256 verifyCloid = CS._readMapping(key, offset, CS.ORDERS_KEY) & (id & 1 == 0 ? MASK_KEEP_0_128 : MASK_OUT_0_128);
+                    CS._writeMapping(key, offset, CS.ORDERS_KEY, verifyCloid);
+                }
             }
         }
     }
@@ -1235,7 +1234,7 @@ contract Crystal is ICrystal {
         }
         for (uint256 i; i < groupIndexes.length; ++i) {
             require(groupIndexes[i] < MASK_KEEP_0_128);
-            (key, offset) = CS._getActivated(_getMarket[market].marketId << 128, groupIndexes[i]);
+            (key, offset) = CS._getGroups(_getMarket[market].marketId << 128, groupIndexes[i]);
             CS._writeMapping(key, offset, CS.GROUPS_KEY, CS._readMapping(key, offset, CS.GROUPS_KEY) | MASK_KEEP_255_256);
         }
     }
@@ -1273,7 +1272,7 @@ contract Crystal is ICrystal {
      *
      * @return amounts Claimed amounts per token.
      */
-    function claimFees(address to, address[] calldata tokens) external returns (uint256[] memory amounts) {
+    function claimFees(address to, address[] calldata tokens) external nonReentrant returns (uint256[] memory amounts) {
         amounts = new uint256[](tokens.length);
         for (uint256 i = 0; i < tokens.length; ++i) {
             if (tokens[i] == eth) {
@@ -1369,14 +1368,13 @@ contract Crystal is ICrystal {
         } else if (baseAsset == eth) {
             baseAsset = weth;
         }
-        require(MAX_FEE <= takerFee && takerFee <= 100000 && MAX_FEE <= makerRebate && makerRebate <= 100000);
+        require(MAX_FEE <= takerFee && takerFee <= 100000 && MAX_FEE <= makerRebate && makerRebate <= 100000 && maxPrice % tickSize == 0);
         uint256 marketId = allMarkets.length + 1;
         {
             parameters = ICrystal.Parameters(quoteAsset, baseAsset, marketId, marketType, scaleFactor, tickSize, maxPrice);
             uint256 maxTick;
             market = address(new CrystalMarket{salt: keccak256(abi.encode(marketId))}());
             if (marketType == 0) {
-                require(maxPrice % tickSize == 0);
                 maxTick = maxPrice / tickSize;
             } else if (marketType == 1 || marketType == 2 || marketType == 3) {
                 maxTick = CM._priceToTick(maxPrice, tickSize);
@@ -1844,11 +1842,11 @@ contract Crystal is ICrystal {
      * @param deadline Expiration timestamp.
      * @param referrer Optional referrer for fee sharing.
      *
-     * @return userId Your user ID
-     * @return balance Any leftover WETH that was returned to you
-     * @return id Order id if created.
+     * @return amountIn Total input amount including fees.
+     * @return amountOut Total output amount after fees.
+     * @return id New order id if a fallback limit order was placed.
      */
-    function swap(bool isExactInput, address tokenIn, address tokenOut, uint256 orderType, uint256 size, uint256 worstPrice, uint256 deadline, address referrer) external payable nonReentrant returns (uint256 userId, uint256 balance, uint256 id) {
+    function swap(bool isExactInput, address tokenIn, address tokenOut, uint256 orderType, uint256 size, uint256 worstPrice, uint256 deadline, address referrer) external payable nonReentrant returns (uint256 amountIn, uint256 amountOut, uint256 id) {
         if (deadline < block.timestamp) {
             revert ICrystal.Expired(deadline);
         }
@@ -1868,7 +1866,7 @@ contract Crystal is ICrystal {
             revert ICrystal.ActionFailed();
         }
         if (tokenIn == eth || tokenOut == eth) {
-            balance = tokenBalances[0][weth];
+            uint256 balance = tokenBalances[0][weth];
             if (balance != 0) {
                 tokenBalances[0][weth] = 0;
                 IWETH(weth).withdraw(balance);
@@ -1878,7 +1876,7 @@ contract Crystal is ICrystal {
                 }
             }
         }
-        (userId, balance, id) = abi.decode(ret, (uint256, uint256, uint256));
+        (amountIn, amountOut, id) = abi.decode(ret, (uint256, uint256, uint256));
     }
 
     /**
@@ -2103,7 +2101,7 @@ contract Crystal is ICrystal {
         getMarketByTokens[token][weth] = placeholder;
         launchpadTokenToMarket[address(token)] = ICrystal.LaunchpadMarket(launchpadParams.launchpadInitialNativeSupply, uint112(INITIAL_TOKEN_SUPPLY), uint256(launchpadParams.launchpadInitialNativeSupply) * INITIAL_TOKEN_SUPPLY, msg.sender, market, uint88(block.timestamp));
         (bool result, bytes memory ret) = market.delegatecall(
-            abi.encodeWithSelector(0xf7bb5c88, address(this), ((INITIAL_TOKEN_SUPPLY * uint256(launchpadParams.launchpadInitialNativeSupply)) / GRADUATED_TOKEN_SUPPLY) - uint256(launchpadParams.launchpadInitialNativeSupply), GRADUATED_TOKEN_SUPPLY) // Pre-mint initial AMM liquidity
+            abi.encodeWithSelector(0xf7bb5c88, address(this), (INITIAL_TOKEN_SUPPLY * uint256(launchpadParams.launchpadInitialNativeSupply) / GRADUATED_TOKEN_SUPPLY) - uint256(launchpadParams.launchpadInitialNativeSupply), GRADUATED_TOKEN_SUPPLY) // Pre-mint initial AMM liquidity
         );
         if (!result) {
             revert ICrystal.ActionFailed();
@@ -2262,16 +2260,14 @@ contract Crystal is ICrystal {
                     outputAmount = amountOut;
                 }
             }
-            if (virtualNativeReserve >= ((launchpadMarket.k / GRADUATED_TOKEN_SUPPLY))) {
-                // Graduate token from bonding curve to orderbook
+            if (virtualNativeReserve >= ((launchpadMarket.k / GRADUATED_TOKEN_SUPPLY))) { // Graduate token from bonding curve to orderbook
                 graduatedMarket = launchpadMarket.market;
                 ICrystal.Market storage m = _getMarket[graduatedMarket];
                 (m.lowestAsk, m.minSize, m.takerFee, m.makerRebate, m.createTimestamp) = (uint80(GRADUATED_MAX_PRICE), uint40(0), uint24(launchpadParams.graduatedTakerFee), uint24(launchpadParams.graduatedMakerRebate), uint88(0)); // init market
                 graduated = true;
             }
         }
-        if (isExactInput ? inputAmount < amountIn : outputAmount < amountOut) {
-            // Token is graduated, swap through orderbook
+        if (isExactInput ? inputAmount < amountIn : outputAmount < amountOut) { // Token is graduated, swap through orderbook
             uint256 newInputAmount = isExactInput ? (amountIn - inputAmount) : (amountOut - outputAmount);
             bytes memory ret = abi.encodeWithSelector(0x638571e3, true, isExactInput, true, newInputAmount, MASK_KEEP_0_80);
             bool result;
@@ -2318,7 +2314,7 @@ contract Crystal is ICrystal {
                 inputAmount = amountIn;
                 virtualTokenReserve = launchpadMarket.virtualTokenReserve + uint112(amountIn);
                 uint256 oldNativeReserve = launchpadMarket.virtualNativeReserve;
-                virtualNativeReserve = uint112((launchpadMarket.k + launchpadMarket.virtualTokenReserve - 1) / launchpadMarket.virtualTokenReserve);
+                virtualNativeReserve = uint112((launchpadMarket.k + virtualTokenReserve - 1) / virtualTokenReserve);
                 outputAmount = oldNativeReserve - virtualNativeReserve;
                 uint256 amountAfterFee = (outputAmount * launchpadParams.launchpadFee) / 100000;
                 outputAmount = amountAfterFee;

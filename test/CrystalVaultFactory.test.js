@@ -859,7 +859,7 @@ describe("CrystalVaultFactory", function () {
       expect(await weth.balanceOf(vaultOperator.address)).to.be.greaterThan(wethBefore);
     });
 
-    it("Should not close vault if owner doesn't own 100%", async function () {
+    it("Should close vault even if owner is not the only depositor", async function () {
       const { vault, vaultFactory, vaultOperator, depositor, quote, weth } = await loadFixture(vaultFixture);
       await vaultFactory.connect(depositor).deposit(vault.target, quote.target, weth.target, ethers.parseUnits("100", 6), ethers.parseEther("0.1"), 0, 0);
 
@@ -869,8 +869,8 @@ describe("CrystalVaultFactory", function () {
 
       const totalSupply = await vault.totalSupply();
       if (totalSupply > 0n) {
-        expect((await vaultFactory.getVault(vault.target)).closed).to.be.false;
-        expect(events.find(e => e.name === "Closed")).to.be.undefined;
+        expect((await vaultFactory.getVault(vault.target)).closed).to.be.true;
+        expect(events.find(e => e.name === "Closed")).to.exist;
       }
     });
 

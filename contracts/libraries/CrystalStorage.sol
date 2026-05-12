@@ -60,9 +60,12 @@ library CrystalStorage {
      * @return offset Word offset from the derived mapping root.
      */
     function _getCloidOrder(uint256 userId, uint256 cloid) internal pure returns (uint256 key, uint256 offset) {
-        uint256 cloidPairIndex = (cloid - 1) >> 1;
-        key = userId << 128 | (cloidPairIndex / 42);
-        offset = (cloidPairIndex % 42) * 3 + ((cloid & 1) == 0 ? 1 : 0);
+        unchecked {
+            require(userId <= type(uint128).max && cloid <= type(uint128).max);
+            uint256 cloidPairIndex = (cloid - 1) >> 1;
+            key = userId << 128 | (cloidPairIndex / 42);
+            offset = (cloidPairIndex % 42) * 3 + ((cloid & 1) == 0 ? 1 : 0);
+        }
     }
 
     /**
@@ -75,9 +78,12 @@ library CrystalStorage {
      * @return offset Word offset from the derived mapping root.
      */
     function _getVerifyCloid(uint256 userId, uint256 cloid) internal pure returns (uint256 key, uint256 offset) {
-        uint256 cloidPairIndex = (cloid - 1) >> 1;
-        key = userId << 128 | (cloidPairIndex / 42);
-        offset = (cloidPairIndex % 42) * 3 + 2;
+        unchecked {
+            require(userId <= type(uint128).max && cloid <= type(uint128).max);
+            uint256 cloidPairIndex = (cloid - 1) >> 1;
+            key = userId << 128 | (cloidPairIndex / 42);
+            offset = (cloidPairIndex % 42) * 3 + 2;
+        }
     }
 
     /**
@@ -91,8 +97,11 @@ library CrystalStorage {
      * @return offset Word offset from the derived mapping root.
      */
     function _getOrder(uint256 marketId, uint256 price, uint256 id) internal pure returns (uint256 key, uint256 offset) {
-        key = marketId | (price << 48) | (id >> 7);
-        offset = id & 127;
+        unchecked {
+            require(price <= type(uint80).max && id <= type(uint48).max);
+            key = marketId | (price << 48) | (id >> 7);
+            offset = id & 127;
+        }
     }
 
     /**
@@ -107,10 +116,13 @@ library CrystalStorage {
      * @return offset Word offset from the derived mapping root.
      */
     function _getPriceLevel(uint256 marketType, uint256 tickSize, uint256 marketId, uint256 price) internal pure returns (uint256 key, uint256 offset) {
-        uint256 tick = marketType == 0 ? (price / tickSize) : CM._priceToTick(price, tickSize);
-        uint256 priceLevelIndex = (tick << 8) / 255;
-        key = marketId | (priceLevelIndex >> 7);
-        offset = priceLevelIndex & 127;
+        unchecked {
+            require(price <= type(uint80).max);
+            uint256 tick = marketType == 0 ? (price / tickSize) : CM._priceToTick(price, tickSize);
+            uint256 priceLevelIndex = (tick << 8) / 255;
+            key = marketId | (priceLevelIndex >> 7);
+            offset = priceLevelIndex & 127;
+        }
     }
 
     /**
@@ -123,9 +135,12 @@ library CrystalStorage {
      * @return offset Word offset from the derived mapping root.
      */
     function _getActivated(uint256 marketId, uint256 slotIndex) internal pure returns (uint256 key, uint256 offset) {
-        uint256 tickIndex = ((slotIndex + 1) * 256 - 1);
-        key = marketId | (tickIndex >> 7);
-        offset = tickIndex & 127;
+        unchecked {
+            uint256 tickIndex = ((slotIndex + 1) * 256 - 1);
+            require(tickIndex <= type(uint128).max);
+            key = marketId | (tickIndex >> 7);
+            offset = tickIndex & 127;
+        }
     }
 
     /**
@@ -138,7 +153,10 @@ library CrystalStorage {
      * @return offset Word offset from the derived mapping root.
      */
     function _getGroups(uint256 marketId, uint256 groupsIndex) internal pure returns (uint256 key, uint256 offset) {
-        key = marketId | (groupsIndex >> 7);
-        offset = groupsIndex & 127;
+        unchecked {
+            require(groupsIndex <= type(uint128).max);
+            key = marketId | (groupsIndex >> 7);
+            offset = groupsIndex & 127;
+        }
     }
 }

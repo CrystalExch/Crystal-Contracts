@@ -648,10 +648,10 @@ describe("CrystalVault", function () {
       expect(await vault.balanceOf(depositor.address)).to.be.greaterThan(sharesBefore);
     });
 
-    it("Should update lastDepositTimestamp", async function () {
+    it("Should update unlockTimestamp", async function () {
       const { vault, vaultFactory, depositor, quote, weth } = await loadFixture(vaultFixture);
       await vaultFactory.connect(depositor).deposit(vault.target, quote.target, weth.target, ethers.parseUnits("100", 6), ethers.parseEther("0.1"), 0, 0);
-      expect(await vault.lastDepositTimestamp(depositor.address)).to.be.greaterThan(0n);
+      expect(await vault.unlockTimestamp(depositor.address)).to.be.greaterThan(0n);
     });
 
     it("Should revert when deposit would make owner < 5%", async function () {

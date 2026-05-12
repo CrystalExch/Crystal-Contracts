@@ -34,7 +34,7 @@ interface ICrystalVault {
 
     function maxShares() external view returns (uint256);
 
-    function lastDepositTimestamp(address user) external view returns (uint256);
+    function unlockTimestamp(address user) external view returns (uint256);
 
     function metadata() external view returns (
         string memory name,

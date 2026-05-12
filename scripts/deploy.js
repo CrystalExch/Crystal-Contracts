@@ -2,12 +2,17 @@ const hardhat = require("hardhat")
 const { ethers } = require("ethers")
 require("dotenv").config()
 
-const RPC_URL = "https://rpc.monad.xyz"
-const CHAIN_ID = 143 // Monad Mainnet
-const GAS_PRICE = 150000000000n // 150 gwei
+function envOrDefault(name, fallback) {
+  const value = process.env[name]
+  return value && value.trim() !== "" ? value : fallback
+}
 
-const USDC = "0x754704Bc059F8C67012fEd69BC8A327a5aafb603" // Canonical Stablecoin
-const WETH = "0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A" // Wrapped Native Token
+const RPC_URL = envOrDefault("RPC_URL", "https://rpc.monad.xyz")
+const CHAIN_ID = BigInt(envOrDefault("CHAIN_ID", "143"))
+const GAS_PRICE = BigInt(envOrDefault("GAS_PRICE", "150000000000")) // 150 gwei
+
+const USDC = envOrDefault("USDC", "0x754704Bc059F8C67012fEd69BC8A327a5aafb603") // Canonical Stablecoin
+const WETH = envOrDefault("WETH", "0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A") // Wrapped Native Token
 
 const MARKETS = [ // [Canonical, Quote Asset, Base Asset, Market Type, Scale Factor, Tick Size, Max Price, Min Size, Taker Fee, Maker Rebate]
   [
@@ -68,9 +73,11 @@ async function call(contract, signer, provider, fn, args = []) {
 
 async function main() {
   const provider = new ethers.JsonRpcProvider(RPC_URL)
-  const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, provider)
+  const privateKey = envOrDefault("PRIVATE_KEY")
+  if (!privateKey) throw new Error("PRIVATE_KEY is required")
+  const wallet = new ethers.Wallet(privateKey, provider)
 
-  const Crystal = await hardhat.ethers.getContractFactory("Crystal")
+  const Crystal = await hardhat.ethers.getContractFactory("Crystal", wallet)
   const crystalAddr = await deploy(Crystal, wallet, provider, [ // [WETH, Owner, Fee Recipient, Referral Commission (x/100), Fee Claim Duration (s), Launchpad Parameters: [Initial Native Supply, Launchpad Fee, Launchpad Creator Fee Split, Graduated Minimum Size, Graduated Taker Fee, Graduated Maker Rebate, Graduated Creator Fee Split]]
     WETH,
     wallet.address,

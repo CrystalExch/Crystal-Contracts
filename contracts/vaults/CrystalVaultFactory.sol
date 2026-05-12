@@ -91,6 +91,7 @@ contract CrystalVaultFactory {
      * @param _lockup Global maximum withdrawal lockup duration.
      */
     constructor(address _crystal, address _gov, address _weth, uint256 _minDeposit, uint16 _maxOrderCap, uint40 _lockup) {
+        require(_maxOrderCap < 1024);
         crystal = _crystal;
         gov = _gov;
         weth = _weth;
@@ -152,6 +153,7 @@ contract CrystalVaultFactory {
      * @param newCap New maximum order cap.
      */
     function changeMaxOrderCap(uint16 newCap) external onlyOwner {
+        require(newCap < 1024);
         maxOrderCap = newCap;
     }
 
@@ -292,6 +294,7 @@ contract CrystalVaultFactory {
             IWETH(weth).withdraw(msg.value - amountQuote);
             (bool success, ) = msg.sender.call{value: msg.value - amountQuote}("");
             require(success);
+            IERC20(baseAsset).transfer(msg.sender, amountBaseDesired - amountBase);
         } else {
             IERC20(quoteAsset).transfer(msg.sender, amountQuoteDesired - amountQuote);
             if (baseAsset == eth) {
@@ -337,7 +340,6 @@ contract CrystalVaultFactory {
         } else {
             IERC20(baseAsset).transfer(msg.sender, amountBase);
         }
-        uint256 totalShares = ICrystalVault(vault).totalSupply();
         if (IERC20(vault).balanceOf(vaultInfo.owner) == 0 && !vaultInfo.closed) {
             if (!vaultInfo.locked) {
                 vaultInfo.locked = true;
@@ -346,7 +348,7 @@ contract CrystalVaultFactory {
             vaultInfo.closed = true;
             emit ICrystalVaultFactory.Closed(vault);
         }
-        vaultInfo.totalShares = totalShares;
+        vaultInfo.totalShares = ICrystalVault(vault).totalSupply();
         emit ICrystalVaultFactory.Withdraw(vault, msg.sender, shares, amountQuote, amountBase);
     }
 
@@ -389,8 +391,7 @@ contract CrystalVaultFactory {
         (amountQuote, amountBase) = ICrystalVault(vault).withdraw(msg.sender, shares, 0, 0);
         IERC20(vaultInfo.quoteAsset).transfer(msg.sender, amountQuote);
         IERC20(vaultInfo.baseAsset).transfer(msg.sender, amountBase);
-        uint256 totalShares = ICrystalVault(vault).totalSupply();
-        if (totalShares == 0 && !vaultInfo.closed) {
+        if (IERC20(vault).balanceOf(vaultInfo.owner) == 0 && !vaultInfo.closed) {
             if (!vaultInfo.locked) {
                 vaultInfo.locked = true;
                 emit ICrystalVaultFactory.Locked(vault);
@@ -398,7 +399,7 @@ contract CrystalVaultFactory {
             vaultInfo.closed = true;
             emit ICrystalVaultFactory.Closed(vault);
         }
-        vaultInfo.totalShares = totalShares;
+        vaultInfo.totalShares = ICrystalVault(vault).totalSupply();
         emit ICrystalVaultFactory.Withdraw(vault, msg.sender, shares, amountQuote, amountBase);
     }
 
@@ -429,17 +430,6 @@ contract CrystalVaultFactory {
     }
 
     /**
-     * @notice Updates a vault's order cap.
-     *
-     * @param vault Vault address.
-     * @param newCap New order cap.
-     */
-    function changeOrderCap(address vault, uint16 newCap) external {
-        require(msg.sender == getVault[vault].owner);
-        ICrystalVault(vault).changeOrderCap(newCap);
-    }
-
-    /**
      * @notice Toggles decrease-on-withdraw behavior for a vault.
      *
      * @param vault Vault address.
@@ -448,7 +438,19 @@ contract CrystalVaultFactory {
     function changeDecreaseOnWithdraw(address vault, bool newDecrease) external {
         require(msg.sender == getVault[vault].owner);
         ICrystalVault(vault).changeDecreaseOnWithdraw(newDecrease);
+        getVault[vault].decreaseOnWithdraw  = newDecrease;
         emit ICrystalVaultFactory.DecreaseOnWithdrawChanged(vault, newDecrease);
+    }
+
+    /**
+     * @notice Updates a vault's order cap.
+     *
+     * @param vault Vault address.
+     * @param newCap New order cap.
+     */
+    function changeOrderCap(address vault, uint16 newCap) external {
+        require(msg.sender == getVault[vault].owner);
+        ICrystalVault(vault).changeOrderCap(newCap);
     }
 
     /**
