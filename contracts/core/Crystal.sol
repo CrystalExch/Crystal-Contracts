@@ -946,6 +946,8 @@ contract Crystal is ICrystal {
      * @param newGov New governance address.
      */
     function changeGov(address newGov) external onlyOwner {
+        isCanonicalDeployer[gov] = false;
+        isCanonicalDeployer[newGov] = true;
         gov = newGov;
         emit ICrystal.GovChanged(msg.sender, newGov);
     }
