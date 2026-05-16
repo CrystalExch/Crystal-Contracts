@@ -61,7 +61,7 @@ library CrystalStorage {
      */
     function _getCloidOrder(uint256 userId, uint256 cloid) internal pure returns (uint256 key, uint256 offset) {
         unchecked {
-            require(userId <= type(uint128).max && cloid <= type(uint128).max);
+            require(userId <= type(uint128).max && cloid <= type(uint16).max);
             uint256 cloidPairIndex = (cloid - 1) >> 1;
             key = userId << 128 | (cloidPairIndex / 42);
             offset = (cloidPairIndex % 42) * 3 + ((cloid & 1) == 0 ? 1 : 0);
@@ -79,7 +79,7 @@ library CrystalStorage {
      */
     function _getVerifyCloid(uint256 userId, uint256 cloid) internal pure returns (uint256 key, uint256 offset) {
         unchecked {
-            require(userId <= type(uint128).max && cloid <= type(uint128).max);
+            require(userId <= type(uint128).max && cloid <= type(uint16).max);
             uint256 cloidPairIndex = (cloid - 1) >> 1;
             key = userId << 128 | (cloidPairIndex / 42);
             offset = (cloidPairIndex % 42) * 3 + 2;

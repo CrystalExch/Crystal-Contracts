@@ -1601,12 +1601,12 @@ contract CrystalMarket is ERC20 {
                 (uint256 key, uint256 offset) = CS._getVerifyCloid(userId, id);
                 price = CS._readMapping(key, offset, CS.ORDERS_KEY); // Validate cloid belongs to this market and extract price
                 if (id & 1 == 0) { // If even, read the higher 128 bits
-                    if (((price >> 208) & MASK_KEEP_0_48) != (marketId >> 128)) {
+                    if (((price >> 208) & MASK_KEEP_0_48) != (marketId >> 128) || id < 1024) {
                         return (0, 0, isBuy);
                     }
                     price = (price >> 128) & MASK_KEEP_0_80;
                 } else { // If odd, read the lower 128 bits
-                    if (((price >> 80) & MASK_KEEP_0_48) != (marketId >> 128)) {
+                    if (((price >> 80) & MASK_KEEP_0_48) != (marketId >> 128) || id < 1024) {
                         return (0, 0, isBuy);
                     }
                     price = price & MASK_KEEP_0_80;
@@ -1664,12 +1664,12 @@ contract CrystalMarket is ERC20 {
             (uint256 key, uint256 offset) = CS._getVerifyCloid(userId, id);
             price = CS._readMapping(key, offset, CS.ORDERS_KEY); // Validate cloid belongs to this market and extract price
             if (id & 1 == 0) { // If even, read the higher 128 bits
-                if (((price >> 208) & MASK_KEEP_0_48) != (marketId >> 128)) {
+                if (((price >> 208) & MASK_KEEP_0_48) != (marketId >> 128) || id < 1024) {
                     return (0, 0, isBuy);
                 }
                 price = (price >> 128) & MASK_KEEP_0_80;
             } else { // If odd, read the lower 128 bits
-                if (((price >> 80) & MASK_KEEP_0_48) != (marketId >> 128)) {
+                if (((price >> 80) & MASK_KEEP_0_48) != (marketId >> 128) || id < 1024) {
                     return (0, 0, isBuy);
                 }
                 price = price & MASK_KEEP_0_80;
@@ -1751,12 +1751,12 @@ contract CrystalMarket is ERC20 {
                 (uint256 key, uint256 offset) = CS._getVerifyCloid(userId, id);
                 price = CS._readMapping(key, offset, CS.ORDERS_KEY); // Validate cloid belongs to this market and extract price
                 if (id & 1 == 0) { // If even, read the higher 128 bits
-                    if (((price >> 208) & MASK_KEEP_0_48) != (marketId >> 128)) {
+                    if (((price >> 208) & MASK_KEEP_0_48) != (marketId >> 128) || id < 1024) {
                         return (0, 0, 0);
                     }
                     price = (price >> 128) & MASK_KEEP_0_80;
                 } else { // If odd, read the lower 128 bits
-                    if (((price >> 80) & MASK_KEEP_0_48) != (marketId >> 128)) {
+                    if (((price >> 80) & MASK_KEEP_0_48) != (marketId >> 128) || id < 1024) {
                         return (0, 0, 0);
                     }
                     price = price & MASK_KEEP_0_80;
