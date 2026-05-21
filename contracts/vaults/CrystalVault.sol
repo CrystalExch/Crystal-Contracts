@@ -73,9 +73,7 @@ contract CrystalVault is ERC20 {
 
     /// @notice Reverts if called by any address other than the vault factory.
     modifier onlyFactory() {
-        if (msg.sender != factory) {
-            revert ICrystal.Unauthorized(msg.sender);
-        }
+        require(msg.sender == factory, ICrystal.Unauthorized(msg.sender));
         _;
     }
 
@@ -93,7 +91,7 @@ contract CrystalVault is ERC20 {
         crystal = _crystal;
         metadata = _metadata;
         market = ICrystal(crystal).getMarketByTokens(_quoteAsset, _baseAsset);
-        require(ICrystal(crystal).getMarket(market).quoteAsset == _quoteAsset); // Validate market exists for token pair
+        require(ICrystal(crystal).getMarket(market).quoteAsset == _quoteAsset, ICrystal.InvalidMarket(_quoteAsset, _baseAsset)); // Validate market exists for token pair
         quoteAsset = _quoteAsset;
         baseAsset = _baseAsset;
         owner = _owner;
@@ -147,7 +145,7 @@ contract CrystalVault is ERC20 {
      * @dev Only callable by the factory.
      */
     function lock() external onlyFactory {
-        require(!locked);
+        require(!locked, ICrystalVault.InvalidState());
         locked = true;
     }
 
@@ -157,7 +155,7 @@ contract CrystalVault is ERC20 {
      * @dev Only callable by the factory.
      */
     function unlock() external onlyFactory {
-        require(locked && !closed);
+        require(locked && !closed, ICrystalVault.InvalidState());
         locked = false;
     }
 
@@ -178,7 +176,7 @@ contract CrystalVault is ERC20 {
     function changeMarket() external onlyFactory {
         cancelAll();
         address newMarket = ICrystal(crystal).getMarketByTokens(quoteAsset, baseAsset);
-        require(ICrystal(crystal).getMarket(newMarket).quoteAsset == quoteAsset);
+        require(ICrystal(crystal).getMarket(newMarket).quoteAsset == quoteAsset, ICrystal.InvalidMarket(quoteAsset, baseAsset));
         market = newMarket;
     }
 
@@ -189,10 +187,10 @@ contract CrystalVault is ERC20 {
      */
     function changeOrderCap(uint16 newCap) external onlyFactory {
         uint256 maxOrderCap = ICrystalVaultFactory(factory).maxOrderCap();
-        require(newCap <= maxOrderCap);
+        require(newCap <= maxOrderCap, ICrystal.InvalidParams());
         (uint256[] memory cloids, ) = ICrystal(crystal).getAllOrdersByCloid(address(this), orderCap);
         for (uint256 i = 0; i < cloids.length; ++i) {
-            require(newCap > cloids[i]);
+            require(newCap > cloids[i], ICrystal.InvalidParams());
         }
         orderCap = newCap;
     }
@@ -213,7 +211,7 @@ contract CrystalVault is ERC20 {
      */
     function changeLockup(uint40 newLockup) external onlyFactory {
         uint256 maxLockup = ICrystalVaultFactory(factory).maxLockup();
-        require(newLockup <= maxLockup);
+        require(newLockup <= maxLockup, ICrystal.InvalidParams());
         lockup = newLockup;
     }
 
@@ -295,7 +293,7 @@ contract CrystalVault is ERC20 {
      * @return amountBase Base amount deposited.
      */
     function deposit(address user, uint256 amountQuoteDesired, uint256 amountBaseDesired, uint256 amountQuoteMin, uint256 amountBaseMin) external onlyFactory returns (uint256 shares, uint256 amountQuote, uint256 amountBase) {
-        require(!locked && amountQuoteDesired != 0 && amountBaseDesired != 0);
+        require(!locked && amountQuoteDesired != 0 && amountBaseDesired != 0, ICrystal.InvalidParams());
         (uint256 quoteBalance, uint256 baseBalance, , ) = getBalances();
 
         if (totalSupply == 0) {
@@ -315,7 +313,7 @@ contract CrystalVault is ERC20 {
             shares = CrystalMath._min((amountQuote * totalSupply) / quoteBalance, (amountBase * totalSupply) / baseBalance);
         }
 
-        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && shares != 0 && (maxShares == 0 || totalSupply + shares <= maxShares));
+        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && shares != 0 && (maxShares == 0 || totalSupply + shares <= maxShares), ICrystal.InvalidParams());
 
         IERC20(quoteAsset).transferFrom(msg.sender, address(this), amountQuote);
         IERC20(baseAsset).transferFrom(msg.sender, address(this), amountBase);
@@ -324,7 +322,7 @@ contract CrystalVault is ERC20 {
 
         _mint(user, shares);
         unlockTimestamp[user] = block.timestamp + lockup;
-        require(balanceOf[owner] * 20 > totalSupply);
+        require(balanceOf[owner] * 20 > totalSupply, ICrystalVault.InvalidOwnerShare());
     }
 
     /**
@@ -339,11 +337,11 @@ contract CrystalVault is ERC20 {
      * @return amountBase Base amount returned.
      */
     function withdraw(address user, uint256 shares, uint256 amountQuoteMin, uint256 amountBaseMin) external onlyFactory returns (uint256 amountQuote, uint256 amountBase) {
-        require(shares != 0 && shares <= balanceOf[user] && unlockTimestamp[user] <= block.timestamp);
+        require(shares != 0 && shares <= balanceOf[user] && unlockTimestamp[user] <= block.timestamp, ICrystal.InvalidParams());
         (uint256 quoteBalance, uint256 baseBalance, uint256 availableQuote, uint256 availableBase) = getBalances();
         amountQuote = (quoteBalance * shares) / totalSupply;
         amountBase = (baseBalance * shares) / totalSupply;
-        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin);
+        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin, ICrystal.SlippageExceeded());
         _burn(user, shares);
         if (user == owner && !closed) {
             if (balanceOf[owner] == 0) {
@@ -354,7 +352,7 @@ contract CrystalVault is ERC20 {
                     locked = true;
                 }
             } else {
-                require(balanceOf[owner] * 20 > totalSupply);
+                require(balanceOf[owner] * 20 > totalSupply, ICrystalVault.InvalidOwnerShare());
             }
         }
         if (decrease) {
@@ -424,7 +422,7 @@ contract CrystalVault is ERC20 {
      * @notice Cancels all open orders for the vault.
      */
     function cancelAll() public {
-        require(msg.sender == owner || msg.sender == factory);
+        require(msg.sender == owner || msg.sender == factory, ICrystal.Unauthorized(msg.sender));
         (uint256[] memory cloids, ) = ICrystal(crystal).getAllOrdersByCloid(address(this), orderCap);
         bytes32[] memory data = new bytes32[](cloids.length + 1);
         uint256 cloid;
@@ -446,9 +444,9 @@ contract CrystalVault is ERC20 {
      * @notice Withdraws any ETH balance held by the vault to the owner.
      */
     function sweep() external {
-        require(msg.sender == owner);
+        require(msg.sender == owner, ICrystal.Unauthorized(msg.sender));
         (bool success, ) = msg.sender.call{value: address(this).balance}("");
-        require(success);
+        require(success, ICrystal.TransferFailed(msg.sender));
     }
 
     /**
@@ -458,15 +456,16 @@ contract CrystalVault is ERC20 {
      * @param bid ETH value forwarded to Crystal.
      */
     function execute(ICrystalVault.Action[] calldata actions, uint256 bid) external payable {
-        require(msg.sender == owner && actions.length < 0xFFF && !closed && bid < 0xFFFFFFFFFFFFFFFFFFFF);
+        require(msg.sender == owner, ICrystal.Unauthorized(msg.sender));
+        require(actions.length < 0xFFF && !closed && bid < 0xFFFFFFFFFFFFFFFFFFFF, ICrystal.InvalidParams());
         bytes32[] memory data = new bytes32[](actions.length + 1);
         ICrystalVault.Action memory action;
         data[0] = bytes32((1 << 252) | (bid << 172) | (actions.length << 160) | uint160(market));
         for (uint256 i; i < actions.length; ++i) {
             action = actions[i];
-            require(action.action < 13);
+            require(action.action < 13, ICrystal.InvalidParams());
             if (action.action == 2 || action.action == 3 || action.action == 4 || action.action == 5) {
-                require(action.cloid != 0 && action.cloid < orderCap);
+                require(action.cloid != 0 && action.cloid < orderCap, ICrystal.InvalidParams());
             }
             data[i + 1] = bytes32((action.action << 252) | (action.requireSuccess ? (1 << 248) : 0) | ((action.cloid & 0x3FF) << 192) | ((action.param1 & 0xFFFFFFFFFFFFFFFFFFFF) << 112) | (action.param2 & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
         }

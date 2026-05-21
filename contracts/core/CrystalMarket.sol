@@ -126,7 +126,7 @@ contract CrystalMarket is ERC20 {
         scaleFactor = 10 ** scaleFactor;
         market = address(this);
         crystal = msg.sender;
-        require(quoteAsset != address(0) && baseAsset != address(0) && quoteAsset != baseAsset && maxPrice <= MASK_KEEP_0_80 && tickSize <= MASK_KEEP_0_80 && scaleFactor <= MASK_KEEP_0_112);
+        require(quoteAsset != address(0) && baseAsset != address(0) && quoteAsset != baseAsset && maxPrice <= MASK_KEEP_0_80 && tickSize <= MASK_KEEP_0_80 && scaleFactor <= MASK_KEEP_0_112, ICrystal.InvalidParams());
     }
 
     /**
@@ -138,7 +138,7 @@ contract CrystalMarket is ERC20 {
      * @param value How many tokens to create
      */
     function mint(address to, uint256 value) external {
-        require(msg.sender == crystal);
+        require(msg.sender == crystal, ICrystal.Unauthorized(msg.sender));
         _mint(to, value);
     }
 
@@ -151,7 +151,7 @@ contract CrystalMarket is ERC20 {
      * @param value How many tokens to destroy
      */
     function burn(address from, uint256 value) external {
-        require(msg.sender == crystal);
+        require(msg.sender == crystal, ICrystal.Unauthorized(msg.sender));
         _burn(from, value);
     }
 
@@ -238,19 +238,13 @@ contract CrystalMarket is ERC20 {
                 if (balanceModeIn != 0) {
                     if (quoteAssetDebt > 0) {
                         uint256 balance = tokenBalances[0][quoteAsset];
-                        if (uint128(balance) < uint256(quoteAssetDebt)) {
-                            revert ICrystal.ActionFailed();
-                        } else {
-                            tokenBalances[0][quoteAsset] = balance - uint256(quoteAssetDebt);
-                        }
+                        require(uint128(balance) >= uint256(quoteAssetDebt), ICrystal.ActionFailed());
+                        tokenBalances[0][quoteAsset] = balance - uint256(quoteAssetDebt);
                     }
                     if (baseAssetDebt > 0) {
                         uint256 balance = tokenBalances[0][baseAsset];
-                        if (uint128(balance) < uint256(baseAssetDebt)) {
-                            revert ICrystal.ActionFailed();
-                        } else {
-                            tokenBalances[0][baseAsset] = balance - uint256(baseAssetDebt);
-                        }
+                        require(uint128(balance) >= uint256(baseAssetDebt), ICrystal.ActionFailed());
+                        tokenBalances[0][baseAsset] = balance - uint256(baseAssetDebt);
                     }
                 } else {
                     if (quoteAssetDebt > 0) {
@@ -262,11 +256,11 @@ contract CrystalMarket is ERC20 {
                 }
                 if (balanceModeOut != 0) {
                     if (quoteAssetDebt < 0) {
-                        require(((tokenBalances[0][quoteAsset] & MASK_KEEP_0_128) + uint256(-quoteAssetDebt)) <= MASK_KEEP_0_128);
+                        require(((tokenBalances[0][quoteAsset] & MASK_KEEP_0_128) + uint256(-quoteAssetDebt)) <= MASK_KEEP_0_128, ICrystal.Overflow());
                         tokenBalances[0][quoteAsset] += uint256(-quoteAssetDebt);
                     }
                     if (baseAssetDebt < 0) {
-                        require(((tokenBalances[0][baseAsset] & MASK_KEEP_0_128) + uint256(-baseAssetDebt)) <= MASK_KEEP_0_128);
+                        require(((tokenBalances[0][baseAsset] & MASK_KEEP_0_128) + uint256(-baseAssetDebt)) <= MASK_KEEP_0_128, ICrystal.Overflow());
                         tokenBalances[0][baseAsset] += uint256(-baseAssetDebt);
                     }
                 } else {
@@ -278,31 +272,22 @@ contract CrystalMarket is ERC20 {
                     }
                 }
             } else {
-                if (balanceMode == 1) { // Settlement via user internal balance accounting
-                    if (quoteAssetDebt > 0) {
-                        uint256 balance = tokenBalances[userId][quoteAsset];
-                        if (uint128(balance) < uint256(quoteAssetDebt)) {
-                            revert ICrystal.ActionFailed();
-                        } else {
-                            tokenBalances[userId][quoteAsset] = balance - uint256(quoteAssetDebt);
-                        }
-                    } else if (quoteAssetDebt < 0) {
-                        require(((tokenBalances[userId][quoteAsset] & MASK_KEEP_0_128) + uint256(-quoteAssetDebt)) <= MASK_KEEP_0_128);
-                        tokenBalances[userId][quoteAsset] += uint256(-quoteAssetDebt);
-                    }
-                    if (baseAssetDebt > 0) {
-                        uint256 balance = tokenBalances[userId][baseAsset];
-                        if (uint128(balance) < uint256(baseAssetDebt)) {
-                            revert ICrystal.ActionFailed();
-                        } else {
-                            tokenBalances[userId][baseAsset] = balance - uint256(baseAssetDebt);
-                        }
-                    } else if (baseAssetDebt < 0) {
-                        require(((tokenBalances[userId][baseAsset] & MASK_KEEP_0_128) + uint256(-baseAssetDebt)) <= MASK_KEEP_0_128);
-                        tokenBalances[userId][baseAsset] += uint256(-baseAssetDebt);
-                    }
-                } else {
-                    revert ICrystal.ActionFailed();
+                require(balanceMode == 1, ICrystal.ActionFailed());
+                if (quoteAssetDebt > 0) {
+                    uint256 balance = tokenBalances[userId][quoteAsset];
+                    require(uint128(balance) >= uint256(quoteAssetDebt), ICrystal.ActionFailed());
+                    tokenBalances[userId][quoteAsset] = balance - uint256(quoteAssetDebt);
+                } else if (quoteAssetDebt < 0) {
+                    require(((tokenBalances[userId][quoteAsset] & MASK_KEEP_0_128) + uint256(-quoteAssetDebt)) <= MASK_KEEP_0_128, ICrystal.Overflow());
+                    tokenBalances[userId][quoteAsset] += uint256(-quoteAssetDebt);
+                }
+                if (baseAssetDebt > 0) {
+                    uint256 balance = tokenBalances[userId][baseAsset];
+                    require(uint128(balance) >= uint256(baseAssetDebt), ICrystal.ActionFailed());
+                    tokenBalances[userId][baseAsset] = balance - uint256(baseAssetDebt);
+                } else if (baseAssetDebt < 0) {
+                    require(((tokenBalances[userId][baseAsset] & MASK_KEEP_0_128) + uint256(-baseAssetDebt)) <= MASK_KEEP_0_128, ICrystal.Overflow());
+                    tokenBalances[userId][baseAsset] += uint256(-baseAssetDebt);
                 }
             }
         }
@@ -321,7 +306,7 @@ contract CrystalMarket is ERC20 {
      */
     function _activatePriceLevel(uint256 price, uint256 priceLevel, uint256 fillNext) internal returns (uint256) {
         unchecked {
-            require(price % tickSize == 0);
+            require(price % tickSize == 0, ICrystal.InvalidParams());
             uint256 tick = marketType == 0 ? (price / tickSize) : CM._priceToTick(price, tickSize);
             (uint256 key, uint256 offset) = CS._getActivated(marketId, tick / 255);
             uint256 slot = CS._readMapping(key, offset, CS.PRICELEVELS_KEY) & MASK_OUT_255_256;
@@ -850,11 +835,8 @@ contract CrystalMarket is ERC20 {
                     }
                 }
                 if (_isBuy ? price > worstPrice : price < worstPrice) {
-                    if (isCompleteFill) {
-                        revert ICrystal.SlippageExceeded();
-                    } else {
-                        break;
-                    }
+                    require(!isCompleteFill, ICrystal.SlippageExceeded());
+                    break;
                 }
                 (uint256 key, uint256 offset) = CS._getPriceLevel(marketType, tickSize, marketId, price);
                 uint256 liquidity = CS._readMapping(key, offset, CS.PRICELEVELS_KEY) & MASK_KEEP_0_112;
@@ -940,7 +922,7 @@ contract CrystalMarket is ERC20 {
      * @return settlementDelta Packed debit (high 128 bits) and credit (low 128 bits) for settlement.
      */
     function _marketOrder(uint256 size, uint256 worstPrice, uint256 orderInfo) internal returns (uint256 amountIn, uint256 amountOut, uint256 id, uint256 settlementDelta) {
-        require(size <= MASK_KEEP_0_128);
+        require(size <= MASK_KEEP_0_128, ICrystal.InvalidParams());
         ICrystal.Market storage m = _getMarket[market];
         uint256 price;
         bool isBuy = ((orderInfo >> 244) & 1) == 0;
@@ -1010,7 +992,7 @@ contract CrystalMarket is ERC20 {
                                 }
                                 reserveQuote += ammAmountIn;
                                 reserveBase -= ammAmountOut;
-                                require(reserveQuote <= MASK_KEEP_0_112 && reserveBase <= MASK_KEEP_0_112);
+                                require(reserveQuote <= MASK_KEEP_0_112 && reserveBase <= MASK_KEEP_0_112, ICrystal.Overflow());
                                 {
                                     uint256 eventPrice;
                                     assembly { // Trade event price: upper 128 bits = start price, lower 128 bits = end price
@@ -1054,7 +1036,7 @@ contract CrystalMarket is ERC20 {
                                 }
                                 reserveBase += ammAmountIn;
                                 reserveQuote -= ammAmountOut;
-                                require(reserveQuote <= MASK_KEEP_0_112 && reserveBase <= MASK_KEEP_0_112);
+                                require(reserveQuote <= MASK_KEEP_0_112 && reserveBase <= MASK_KEEP_0_112, ICrystal.Overflow());
                                 {
                                     uint256 eventPrice;
                                     assembly { // Trade event price: upper 128 bits = start price, lower 128 bits = end price
@@ -1091,7 +1073,7 @@ contract CrystalMarket is ERC20 {
                             }
                             if (ammAmountIn != 0) {
                                 uint256 _settlementDelta = settlementDelta; // Avoid stack too deep
-                                require(((_settlementDelta >> 128) + ammAmountIn) <= MASK_KEEP_0_128);
+                                require(((_settlementDelta >> 128) + ammAmountIn) <= MASK_KEEP_0_128, ICrystal.Overflow());
                                 settlementDelta = _settlementDelta + (ammAmountIn << 128);
                                 reserves = (reserveQuote << 128) | reserveBase;
                                 assembly {
@@ -1114,9 +1096,7 @@ contract CrystalMarket is ERC20 {
                         }
                     }
                     if (isBuy ? price > worstPrice : price < worstPrice) { // Handle slippage limit exceeded: 0 = Return, 1 = Revert, 2 = Place limit order with remaining size
-                        if ((orderInfo >> 252) == 1) {
-                            revert ICrystal.SlippageExceeded();
-                        }
+                        require((orderInfo >> 252) != 1, ICrystal.SlippageExceeded());
                         {
                             (uint256 key, uint256 offset) = CS._getActivated(marketId, tick / 255);
                             if (CS._readMapping(key, offset, CS.PRICELEVELS_KEY) & MASK_OUT_255_256 != slot) {
@@ -1157,7 +1137,7 @@ contract CrystalMarket is ERC20 {
                             }
                             uint256 _orderInfo = orderInfo; // Avoid stack too deep
                             (limitSize, id) = _limitOrder(isBuy, ((_orderInfo >> 236) & 0x1) == 0, limitPrice, limitSize, ((_orderInfo >> 160) & MASK_KEEP_0_41), ((_orderInfo >> 208) & MASK_KEEP_0_10));
-                            require(((settlementDelta >> 128) + limitSize) <= MASK_KEEP_0_128);
+                            require(((settlementDelta >> 128) + limitSize) <= MASK_KEEP_0_128, ICrystal.Overflow());
                             settlementDelta += (limitSize << 128);
                             if (limitSize != 0) {
                                 _addToOrdersUpdatedEvent((LEADING_HEX_2 + (isBuy ? 0 : LEADING_HEX_1)) | (limitPrice << 168) | (id << 112) | limitSize); // Encoded: 8-bit flag | 80-bit price | 56-bit id | 112-bit size
@@ -1201,7 +1181,7 @@ contract CrystalMarket is ERC20 {
                                 _addToOrdersUpdatedEvent((isBuy ? LEADING_HEX_1 : 0) | (price << 168) | (next << 112) | ordersize); // Encoded: 8-bit flag | 80-bit price | 56-bit id | 112-bit cancelled size
                                 next = (order >> 205) & MASK_KEEP_0_51;
                                 uint256 _settlementDelta = settlementDelta; // Avoid stack too deep
-                                require(((_settlementDelta & MASK_KEEP_0_128) + ordersize) <= MASK_KEEP_0_128);
+                                require(((_settlementDelta & MASK_KEEP_0_128) + ordersize) <= MASK_KEEP_0_128, ICrystal.Overflow());
                                 settlementDelta = _settlementDelta + ordersize;
                             }
                             if (((_orderInfo >> 240) & 0xF) == 1) {
@@ -1237,7 +1217,7 @@ contract CrystalMarket is ERC20 {
                                     if (((_orderInfo >> 236) & 0x1) == 0 && ((_orderInfo >> 232) & 0x1) == 0) { // Taker provides external tokens
                                         try IERC20(isBuy ? quoteAsset : baseAsset).transferFrom(msg.sender, owner, sizeLeft) {} catch {
                                             uint256 _settlementDelta = settlementDelta; // Avoid stack too deep
-                                            require(((_settlementDelta >> 128) + sizeLeft) <= MASK_KEEP_0_128);
+                                            require(((_settlementDelta >> 128) + sizeLeft) <= MASK_KEEP_0_128, ICrystal.Overflow());
                                             settlementDelta = _settlementDelta + (sizeLeft << 128);
                                             bool _isBuy = isBuy; // Avoid stack too deep
                                             if (((tokenBalances[ownerUserId][_isBuy ? quoteAsset : baseAsset] & MASK_KEEP_0_128) + sizeLeft) <= MASK_KEEP_0_128) {
@@ -1248,7 +1228,7 @@ contract CrystalMarket is ERC20 {
                                         }
                                     } else { // Taker provides from internal balance
                                         uint256 _settlementDelta = settlementDelta; // Avoid stack too deep
-                                        require(((_settlementDelta >> 128) + sizeLeft) <= MASK_KEEP_0_128);
+                                        require(((_settlementDelta >> 128) + sizeLeft) <= MASK_KEEP_0_128, ICrystal.Overflow());
                                         settlementDelta = _settlementDelta + (sizeLeft << 128);
                                         (bool success, ) = (isBuy ? quoteAsset : baseAsset).call(abi.encodeWithSelector(0xa9059cbb, owner, sizeLeft));
                                         if (!success) { // Fallback: credit internal balance if external transfer fails (e.g., blacklisted maker)
@@ -1262,7 +1242,7 @@ contract CrystalMarket is ERC20 {
                                     }
                                 } else { // Maker receives to internal balance
                                     uint256 _settlementDelta = settlementDelta; // Avoid stack too deep
-                                    require(((_settlementDelta >> 128) + sizeLeft) <= MASK_KEEP_0_128);
+                                    require(((_settlementDelta >> 128) + sizeLeft) <= MASK_KEEP_0_128, ICrystal.Overflow());
                                     settlementDelta = _settlementDelta + (sizeLeft << 128);
                                     bool _isBuy = isBuy; // Avoid stack too deep
                                     if (((tokenBalances[ownerUserId][_isBuy ? quoteAsset : baseAsset] & MASK_KEEP_0_128) + sizeLeft) <= MASK_KEEP_0_128) {
@@ -1309,7 +1289,7 @@ contract CrystalMarket is ERC20 {
                                     if (((_orderInfo >> 236) & 0x1) == 0 && ((_orderInfo >> 232) & 0x1) == 0) { // Taker provides external tokens
                                         try IERC20(isBuy ? quoteAsset : baseAsset).transferFrom(msg.sender, owner, transferAmount) {} catch {
                                             uint256 _settlementDelta = settlementDelta; // Avoid stack too deep
-                                            require(((_settlementDelta >> 128) + transferAmount) <= MASK_KEEP_0_128);
+                                            require(((_settlementDelta >> 128) + transferAmount) <= MASK_KEEP_0_128, ICrystal.Overflow());
                                             settlementDelta = _settlementDelta + (transferAmount << 128);
                                             bool _isBuy = isBuy; // Avoid stack too deep
                                             if (((tokenBalances[(order >> 113) & MASK_KEEP_0_41][(_isBuy) ? quoteAsset : baseAsset] & MASK_KEEP_0_128) + transferAmount) <= MASK_KEEP_0_128) {
@@ -1320,7 +1300,7 @@ contract CrystalMarket is ERC20 {
                                         }
                                     } else { // Taker provides from internal balance
                                         uint256 _settlementDelta = settlementDelta; // Avoid stack too deep
-                                        require(((_settlementDelta >> 128) + transferAmount) <= MASK_KEEP_0_128);
+                                        require(((_settlementDelta >> 128) + transferAmount) <= MASK_KEEP_0_128, ICrystal.Overflow());
                                         settlementDelta = _settlementDelta + (transferAmount << 128);
                                         (bool success, ) = (isBuy ? quoteAsset : baseAsset).call(abi.encodeWithSelector(0xa9059cbb, owner, transferAmount));
                                         if (!success) { // Fallback: credit internal balance if external transfer fails (e.g., blacklisted maker)
@@ -1334,7 +1314,7 @@ contract CrystalMarket is ERC20 {
                                     }
                                 } else { // Maker receives to internal balance
                                     uint256 _settlementDelta = settlementDelta; // Avoid stack too deep
-                                    require(((_settlementDelta >> 128) + transferAmount) <= MASK_KEEP_0_128);
+                                    require(((_settlementDelta >> 128) + transferAmount) <= MASK_KEEP_0_128, ICrystal.Overflow());
                                     settlementDelta = _settlementDelta + (transferAmount << 128);
                                     bool _isBuy = isBuy; // Avoid stack too deep
                                     if (((tokenBalances[(order >> 113) & MASK_KEEP_0_41][(_isBuy) ? quoteAsset : baseAsset] & MASK_KEEP_0_128) + transferAmount) <= MASK_KEEP_0_128) {
@@ -1415,11 +1395,8 @@ contract CrystalMarket is ERC20 {
             if (isBuy) { // Trading fees are always denominated in quote asset
                 feeAmount = (amountIn * 100000) / uint256(m.takerFee) - amountIn;
                 amountIn += feeAmount;
-                if (((settlementDelta >> 128) + feeAmount) <= MASK_KEEP_0_128) {
-                    settlementDelta += (feeAmount << 128);
-                } else {
-                    revert ICrystal.ActionFailed();
-                }
+                require(((settlementDelta >> 128) + feeAmount) <= MASK_KEEP_0_128, ICrystal.ActionFailed());
+                settlementDelta += (feeAmount << 128);
                 m.lowestAsk = uint80(price);
             } else {
                 feeAmount = amountOut - (amountOut * uint256(m.takerFee)) / 100000;
@@ -1499,7 +1476,7 @@ contract CrystalMarket is ERC20 {
                         m.highestBid = uint80(price);
                     }
                     if (!isRecieveTokens) {
-                        require(((tokenBalances[userId][quoteAsset] >> 128) + size) <= MASK_KEEP_0_128);
+                        require(((tokenBalances[userId][quoteAsset] >> 128) + size) <= MASK_KEEP_0_128, ICrystal.Overflow());
                         tokenBalances[userId][quoteAsset] += (size << 128); // Lock tokens for internal balance orders
                     }
                 } else {
@@ -1517,14 +1494,14 @@ contract CrystalMarket is ERC20 {
                         m.lowestAsk = uint80(price);
                     }
                     if (!isRecieveTokens) {
-                        require(((tokenBalances[userId][baseAsset] >> 128) + size) <= MASK_KEEP_0_128);
+                        require(((tokenBalances[userId][baseAsset] >> 128) + size) <= MASK_KEEP_0_128, ICrystal.Overflow());
                         tokenBalances[userId][baseAsset] += (size << 128); // Lock tokens for internal balance orders
                     }
                 }
             }
             (uint256 key, uint256 offset) = CS._getPriceLevel(marketType, tickSize, marketId, price);
             uint256 priceLevel = CS._readMapping(key, offset, CS.PRICELEVELS_KEY);
-            require((price % tickSize == 0) && (size <= MASK_KEEP_0_112) && ((priceLevel & MASK_KEEP_0_112) + size) <= MASK_KEEP_0_112); // Bounds check: invalid parameters revert rather than silently fail
+            require((price % tickSize == 0) && (size <= MASK_KEEP_0_112) && ((priceLevel & MASK_KEEP_0_112) + size) <= MASK_KEEP_0_112, ICrystal.InvalidParams()); // Bounds check: invalid parameters revert rather than silently fail
             if (cloid != 0) {
                 { // Update price and market in storage for cloid
                     (key, offset) = CS._getVerifyCloid(userId, cloid);
@@ -1554,7 +1531,7 @@ contract CrystalMarket is ERC20 {
                 return (size, cloid);
             } else {
                 id = ((priceLevel >> 113) & MASK_KEEP_0_41) + 1;
-                require(id <= MASK_KEEP_0_41);
+                require(id <= MASK_KEEP_0_41, ICrystal.InvalidParams());
                 if ((priceLevel & MASK_KEEP_0_112) == 0) {
                     priceLevel = _activatePriceLevel(price, priceLevel, id); // Set fillNext pointer to order id
                 }
@@ -1601,12 +1578,12 @@ contract CrystalMarket is ERC20 {
                 (uint256 key, uint256 offset) = CS._getVerifyCloid(userId, id);
                 price = CS._readMapping(key, offset, CS.ORDERS_KEY); // Validate cloid belongs to this market and extract price
                 if (id & 1 == 0) { // If even, read the higher 128 bits
-                    if (((price >> 208) & MASK_KEEP_0_48) != (marketId >> 128) || id < 1024) {
+                    if (((price >> 208) & MASK_KEEP_0_48) != (marketId >> 128) || id >= 1024) {
                         return (0, 0, isBuy);
                     }
                     price = (price >> 128) & MASK_KEEP_0_80;
                 } else { // If odd, read the lower 128 bits
-                    if (((price >> 80) & MASK_KEEP_0_48) != (marketId >> 128) || id < 1024) {
+                    if (((price >> 80) & MASK_KEEP_0_48) != (marketId >> 128) || id >= 1024) {
                         return (0, 0, isBuy);
                     }
                     price = price & MASK_KEEP_0_80;
@@ -1664,12 +1641,12 @@ contract CrystalMarket is ERC20 {
             (uint256 key, uint256 offset) = CS._getVerifyCloid(userId, id);
             price = CS._readMapping(key, offset, CS.ORDERS_KEY); // Validate cloid belongs to this market and extract price
             if (id & 1 == 0) { // If even, read the higher 128 bits
-                if (((price >> 208) & MASK_KEEP_0_48) != (marketId >> 128) || id < 1024) {
+                if (((price >> 208) & MASK_KEEP_0_48) != (marketId >> 128) || id >= 1024) {
                     return (0, 0, isBuy);
                 }
                 price = (price >> 128) & MASK_KEEP_0_80;
             } else { // If odd, read the lower 128 bits
-                if (((price >> 80) & MASK_KEEP_0_48) != (marketId >> 128) || id < 1024) {
+                if (((price >> 80) & MASK_KEEP_0_48) != (marketId >> 128) || id >= 1024) {
                     return (0, 0, isBuy);
                 }
                 price = price & MASK_KEEP_0_80;
@@ -1751,12 +1728,12 @@ contract CrystalMarket is ERC20 {
                 (uint256 key, uint256 offset) = CS._getVerifyCloid(userId, id);
                 price = CS._readMapping(key, offset, CS.ORDERS_KEY); // Validate cloid belongs to this market and extract price
                 if (id & 1 == 0) { // If even, read the higher 128 bits
-                    if (((price >> 208) & MASK_KEEP_0_48) != (marketId >> 128) || id < 1024) {
+                    if (((price >> 208) & MASK_KEEP_0_48) != (marketId >> 128) || id >= 1024) {
                         return (0, 0, 0);
                     }
                     price = (price >> 128) & MASK_KEEP_0_80;
                 } else { // If odd, read the lower 128 bits
-                    if (((price >> 80) & MASK_KEEP_0_48) != (marketId >> 128) || id < 1024) {
+                    if (((price >> 80) & MASK_KEEP_0_48) != (marketId >> 128) || id >= 1024) {
                         return (0, 0, 0);
                     }
                     price = price & MASK_KEEP_0_80;
@@ -1864,7 +1841,7 @@ contract CrystalMarket is ERC20 {
                 orderInfo = orderFlags | (((options >> 68) & 1) << 236) | (((options >> 64) & 1) << 232) | uint160(user); // Embed caller address; userId at bits 160-208 for internal/MTL, cloid at 208-218 for MTL
                 userId = (options & MASK_KEEP_0_41);
                 if (userId != 0) {
-                    require(userIdToAddress[userId] == user);
+                    require(userIdToAddress[userId] == user, ICrystal.Unauthorized(msg.sender));
                 } else {
                     userId = addressToUserId[user];
                     if (userId == 0) {
@@ -1886,20 +1863,14 @@ contract CrystalMarket is ERC20 {
             if ((settlementDelta >> 128) != 0) { // Handle input token for limit order placement and maker fills
                 if (((options >> 68) & 1) != 0) {
                     uint256 balance = tokenBalances[userId][token];
-                    if (uint128(balance) < (settlementDelta >> 128)) {
-                        revert ICrystal.ActionFailed();
-                    } else {
-                        tokenBalances[userId][token] = balance - (settlementDelta >> 128);
-                    }
+                    require(uint128(balance) >= (settlementDelta >> 128), ICrystal.ActionFailed());
+                    tokenBalances[userId][token] = balance - (settlementDelta >> 128);
                 } else { // External balance mode: transfer tokens
                     if (((options >> 64) & 1) != 0) { // Use router's internal balance
                         // Use router's internal balance
                         uint256 balance = tokenBalances[0][token];
-                        if (uint128(balance) < (settlementDelta >> 128)) {
-                            revert ICrystal.ActionFailed();
-                        } else {
-                            tokenBalances[0][token] = balance - (settlementDelta >> 128);
-                        }
+                        require(uint128(balance) >= (settlementDelta >> 128), ICrystal.ActionFailed());
+                        tokenBalances[0][token] = balance - (settlementDelta >> 128);
                     } else {
                         IERC20(token).transferFrom(msg.sender, address(this), (settlementDelta >> 128));
                     }
@@ -1909,11 +1880,11 @@ contract CrystalMarket is ERC20 {
             token = isBuy ? baseAsset : quoteAsset;
             if (settlementDelta != 0) { // Handle output token: STP cancellations plus trade output
                 if (((options >> 68) & 1) != 0) {
-                    require(((tokenBalances[userId][token] & MASK_KEEP_0_128) + settlementDelta) <= MASK_KEEP_0_128);
+                    require(((tokenBalances[userId][token] & MASK_KEEP_0_128) + settlementDelta) <= MASK_KEEP_0_128, ICrystal.Overflow());
                     tokenBalances[userId][token] += settlementDelta;
                 } else { // External balance mode: transfer tokens
                     if (((options >> 60) & 1) != 0) {
-                        require(((tokenBalances[0][token] & MASK_KEEP_0_128) + settlementDelta) <= MASK_KEEP_0_128);
+                        require(((tokenBalances[0][token] & MASK_KEEP_0_128) + settlementDelta) <= MASK_KEEP_0_128, ICrystal.Overflow());
                         tokenBalances[0][token] += settlementDelta;
                     } else {
                         IERC20(token).transfer(msg.sender, settlementDelta);
@@ -1946,7 +1917,7 @@ contract CrystalMarket is ERC20 {
         unchecked { // Options encoding: 0-41 userId, 44-54 cloid, 56-60 fromInternal, 60-64 useInternal
             uint256 userId = (options & MASK_KEEP_0_41);
             if (userId != 0) { // Verify provided userId matches caller
-                require(userIdToAddress[userId] == user);
+                require(userIdToAddress[userId] == user, ICrystal.Unauthorized(msg.sender));
             } else { // Retrieve or create userId for caller
                 userId = addressToUserId[user];
                 if (userId == 0) {
@@ -1955,31 +1926,22 @@ contract CrystalMarket is ERC20 {
             }
             bool useExternalBalances = (((options >> 60) & 1) == 0);
             (size, id) = _limitOrder(isBuy, useExternalBalances, price, size, userId, (options >> 44) & MASK_KEEP_0_10); // Ensure cloid is uint10
-            if (size != 0) {
-                address token = isBuy ? quoteAsset : baseAsset;
-                if (useExternalBalances) {
-                    if (((options >> 56) & 1) != 0) {
-                        uint256 balance = tokenBalances[0][token];
-                        if (uint128(balance) < size) {
-                            revert ICrystal.ActionFailed();
-                        } else {
-                            tokenBalances[0][token] = balance - size;
-                        }
-                    } else {
-                        IERC20(token).transferFrom(msg.sender, address(this), size);
-                    }
+            require(size != 0, ICrystal.ActionFailed());
+            address token = isBuy ? quoteAsset : baseAsset;
+            if (useExternalBalances) {
+                if (((options >> 56) & 1) != 0) {
+                    uint256 balance = tokenBalances[0][token];
+                    require(uint128(balance) >= size, ICrystal.ActionFailed());
+                    tokenBalances[0][token] = balance - size;
                 } else {
-                    uint256 balance = tokenBalances[userId][token];
-                    if (uint128(balance) < size) {
-                        revert ICrystal.ActionFailed();
-                    } else {
-                        tokenBalances[userId][token] = balance - size; // Direct debit; locking handled in internal function
-                    }
+                    IERC20(token).transferFrom(msg.sender, address(this), size);
                 }
-                emit ICrystal.OrdersUpdated(market, user, abi.encodePacked((isBuy ? LEADING_HEX_2 : LEADING_HEX_3) | (price << 168) | (id << 112) | size)); // Cloid already encoded with userId when applicable
             } else {
-                revert ICrystal.ActionFailed();
+                uint256 balance = tokenBalances[userId][token];
+                require(uint128(balance) >= size, ICrystal.ActionFailed());
+                tokenBalances[userId][token] = balance - size; // Direct debit; locking handled in internal function
             }
+            emit ICrystal.OrdersUpdated(market, user, abi.encodePacked((isBuy ? LEADING_HEX_2 : LEADING_HEX_3) | (price << 168) | (id << 112) | size)); // Cloid already encoded with userId when applicable
         }
     }
 
@@ -1998,7 +1960,7 @@ contract CrystalMarket is ERC20 {
             bool isBuy;
             uint256 userId = (options & MASK_KEEP_0_41);
             if (userId != 0) { // Verify provided userId matches caller
-                require(userIdToAddress[userId] == user);
+                require(userIdToAddress[userId] == user, ICrystal.Unauthorized(msg.sender));
             } else { // Retrieve or create userId for caller
                 userId = addressToUserId[user];
             }
@@ -2012,13 +1974,13 @@ contract CrystalMarket is ERC20 {
                 address token = isBuy ? quoteAsset : baseAsset;
                 if (useExternalBalances) {
                     if (((options >> 44) & 1) != 0) {
-                        require(((tokenBalances[0][token] & MASK_KEEP_0_128) + size) <= MASK_KEEP_0_128);
+                        require(((tokenBalances[0][token] & MASK_KEEP_0_128) + size) <= MASK_KEEP_0_128, ICrystal.Overflow());
                         tokenBalances[0][token] += size;
                     } else {
                         IERC20(token).transfer(msg.sender, size);
                     }
                 } else {
-                    require(((tokenBalances[userId][token] & MASK_KEEP_0_128) + size) <= MASK_KEEP_0_128);
+                    require(((tokenBalances[userId][token] & MASK_KEEP_0_128) + size) <= MASK_KEEP_0_128, ICrystal.Overflow());
                     tokenBalances[userId][token] += size;
                 }
                 emit ICrystal.OrdersUpdated(market, user, abi.encodePacked((isBuy ? 0 : LEADING_HEX_1) | (price << 168) | (id << 112) | size));
@@ -2047,7 +2009,7 @@ contract CrystalMarket is ERC20 {
             int256 baseAssetDebt;
             uint256 userId = (options & MASK_KEEP_0_41);
             if (userId != 0) { // Verify provided userId matches caller
-                require(userIdToAddress[userId] == user);
+                require(userIdToAddress[userId] == user, ICrystal.Unauthorized(msg.sender));
             } else { // Retrieve or create userId for caller
                 userId = addressToUserId[user];
                 if (userId == 0) {
@@ -2102,7 +2064,7 @@ contract CrystalMarket is ERC20 {
             int256 baseAssetDebt;
             if ((options & MASK_KEEP_0_41) != 0) { // Verify provided userId matches caller
                 userId = (options & MASK_KEEP_0_41);
-                require(userIdToAddress[userId] == user);
+                require(userIdToAddress[userId] == user, ICrystal.Unauthorized(msg.sender));
             } else { // Retrieve or create userId for caller
                 userId = addressToUserId[user];
                 if (userId == 0) {
@@ -2130,9 +2092,7 @@ contract CrystalMarket is ERC20 {
                         isBuy ? quoteAssetDebt -= int256(action) : baseAssetDebt -= int256(action);
                         _addToOrdersUpdatedEvent((isBuy ? 0 : LEADING_HEX_1) | (param1 << 168) | (param2 << 112) | action); // Encoded: 8-bit flag | 80-bit price | 56-bit id | 112-bit cancelled size
                     } else {
-                        if (actions[offset].isRequireSuccess) {
-                            revert ICrystal.ActionFailed();
-                        }
+                        require(!actions[offset].isRequireSuccess, ICrystal.ActionFailed());
                     }
                 } else if (action == 2 || action == 3) { // Limit buy order: requires price, size; optional cloid
                     (cloid, param2) = _limitOrder((action & 1) == 0, balanceMode == 0, param1, param2, userId, cloid);
@@ -2140,9 +2100,7 @@ contract CrystalMarket is ERC20 {
                         ((action & 1) == 0) ? quoteAssetDebt += int256(cloid) : baseAssetDebt += int256(cloid);
                         _addToOrdersUpdatedEvent((((action & 1) == 0) ? LEADING_HEX_2 : LEADING_HEX_3) | (param1 << 168) | (param2 << 112) | cloid); // Encoded: 8-bit flag | 80-bit price | 56-bit id | 112-bit size
                     } else {
-                        if (actions[offset].isRequireSuccess) {
-                            revert ICrystal.ActionFailed();
-                        }
+                        require(!actions[offset].isRequireSuccess, ICrystal.ActionFailed());
                     }
                 } else if (action > 3 && action < 12) { // Action codes: 4=MTL buy, 5=MTL sell, 6=partial buy, 7=partial sell, 8=partial buy (gas-aware), 9=partial sell (gas-aware), 10=complete buy, 11=complete sell
                     uint256 settlementDelta = (uint256((action < 6) ? 2 : (action < 8) ? 0 : (action < 10) ? 3 : 1) << 252) | ((action & 1 != 0) ? (1 << 244) : 0); // Encode order type and direction flags
@@ -2175,9 +2133,7 @@ contract CrystalMarket is ERC20 {
                             _addToOrdersUpdatedEvent((LEADING_HEX_4 + (isBuy ? 0 : LEADING_HEX_1)) | (param1 << 168) | (cloid << 112) | (param2 >> 128)); // Encoded: 8-bit flag | 80-bit price | 56-bit id | 112-bit decreased amount
                         }
                     } else {
-                        if (actions[offset].isRequireSuccess) {
-                            revert ICrystal.ActionFailed();
-                        }
+                        require(!actions[offset].isRequireSuccess, ICrystal.ActionFailed());
                     }
                 }
                 ++offset;
@@ -2210,7 +2166,7 @@ contract CrystalMarket is ERC20 {
     function premint(address to, uint256 amountQuoteDesired, uint256 amountBaseDesired) external payable returns (uint256 liquidity) {
         ICrystal.Market storage m = _getMarket[market];
         liquidity = CM._sqrt(amountQuoteDesired * (amountBaseDesired));
-        require(marketType == 3 && IERC20(market).totalSupply() == 0 && liquidity != 0 && amountQuoteDesired <= MASK_KEEP_0_112 && amountBaseDesired <= MASK_KEEP_0_112);
+        require(marketType == 3 && IERC20(market).totalSupply() == 0 && liquidity != 0 && amountQuoteDesired <= MASK_KEEP_0_112 && amountBaseDesired <= MASK_KEEP_0_112, ICrystal.InvalidParams());
         IERC20(market).mint(to, liquidity);
         (m.reserveQuote, m.reserveBase) = (uint112(amountQuoteDesired), uint112(amountBaseDesired));
     }
@@ -2242,7 +2198,7 @@ contract CrystalMarket is ERC20 {
             IERC20(market).mint(address(0), 100000);
             uint256 ammAsk = ((amountQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (amountBase * 9975 * 100000 - 1)) / (amountBase * 9975 * 100000));
             uint256 ammBid = ((amountQuote * scaleFactor * 9975 * 100000) / (amountBase * 10000 * uint256(m.makerRebate)));
-            require(m.highestBid <= ammAsk && m.lowestAsk >= ammBid);
+            require(m.highestBid <= ammAsk && m.lowestAsk >= ammBid, ICrystal.SlippageExceeded());
         } else {
             uint256 amountBaseOptimal = (amountQuoteDesired * reserveBase) / reserveQuote;
             if (amountBaseOptimal <= amountBaseDesired) {
@@ -2259,7 +2215,7 @@ contract CrystalMarket is ERC20 {
         }
         reserveQuote += amountQuote;
         reserveBase += amountBase;
-        require(liquidity != 0 && amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && reserveQuote <= MASK_KEEP_0_112 && reserveBase <= MASK_KEEP_0_112 && m.isAMMEnabled == true);
+        require(liquidity != 0 && amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && reserveQuote <= MASK_KEEP_0_112 && reserveBase <= MASK_KEEP_0_112 && m.isAMMEnabled == true, ICrystal.SlippageExceeded());
         if ((options & 1) == 0) {
             IERC20(quoteAsset).transferFrom(msg.sender, address(this), amountQuote);
         } else {
@@ -2302,20 +2258,20 @@ contract CrystalMarket is ERC20 {
         if ((options & 1) == 0) {
             IERC20(quoteAsset).transfer(to, amountQuote);
         } else {
-            require(((tokenBalances[0][quoteAsset] & MASK_KEEP_0_128) + amountQuote) <= MASK_KEEP_0_128);
+            require(((tokenBalances[0][quoteAsset] & MASK_KEEP_0_128) + amountQuote) <= MASK_KEEP_0_128, ICrystal.Overflow());
             tokenBalances[0][quoteAsset] += amountQuote;
         }
         if (((options >> 4) & 1) == 0) {
             IERC20(baseAsset).transfer(to, amountBase);
         } else {
-            require(((tokenBalances[0][baseAsset] & MASK_KEEP_0_128) + amountBase) <= MASK_KEEP_0_128);
+            require(((tokenBalances[0][baseAsset] & MASK_KEEP_0_128) + amountBase) <= MASK_KEEP_0_128, ICrystal.Overflow());
             tokenBalances[0][baseAsset] += amountBase;
         }
         reserveQuote -= uint112(amountQuote);
         reserveBase -= uint112(amountBase);
         uint256 ammAsk = ((reserveQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000));
         uint256 ammBid = ((reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * uint256(m.makerRebate)));
-        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && (m.isAMMEnabled == false || (m.highestBid <= ammAsk && m.lowestAsk >= ammBid)));
+        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && (m.isAMMEnabled == false || (m.highestBid <= ammAsk && m.lowestAsk >= ammBid)), ICrystal.SlippageExceeded());
         (m.reserveQuote, m.reserveBase) = (uint112(reserveQuote), uint112(reserveBase));
         emit ICrystal.Sync(market, uint112(reserveQuote), uint112(reserveBase));
         emit ICrystal.Burn(market, msg.sender, amountQuote, amountBase, to);
@@ -2369,9 +2325,7 @@ contract CrystalMarket is ERC20 {
                         assembly { // Reuse isBuy variable for isRequireSuccess flag
                             isBuy := and(0x1, shr(248, calldataload(offset))) // Extract bit 4-8
                         }
-                        if (isBuy) {
-                            revert ICrystal.ActionFailed();
-                        }
+                        require(!isBuy, ICrystal.ActionFailed());
                     }
                 } else if (action == 2 || action == 3) { // Limit buy order: requires price, size; optional cloid
                     (cloid, param2) = _limitOrder((action & 1) == 0, balanceMode == 0, param1, param2, userId, cloid);
@@ -2382,9 +2336,7 @@ contract CrystalMarket is ERC20 {
                         assembly { // Reuse isBuy variable for isRequireSuccess flag
                             isBuy := and(0x1, shr(248, calldataload(offset))) // Extract bit 4-8
                         }
-                        if (isBuy) {
-                            revert ICrystal.ActionFailed();
-                        }
+                        require(!isBuy, ICrystal.ActionFailed());
                     }
                 } else if (action > 3 && action < 12) { // Action codes: 4=MTL buy, 5=MTL sell, 6=partial buy, 7=partial sell, 8=partial buy (gas-aware), 9=partial sell (gas-aware), 10=complete buy, 11=complete sell
                     uint256 settlementDelta = (uint256((action < 6) ? 2 : (action < 8) ? 0 : (action < 10) ? 3 : 1) << 252) | (((action & 1) != 0) ? (1 << 244) : 0); // Avoid stack too deep
@@ -2421,9 +2373,7 @@ contract CrystalMarket is ERC20 {
                         assembly { // Reuse isBuy variable for isRequireSuccess flag
                             isBuy := and(0x1, shr(248, calldataload(offset))) // Extract bit 4-8
                         }
-                        if (isBuy) {
-                            revert ICrystal.ActionFailed();
-                        }
+                        require(!isBuy, ICrystal.ActionFailed());
                     }
                 }
                 offset += 32;

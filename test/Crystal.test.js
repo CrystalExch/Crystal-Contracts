@@ -2317,7 +2317,7 @@ describe("Crystal Core Protocol Tests", function () {
     it("reverts when deadline expired", async function () {
       const pastDeadline = Math.floor(Date.now() / 1000) - 1000;
       await expect(
-        crystal["replaceOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)"](
+        crystal["replaceLimitOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)"](
           false, false, quote.target, base.target, 100, 1, 200, 1000, pastDeadline, ethers.ZeroAddress
         )
       ).to.be.revertedWithCustomError(crystal, "Expired");
@@ -2328,7 +2328,7 @@ describe("Crystal Core Protocol Tests", function () {
       const unknownToken = await TestERC20.deploy("Test", "TEST", 18);
       const futureDeadline = 9999999999;
       await expect(
-        crystal["replaceOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)"](
+        crystal["replaceLimitOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)"](
           false, false, quote.target, unknownToken.target, 100, 1, 200, 1000, futureDeadline, ethers.ZeroAddress
         )
       ).to.be.revertedWithCustomError(crystal, "InvalidMarket");
@@ -5770,7 +5770,7 @@ describe("Crystal Core Protocol Tests", function () {
     it("replaceOrder with ETH token in (lines 2391-2394)", async function () {
 
       await expect(
-        crystal["replaceOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)"](
+        crystal["replaceLimitOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)"](
           false,
           false,
           ethAddress,
@@ -5794,7 +5794,7 @@ describe("Crystal Core Protocol Tests", function () {
 
 
       await expect(
-        crystal.connect(user1)["replaceOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)"](
+        crystal.connect(user1)["replaceLimitOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)"](
           false,
           false,
           base.target,
@@ -8363,7 +8363,7 @@ describe("Crystal Core Protocol Tests", function () {
 
 
       await expect(
-        crystal.connect(user1)["replaceOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)"](
+        crystal.connect(user1)["replaceLimitOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)"](
           false,
           false,
           quote.target,
@@ -9234,7 +9234,7 @@ describe("Crystal Core Protocol Tests", function () {
 
 
       await expect(
-        crystal.connect(user1)["replaceOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)"](
+        crystal.connect(user1)["replaceLimitOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)"](
           false,
           false,
           tokenA.target,
@@ -10613,7 +10613,7 @@ describe("Crystal Core Protocol Tests", function () {
 
 
       await expect(
-        crystal.connect(user1)["replaceOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)"](
+        crystal.connect(user1)["replaceLimitOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)"](
           false,
           false,
           ethAddress,
@@ -11522,7 +11522,7 @@ describe("Crystal Core Protocol Tests", function () {
 
 
       await expect(
-        crystal.connect(user1).replaceOrder(
+        crystal.connect(user1).replaceLimitOrder(
           true,
           true,
           ethAddress,
@@ -12509,7 +12509,7 @@ describe("Crystal Core Protocol Tests", function () {
 
 
       await expect(
-        crystal.connect(user1).replaceOrder(
+        crystal.connect(user1).replaceLimitOrder(
           true,
           false,
           ethAddress,
@@ -12539,7 +12539,7 @@ describe("Crystal Core Protocol Tests", function () {
 
 
       await expect(
-        crystal.connect(user1).replaceOrder(
+        crystal.connect(user1).replaceLimitOrder(
           true,
           false,
           ethAddress,
@@ -12952,7 +12952,7 @@ describe("Crystal Core Protocol Tests", function () {
     it("replaceOrder on non-existent market reverts InvalidMarket (line 2385)", async function () {
       const futureDeadline = 9999999999;
       await expect(
-        crystal.connect(user1).replaceOrder(
+        crystal.connect(user1).replaceLimitOrder(
           true,
           false,
           quote.target,
@@ -14325,7 +14325,7 @@ describe("Crystal Core Protocol Tests", function () {
     it("replaceOrder with placeholder market reverts (line 2385 placeholder)", async function () {
       const futureDeadline = 9999999999;
       await expect(
-        crystal.connect(user1).replaceOrder(
+        crystal.connect(user1).replaceLimitOrder(
           false, false, weth.target, tokenAddress, 100, 1, 200, ethers.parseEther("0.5"),
           futureDeadline, ethers.ZeroAddress
         )
@@ -14511,7 +14511,7 @@ describe("Crystal Core Protocol Tests", function () {
 
 
       await expect(
-        crystal.connect(user1).replaceOrder(
+        crystal.connect(user1).replaceLimitOrder(
           false, true,
           ethAddress, base.target, 100, 1, 100, ethers.parseEther("0.5"),
           futureDeadline, ethers.ZeroAddress
@@ -15909,12 +15909,6 @@ describe("Crystal Core Protocol Tests", function () {
         validLaunchpadParams
       );
       await harness.waitForDeployment();
-    });
-
-    it("_registerUser with acctType != 0 reverts with AccountLimitReached (line 248)", async function () {
-      await expect(
-        harness.testRegisterUserInvalidType(user1.address)
-      ).to.be.revertedWithCustomError(harness, "AccountLimitReached");
     });
   });
 
@@ -19177,7 +19171,7 @@ describe("Crystal Core Protocol Tests", function () {
       }
 
 
-      await harness.connect(user1).replaceOrder(
+      await harness.connect(user1).replaceLimitOrder(
         false, true, testToken.target, eth, 100, orderId, 150, ethers.parseEther("50"), 9999999999, ethers.ZeroAddress
       );
     });
@@ -20050,7 +20044,7 @@ describe("Crystal Core Protocol Tests", function () {
       if (orderId === 0) orderId = 1;
 
 
-      await harness.connect(user1).replaceOrder(
+      await harness.connect(user1).replaceLimitOrder(
         false, true, eth, testToken.target, 100, orderId, 150, ethers.parseEther("0.5"), 9999999999, ethers.ZeroAddress
       );
     });
@@ -20366,7 +20360,7 @@ describe("Crystal Core Protocol Tests", function () {
 
 
       await expect(
-        harness.connect(user1).replaceOrder(
+        harness.connect(user1).replaceLimitOrder(
           false, true, testToken.target, eth, 100, 1, 150, ethers.parseEther("50"), 9999999999, ethers.ZeroAddress
         )
       ).to.be.reverted;
@@ -21040,7 +21034,7 @@ describe("Crystal Core Protocol Tests", function () {
       await harness.setMarketByTokens(weth.target, token.target, replaceMarket.target);
       await weth.deposit({ value: amount });
       await weth.transfer(harness.target, amount);
-      await harness.connect(user1).replaceOrder(
+      await harness.connect(user1).replaceLimitOrder(
         false,
         false,
         ethAddress,
@@ -21068,7 +21062,7 @@ describe("Crystal Core Protocol Tests", function () {
       await rejecter.waitForDeployment();
       const signer = await impersonate(rejecter.target, ethers.parseEther("5"));
       await expect(
-        harness.connect(signer).replaceOrder(
+        harness.connect(signer).replaceLimitOrder(
           false,
           false,
           ethAddress,
@@ -21234,12 +21228,6 @@ describe("Crystal Core Protocol Tests", function () {
       await expect(
         harness.quoteSell(false, tokenAddress, 0, amountOut)
       ).to.be.reverted;
-    });
-    
-    it("registerUser invalid account type reverts", async function () {
-      await expect(
-        harness.testRegisterUserInvalidType(user1.address)
-      ).to.be.revertedWithCustomError(harness, "AccountLimitReached");
     });
 
     it("changeMarketParams with non-canonical gov", async function () {
@@ -21671,7 +21659,7 @@ describe("Crystal Core Protocol Tests", function () {
       const tokenB = await testTokenFactory.deploy("Test", "TEST", 18);
       await harness.setMarketByTokens(tokenA.target, tokenB.target, placeholderAddress);
       await expect(
-        harness.replaceOrder(
+        harness.replaceLimitOrder(
           false,
           false,
           tokenA.target,
@@ -21695,7 +21683,7 @@ describe("Crystal Core Protocol Tests", function () {
       await harness.setMarketByTokens(weth.target, token.target, replaceMarket.target);
       await weth.deposit({ value: amount });
       await weth.transfer(harness.target, amount);
-      await harness.replaceOrder(
+      await harness.replaceLimitOrder(
         false,
         false,
         ethAddress,
@@ -21723,7 +21711,7 @@ describe("Crystal Core Protocol Tests", function () {
       await rejecter.waitForDeployment();
       const signer = await impersonate(rejecter.target, ethers.parseEther("5"));
       await expect(
-        harness.connect(signer).replaceOrder(
+        harness.connect(signer).replaceLimitOrder(
           false,
           false,
           ethAddress,
@@ -21747,7 +21735,7 @@ describe("Crystal Core Protocol Tests", function () {
       const replaceMarket = await ReplaceOrderMarket.deploy(weth.target, amount);
       await replaceMarket.waitForDeployment();
       await harness.setMarketByTokens(tokenA.target, tokenB.target, replaceMarket.target);
-      await harness.replaceOrder(
+      await harness.replaceLimitOrder(
         false,
         false,
         tokenA.target,
@@ -22074,7 +22062,7 @@ describe("Crystal Core Protocol Tests", function () {
       const tokenA = await testTokenFactory.deploy("Test", "TEST", 18);
       const tokenB = await testTokenFactory.deploy("Test", "TEST", 18);
       await expect(
-        harness.replaceOrder(
+        harness.replaceLimitOrder(
           false,
           false,
           tokenA.target,
@@ -22217,7 +22205,7 @@ describe("Crystal Core Protocol Tests", function () {
         crystal.interface.encodeFunctionData("placeLimitOrder", [zero, zero, 0, 0, 0]),
         crystal.interface.encodeFunctionData("cancelLimitOrder", [zero, zero, 0, 0, 0]),
         crystal.interface.encodeFunctionData(
-          "replaceOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)",
+          "replaceLimitOrder(bool,bool,address,address,uint256,uint256,uint256,uint256,uint256,address)",
           [false, false, zero, zero, 0, 0, 0, 0, 0, zero]
         ),
         crystal.interface.encodeFunctionData("multiBatchOrders", [[], 0, zero]),
@@ -22460,7 +22448,7 @@ describe("Crystal Core Protocol Tests", function () {
       await weth.deposit({ value: amount });
       await weth.transfer(harness.target, amount);
       const balanceBefore = await ethers.provider.getBalance(user1.address);
-      await harness.connect(user1).replaceOrder(
+      await harness.connect(user1).replaceLimitOrder(
         false,
         false,
         ethAddress,
@@ -22490,7 +22478,7 @@ describe("Crystal Core Protocol Tests", function () {
       await rejecter.waitForDeployment();
       const signer = await impersonate(rejecter.target, ethers.parseEther("5"));
       await expect(
-        harness.connect(signer).replaceOrder(
+        harness.connect(signer).replaceLimitOrder(
           false,
           false,
           ethAddress,

@@ -152,10 +152,16 @@ interface ICrystal {
 
     error Unauthorized(address user);
     error ActionFailed();
-    error AccountLimitReached();
+    error AlreadyRegistered();
     error SlippageExceeded();
+    error InvalidCloseWindow();
     error Expired(uint256 timestamp);
     error TransferFailed(address recipient);
+    error InvalidMsgValue();
+    error InvalidParams();
+    error ZeroAddress();
+    error Overflow();
+    error NotWethMarket(address market);
     error InvalidPath(address[] path);
     error InvalidMarket(address asset0, address asset1);
 
@@ -305,7 +311,7 @@ interface ICrystal {
 
     function cancelLimitOrder(address tokenIn, address tokenOut, uint256 price, uint256 id, uint256 deadline) external returns (uint256);
 
-    function replaceOrder(bool isPostOnly, bool isDecrease, address tokenIn, address tokenOut, uint256 price, uint256 id, uint256 newPrice, uint256 newSize, uint256 deadline, address referrer) external payable returns (uint256);
+    function replaceLimitOrder(bool isPostOnly, bool isDecrease, address tokenIn, address tokenOut, uint256 price, uint256 id, uint256 newPrice, uint256 newSize, uint256 deadline, address referrer) external payable returns (uint256);
 
     function multiBatchOrders(Batch[] calldata batches, uint256 deadline, address referrer) external payable;
 

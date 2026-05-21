@@ -42,12 +42,7 @@ contract CrystalHarness is Crystal {
             createTimestamp: uint88(block.timestamp)
         });
     }
-
-    /// @notice Test function to call _registerUser with invalid acctType
-    function testRegisterUserInvalidType(address user) external {
-        _registerUser(1, user); // acctType=1 triggers else branch (line 247)
-    }
-
+    
     /// @notice Set claimable rewards for testing
     function setClaimableRewards(address token, address user, uint256 amount) external {
         claimableRewards[token][user] = amount;

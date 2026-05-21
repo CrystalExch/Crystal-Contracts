@@ -18,6 +18,9 @@ interface ICrystalVault {
         string social3;
     }
 
+    error InvalidState();
+    error InvalidOwnerShare();
+
     function balanceOf(address owner) external view returns (uint);
 
     function crystal() external view returns (address);

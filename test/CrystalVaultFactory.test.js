@@ -45,9 +45,9 @@ describe("CrystalVaultFactory", function () {
       expect(await factory.weth()).to.equal(ethers.ZeroAddress);
     });
 
-    it("Should deploy with correct minDeposit", async function () {
+    it("Should deploy with correct globalMinDeposit", async function () {
       const { vaultFactory } = await loadFixture(vaultFixture);
-      expect(await vaultFactory.minDeposit()).to.equal(100n);
+      expect(await vaultFactory.globalMinDeposit()).to.equal(100n);
     });
 
     it("Should deploy with correct maxOrderCap", async function () {
@@ -67,9 +67,9 @@ describe("CrystalVaultFactory", function () {
       expect(await vaultFactory.eth()).to.equal(ETH_ADDRESS);
     });
 
-    it("Should have minSize mapping", async function () {
+    it("Should have minDeposit mapping", async function () {
       const { vaultFactory, quote } = await loadFixture(vaultFixture);
-      expect(await vaultFactory.minSize(quote.target)).to.be.greaterThanOrEqual(0n);
+      expect(await vaultFactory.minDeposit(quote.target)).to.be.greaterThanOrEqual(0n);
     });
   });
 
@@ -112,16 +112,16 @@ describe("CrystalVaultFactory", function () {
     });
   });
 
-  describe("changeTokenMinSize", function () {
+  describe("changeMinDeposit", function () {
     it("Should revert for non-gov", async function () {
       const { vaultFactory, user1, quote } = await loadFixture(vaultFixture);
-      await expect(vaultFactory.connect(user1).changeTokenMinSize(quote.target, 200)).to.be.reverted;
+      await expect(vaultFactory.connect(user1).changeMinDeposit(quote.target, 200)).to.be.reverted;
     });
 
     it("Should change minimum size for a token", async function () {
       const { vaultFactory, owner, quote } = await loadFixture(vaultFixture);
-      await vaultFactory.connect(owner).changeTokenMinSize(quote.target, 200);
-      expect(await vaultFactory.minSize(quote.target)).to.equal(200n);
+      await vaultFactory.connect(owner).changeMinDeposit(quote.target, 200);
+      expect(await vaultFactory.minDeposit(quote.target)).to.equal(200n);
     });
   });
 
@@ -131,7 +131,7 @@ describe("CrystalVaultFactory", function () {
       const CrystalVaultFactory = await ethers.getContractFactory("CrystalVaultFactory");
       const factory = await CrystalVaultFactory.deploy(crystal.target, owner.address, weth.target, 100, 100, 0);
 
-      await factory.connect(owner).changeTokenMinSize(quote.target, ethers.parseUnits("500", 6));
+      await factory.connect(owner).changeMinDeposit(quote.target, ethers.parseUnits("500", 6));
       await quote.connect(user1).approve(factory.target, MAX_UINT256);
       await weth.connect(user1).approve(factory.target, MAX_UINT256);
 
@@ -160,7 +160,7 @@ describe("CrystalVaultFactory", function () {
       const CrystalVaultFactory = await ethers.getContractFactory("CrystalVaultFactory");
       const factory = await CrystalVaultFactory.deploy(crystal.target, owner.address, weth.target, 100, 100, 0);
 
-      await factory.connect(owner).changeTokenMinSize(weth.target, ethers.parseEther("0.5"));
+      await factory.connect(owner).changeMinDeposit(weth.target, ethers.parseEther("0.5"));
       await quote.connect(user1).approve(factory.target, MAX_UINT256);
       await weth.connect(user1).approve(factory.target, MAX_UINT256);
 

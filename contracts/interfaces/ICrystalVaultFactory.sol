@@ -27,6 +27,8 @@ interface ICrystalVaultFactory {
     event Unlocked(address indexed vault);
     event Closed(address indexed vault);
 
+    error SizeBelowMin();
+
     function weth() external view returns (address);
 
     function eth() external view returns (address);

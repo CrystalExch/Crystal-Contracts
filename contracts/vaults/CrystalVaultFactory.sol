@@ -47,10 +47,10 @@ contract CrystalVaultFactory {
     mapping(address => ICrystalVaultFactory.Vault) public getVault;
 
     /// @notice Per-token minimum initial deposit override.
-    mapping(address => uint256) public minSize;
+    mapping(address => uint256) public minDeposit;
 
     /// @notice Default minimum deposit when no per-token override exists.
-    uint256 public minDeposit;
+    uint256 public globalMinDeposit;
 
     /// @notice Global maximum order cap for vaults.
     uint16 public maxOrderCap;
@@ -74,9 +74,7 @@ contract CrystalVaultFactory {
     
     /// @notice Reverts if called by any address other than gov.
     modifier onlyOwner() {
-        if (msg.sender != gov) {
-            revert ICrystal.Unauthorized(msg.sender);
-        }
+        require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
         _;
     }
 
@@ -86,16 +84,16 @@ contract CrystalVaultFactory {
      * @param _crystal Address of the Crystal core contract.
      * @param _gov Governance address with permission to update factory settings.
      * @param _weth WETH contract used for ETH sentinel paths.
-     * @param _minDeposit Default minimum deposit amount.
+     * @param _globalMinDeposit Default minimum deposit amount.
      * @param _maxOrderCap Global maximum order cap for vaults.
      * @param _lockup Global maximum withdrawal lockup duration.
      */
-    constructor(address _crystal, address _gov, address _weth, uint256 _minDeposit, uint16 _maxOrderCap, uint40 _lockup) {
-        require(_maxOrderCap < 1024);
+    constructor(address _crystal, address _gov, address _weth, uint256 _globalMinDeposit, uint16 _maxOrderCap, uint40 _lockup) {
+        require(_maxOrderCap < 1024, ICrystal.InvalidParams());
         crystal = _crystal;
         gov = _gov;
         weth = _weth;
-        minDeposit = _minDeposit;
+        globalMinDeposit = _globalMinDeposit;
         maxOrderCap = _maxOrderCap;
         maxLockup = _lockup;
     }
@@ -153,7 +151,7 @@ contract CrystalVaultFactory {
      * @param newCap New maximum order cap.
      */
     function changeMaxOrderCap(uint16 newCap) external onlyOwner {
-        require(newCap < 1024);
+        require(newCap < 1024, ICrystal.InvalidParams());
         maxOrderCap = newCap;
     }
 
@@ -167,13 +165,22 @@ contract CrystalVaultFactory {
     }
 
     /**
-     * @notice Sets a per-token minimum initial deposit size.
+     * @notice Updates the global minimum initial deposit amount.
+     *
+     * @param newGlobalMinDeposit New minimum initial deposit amount.
+     */
+    function changeGlobalMinDeposit(uint256 newGlobalMinDeposit) external onlyOwner {
+        globalMinDeposit = newGlobalMinDeposit;
+    }
+
+    /**
+     * @notice Sets a per-token minimum initial deposit amount.
      *
      * @param token Token address (WETH for ETH sentinel).
-     * @param newMinSize Minimum initial deposit amount.
+     * @param newMinDeposit Minimum initial deposit amount.
      */
-    function changeTokenMinSize(address token, uint256 newMinSize) external onlyOwner {
-        minSize[token == eth ? weth : token] = newMinSize;
+    function changeMinDeposit(address token, uint256 newMinDeposit) external onlyOwner {
+        minDeposit[token == eth ? weth : token] = newMinDeposit;
     }
 
     /**
@@ -191,16 +198,16 @@ contract CrystalVaultFactory {
      * @return vault Address of the deployed vault.
      */
     function deploy(address quoteAsset, address baseAsset, uint256 amountQuote, uint256 amountBase, uint256 maxShares, uint40 lockup, bool decreaseOnWithdraw, ICrystalVault.VaultMetaData memory metadata) external payable returns (address vault) {
-        if (minSize[quoteAsset == eth ? weth : quoteAsset] != 0) {
-            require(amountQuote > minSize[quoteAsset == eth ? weth : quoteAsset]);
+        if (minDeposit[quoteAsset == eth ? weth : quoteAsset] != 0) {
+            require(amountQuote > minDeposit[quoteAsset == eth ? weth : quoteAsset], ICrystalVaultFactory.SizeBelowMin());
         } else {
-            require(amountQuote > minDeposit);
+            require(amountQuote > globalMinDeposit, ICrystalVaultFactory.SizeBelowMin());
         }
 
-        if (minSize[baseAsset == eth ? weth : baseAsset] != 0) {
-            require(amountBase > minSize[baseAsset == eth ? weth : baseAsset]);
+        if (minDeposit[baseAsset == eth ? weth : baseAsset] != 0) {
+            require(amountBase > minDeposit[baseAsset == eth ? weth : baseAsset], ICrystalVaultFactory.SizeBelowMin());
         } else {
-            require(amountBase > minDeposit);
+            require(amountBase > globalMinDeposit, ICrystalVaultFactory.SizeBelowMin());
         }
         string memory symbol = string.concat("CLV-", IERC20(baseAsset == eth ? weth : baseAsset).symbol(), IERC20(quoteAsset == eth ? weth : quoteAsset).symbol());
 
@@ -277,7 +284,7 @@ contract CrystalVaultFactory {
      * @return amountBase Actual base deposited.
      */
     function deposit(address vault, address quoteAsset, address baseAsset, uint256 amountQuoteDesired, uint256 amountBaseDesired, uint256 amountQuoteMin, uint256 amountBaseMin) public payable nonReentrant returns (uint256 shares, uint256 amountQuote, uint256 amountBase) {
-        require(getVault[vault].quoteAsset == (quoteAsset == eth ? weth : quoteAsset) && getVault[vault].baseAsset == (baseAsset == eth ? weth : baseAsset));
+        require(getVault[vault].quoteAsset == (quoteAsset == eth ? weth : quoteAsset) && getVault[vault].baseAsset == (baseAsset == eth ? weth : baseAsset), ICrystal.InvalidMarket(quoteAsset == eth ? weth : quoteAsset, baseAsset == eth ? weth : baseAsset));
         if (quoteAsset == eth) {
             IWETH(weth).deposit{value: msg.value}();
             IERC20(baseAsset).transferFrom(msg.sender, address(this), amountBaseDesired);
@@ -293,14 +300,14 @@ contract CrystalVaultFactory {
         if (quoteAsset == eth) {
             IWETH(weth).withdraw(msg.value - amountQuote);
             (bool success, ) = msg.sender.call{value: msg.value - amountQuote}("");
-            require(success);
+            require(success, ICrystal.TransferFailed(msg.sender));
             IERC20(baseAsset).transfer(msg.sender, amountBaseDesired - amountBase);
         } else {
             IERC20(quoteAsset).transfer(msg.sender, amountQuoteDesired - amountQuote);
             if (baseAsset == eth) {
                 IWETH(weth).withdraw(msg.value - amountBase);
                 (bool success, ) = msg.sender.call{value: msg.value - amountBase}("");
-                require(success);
+                require(success, ICrystal.TransferFailed(msg.sender));
             } else {
                 IERC20(baseAsset).transfer(msg.sender, amountBaseDesired - amountBase);
             }
@@ -324,19 +331,19 @@ contract CrystalVaultFactory {
      */
     function withdraw(address vault, address quoteAsset, address baseAsset, uint256 shares, uint256 amountQuoteMin, uint256 amountBaseMin) external nonReentrant returns (uint256 amountQuote, uint256 amountBase) {
         ICrystalVaultFactory.Vault storage vaultInfo = getVault[vault];
-        require(vaultInfo.quoteAsset == (quoteAsset == eth ? weth : quoteAsset) && vaultInfo.baseAsset == (baseAsset == eth ? weth : baseAsset));
+        require(vaultInfo.quoteAsset == (quoteAsset == eth ? weth : quoteAsset) && vaultInfo.baseAsset == (baseAsset == eth ? weth : baseAsset), ICrystal.InvalidMarket(quoteAsset == eth ? weth : quoteAsset, baseAsset == eth ? weth : baseAsset));
         (amountQuote, amountBase) = ICrystalVault(vault).withdraw(msg.sender, shares, amountQuoteMin, amountBaseMin);
         if (quoteAsset == eth) {
             IWETH(weth).withdraw(amountQuote);
             (bool success, ) = msg.sender.call{value: amountQuote}("");
-            require(success);
+            require(success, ICrystal.TransferFailed(msg.sender));
         } else {
             IERC20(quoteAsset).transfer(msg.sender, amountQuote);
         }
         if (baseAsset == eth) {
             IWETH(weth).withdraw(amountBase);
             (bool success, ) = msg.sender.call{value: amountBase}("");
-            require(success);
+            require(success, ICrystal.TransferFailed(msg.sender));
         } else {
             IERC20(baseAsset).transfer(msg.sender, amountBase);
         }
@@ -358,7 +365,7 @@ contract CrystalVaultFactory {
      * @param vault Vault address.
      */
     function lock(address vault) external {
-        require(msg.sender == getVault[vault].owner);
+        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
         ICrystalVault(vault).lock();
         getVault[vault].locked = true;
         emit ICrystalVaultFactory.Locked(vault);
@@ -370,7 +377,7 @@ contract CrystalVaultFactory {
      * @param vault Vault address.
      */
     function unlock(address vault) external {
-        require(msg.sender == getVault[vault].owner);
+        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
         ICrystalVault(vault).unlock();
         getVault[vault].locked = false;
         emit ICrystalVaultFactory.Unlocked(vault);
@@ -385,7 +392,7 @@ contract CrystalVaultFactory {
      * @return amountBase Base amount returned to owner.
      */
     function close(address vault) external returns (uint256 amountQuote, uint256 amountBase) {
-        require(msg.sender == getVault[vault].owner);
+        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
         ICrystalVaultFactory.Vault storage vaultInfo = getVault[vault];
         uint256 shares = ICrystalVault(vault).balanceOf(msg.sender);
         (amountQuote, amountBase) = ICrystalVault(vault).withdraw(msg.sender, shares, 0, 0);
@@ -410,7 +417,7 @@ contract CrystalVaultFactory {
      * @param newMaxShares New max share value.
      */
     function changeMaxShares(address vault, uint256 newMaxShares) external {
-        require(msg.sender == getVault[vault].owner);
+        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
         ICrystalVault(vault).changeMaxShares(newMaxShares);
         getVault[vault].maxShares = newMaxShares;
         emit ICrystalVaultFactory.MaxSharesChanged(vault, newMaxShares);
@@ -423,7 +430,7 @@ contract CrystalVaultFactory {
      * @param newLockup New lockup duration.
      */
     function changeLockup(address vault, uint40 newLockup) external {
-        require(msg.sender == getVault[vault].owner);
+        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
         ICrystalVault(vault).changeLockup(newLockup);
         getVault[vault].lockup = newLockup;
         emit ICrystalVaultFactory.LockupChanged(vault, newLockup);
@@ -436,7 +443,7 @@ contract CrystalVaultFactory {
      * @param newDecrease New decrease flag.
      */
     function changeDecreaseOnWithdraw(address vault, bool newDecrease) external {
-        require(msg.sender == getVault[vault].owner);
+        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
         ICrystalVault(vault).changeDecreaseOnWithdraw(newDecrease);
         getVault[vault].decreaseOnWithdraw  = newDecrease;
         emit ICrystalVaultFactory.DecreaseOnWithdrawChanged(vault, newDecrease);
@@ -449,7 +456,7 @@ contract CrystalVaultFactory {
      * @param newCap New order cap.
      */
     function changeOrderCap(address vault, uint16 newCap) external {
-        require(msg.sender == getVault[vault].owner);
+        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
         ICrystalVault(vault).changeOrderCap(newCap);
     }
 
@@ -459,7 +466,7 @@ contract CrystalVaultFactory {
      * @param vault Vault address.
      */
     function changeMarket(address vault) external {
-        require(msg.sender == getVault[vault].owner);
+        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
         ICrystalVault(vault).changeMarket();
     }
 
@@ -469,7 +476,7 @@ contract CrystalVaultFactory {
      * @param vault Vault address.
      */
     function claimFees(address vault) external {
-        require(msg.sender == getVault[vault].owner);
+        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
         ICrystalVault(vault).claimFees();
     }
 
@@ -481,7 +488,7 @@ contract CrystalVaultFactory {
      * @param ids Cloid slot ids to clear.
      */
     function clearCloidSlots(address vault, uint256 userId, uint256[] calldata ids) external {
-        require(msg.sender == getVault[vault].owner);
+        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
         ICrystalVault(vault).clearCloidSlots(userId, ids);
     }
 }
