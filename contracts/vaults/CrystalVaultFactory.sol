@@ -99,7 +99,7 @@ contract CrystalVaultFactory {
     }
 
     /**
-     * @notice Accepts native token transfers for ETH deposits
+     * @notice Accepts native token transfers for ETH deposits.
      */
     receive() external payable {}
 
@@ -284,15 +284,19 @@ contract CrystalVaultFactory {
      * @return amountBase Actual base deposited.
      */
     function deposit(address vault, address quoteAsset, address baseAsset, uint256 amountQuoteDesired, uint256 amountBaseDesired, uint256 amountQuoteMin, uint256 amountBaseMin) public payable nonReentrant returns (uint256 shares, uint256 amountQuote, uint256 amountBase) {
-        require(getVault[vault].quoteAsset == (quoteAsset == eth ? weth : quoteAsset) && getVault[vault].baseAsset == (baseAsset == eth ? weth : baseAsset), ICrystal.InvalidMarket(quoteAsset == eth ? weth : quoteAsset, baseAsset == eth ? weth : baseAsset));
+        ICrystalVaultFactory.Vault storage vaultInfo = getVault[vault];
+        require(vaultInfo.quoteAsset == (quoteAsset == eth ? weth : quoteAsset) && vaultInfo.baseAsset == (baseAsset == eth ? weth : baseAsset), ICrystal.InvalidMarket(quoteAsset == eth ? weth : quoteAsset, baseAsset == eth ? weth : baseAsset));
         if (quoteAsset == eth) {
+            require(msg.value == amountQuoteDesired, ICrystal.InvalidMsgValue());
             IWETH(weth).deposit{value: msg.value}();
             IERC20(baseAsset).transferFrom(msg.sender, address(this), amountBaseDesired);
         } else {
             IERC20(quoteAsset).transferFrom(msg.sender, address(this), amountQuoteDesired);
             if (baseAsset == eth) {
+                require(msg.value == amountBaseDesired, ICrystal.InvalidMsgValue());
                 IWETH(weth).deposit{value: msg.value}();
             } else {
+                require(msg.value == 0, ICrystal.InvalidMsgValue());
                 IERC20(baseAsset).transferFrom(msg.sender, address(this), amountBaseDesired);
             }
         }
@@ -312,7 +316,7 @@ contract CrystalVaultFactory {
                 IERC20(baseAsset).transfer(msg.sender, amountBaseDesired - amountBase);
             }
         }
-        getVault[vault].totalShares += shares;
+        vaultInfo.totalShares += shares;
         emit ICrystalVaultFactory.Deposit(vault, msg.sender, shares, amountQuote, amountBase);
     }
 
@@ -360,7 +364,7 @@ contract CrystalVaultFactory {
     }
 
     /**
-     * @notice Locks a vault to prevent deposits.
+     * @notice Pauses new deposits into a vault.
      *
      * @param vault Vault address.
      */
@@ -372,7 +376,7 @@ contract CrystalVaultFactory {
     }
 
     /**
-     * @notice Unlocks a vault if it is not closed.
+     * @notice Resumes allowing new deposits into a vault.
      *
      * @param vault Vault address.
      */
@@ -471,13 +475,16 @@ contract CrystalVaultFactory {
     }
 
     /**
-     * @notice Claims trading fees for a vault.
+     * @notice Claims any available rewards to the vault owner.
+     * 
+     * @dev As a vault cannot create markets and is unlikely to be used as a referrer address, these rewards are likely in the form of incentives distributed by the protocol or third parties.
      *
      * @param vault Vault address.
+     * @param tokens Token list to claim.
      */
-    function claimFees(address vault) external {
+    function claimFees(address vault, address[] calldata tokens) external {
         require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
-        ICrystalVault(vault).claimFees();
+        ICrystalVault(vault).claimFees(tokens);
     }
 
     /**

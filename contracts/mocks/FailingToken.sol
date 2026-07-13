@@ -3,8 +3,8 @@ pragma solidity ^0.8.28;
 
 import {ERC20} from "../libraries/ERC20.sol";
 
-/// @notice Mock ERC20 token that can be configured to fail transfers
-/// @dev Used for testing transfer failure handling paths in CrystalMarket
+/// @notice Mock ERC20 token that can be configured to fail transfers.
+/// @dev Used for testing transfer failure handling paths in CrystalMarket.
 contract FailingToken is ERC20 {
     // Failure modes - return false
     bool public failAllTransfers;

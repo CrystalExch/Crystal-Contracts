@@ -8,7 +8,7 @@ import {CrystalVault} from "../vaults/CrystalVault.sol";
 
 import {CrystalMarketHarness} from "./CrystalMarketHarness.sol";
 
-/// @notice Mock Factory for deploying vaults with MockCrystal
+/// @notice Mock Factory for deploying vaults with MockCrystal.
 contract MockFactory {
     uint16 public maxOrderCap = 100;
     uint40 public maxLockup = 0;
@@ -69,8 +69,8 @@ contract MockFactory {
     }
 }
 
-/// @notice Mock Crystal contract that returns fake orders but reverts on batch calls
-/// @dev Used to test the revert paths in CrystalVault's withdraw and cancelAll functions
+/// @notice Mock Crystal contract that returns fake orders but reverts on batch calls.
+/// @dev Used to test the revert paths in CrystalVault's withdraw and cancelAll functions.
 contract MockCrystal {
     address public quoteAsset;
     address public baseAsset;
@@ -101,7 +101,7 @@ contract MockCrystal {
         configuredBaseAsset = _baseAsset;
     }
 
-    /// @notice Returns parameters for CrystalMarket constructor
+    /// @notice Returns parameters for CrystalMarket constructor.
     function parameters() external view returns (
         address,
         address,
@@ -114,7 +114,7 @@ contract MockCrystal {
         return (quoteAsset, baseAsset, marketId, marketType, scaleFactor, tickSize, maxPrice);
     }
 
-    /// @notice Deploy a CrystalMarketHarness with the specified parameters
+    /// @notice Deploy a CrystalMarketHarness with the specified parameters.
     function deployHarness(
         address _quoteAsset,
         address _baseAsset,

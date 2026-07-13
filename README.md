@@ -1,6 +1,6 @@
 # Crystal
 
-Crystal is a fully on-chain central limit order book exchange, created to bridge the gap between the transparency, security, and permissionless nature of decentralized exchanges and the speed, capital efficiency, and lower fees of traditional centralized exchanges. Built as an immutable protocol on the Ethereum Virtual Machine, Crystal allows for a seamless trading experience while remaining fully self-custodial, permissionless, and decentralized. Crystal is also fully composable and can serve as spot liquidity for any DeFi app as a substitute or addition to automatic market maker exchange liquidity.
+[Crystal](https://crystal.exchange/whitepaper.pdf) is a fully on-chain central limit order book exchange, created to bridge the gap between the transparency, security, and permissionless nature of decentralized exchanges and the speed, capital efficiency, and lower fees of traditional centralized exchanges. Built as an immutable protocol on the Ethereum Virtual Machine, Crystal allows for a seamless trading experience while remaining fully self-custodial, permissionless, and decentralized. Crystal is also fully composable and can serve as spot liquidity for any DeFi app as a substitute or addition to automatic market maker exchange liquidity.
 
 ## Documentation
 
@@ -305,7 +305,174 @@ Install packages:
 
 ## Run Tests
 
-`npx hardhat test`
+In addition to formal security audits, Crystal uses multiple testing frameworks in order to minimize the probability of a vulnerability being present in the codebase:
+
+- 99% unit test coverage via Hardhat
+- Stateful invariant tests via Foundry
+- Stateless fuzz tests via Foundry
+- Advanced fuzzing configuration via Echidna and Medusa
+
+```bash
+npx hardhat test
+npm run test:foundry
+npm run coverage
+npm run fuzz:echidna
+npm run fuzz:medusa
+```
+
+## Protocol Invariants
+
+A non-exhaustive list of protocol invariants that should be satisfied at all times:
+
+### Governance and Registry
+
+- Governance authorization must be exclusive to governance or authorized canonical deployers for privileged configuration, canonical market deployment, and routing updates. Governance actions must not seize user funds, rewrite resting orders, or mutate user balances outside documented fee/configuration flows.
+- Governance state must remain synchronized with the active governance account. `crystal.gov()` should always equal the account expected to control privileged actions.
+- Registered users must roundtrip through the compact user ID registry. For every registered account, `userIdToAddress(addressToUserId(account))` should return the original account, and no account should resolve to a user ID greater than `latestUserId`.
+
+### Internal Balances
+
+- Exchange ledger accounting must conserve balances. For every `(user, token)`, `total == available + locked`, and locked value must be attributable to active orders or liquidity. Neither available nor locked balance may exceed total balance.
+- ERC20 and native deposits must increase `total` and `available` by the deposited amount, leave the deposited amount unlocked, and register the user exactly once.
+- Withdrawals must decrease `total` and `available` by the withdrawn amount, transfer the same asset to the recipient, unwrap native ETH when requested, and never spend locked balance.
+- Buy limit orders must lock quote asset, sell limit orders must lock base asset, and neither side may change the user's total deposited balance.
+- Canceling or decreasing an order must release exactly the reduced locked collateral back to available balance.
+- Fills must conserve value across maker, taker, and fee accounting: maker locked input decreases, maker output increases, taker input decreases, taker output increases, and protocol/referral/creator fee accounting explains any spread.
+
+### Market Reserves and Metadata
+
+- Market configuration must remain stable after creation. Quote asset, base asset, scale factor, tick size, max price, and minimum size must continue to match the configured market.
+- Reserve views must agree after adds, swaps, and removals. `getReserves(market)` and `getMarket(market).reserveQuote/reserveBase` should report the same quote and base reserves.
+- Reported AMM reserves must be backed by real assets held by `Crystal`; reserves may not exceed the protocol's actual quote and base token balances.
+- Market index views must remain valid. Market lists should contain nonzero markets, and token-pair routing should resolve to the expected active market.
+
+### Orderbook
+
+- Resting limit orders may only exist at valid market ticks, with `price > 0`, `price < maxPrice`, `price % tickSize == 0`, and size satisfying the market minimum in the correct denomination.
+- The primary book must never remain crossed. If both sides of the book exist, `highestBid < lowestAsk`; otherwise executable liquidity was left unmatched.
+- Market buys must consume the lowest ask before higher asks, and market sells must consume the highest bid before lower bids.
+- Orders at the same price must fill by time priority: older resting orders fill before newer resting orders.
+- Limit orders must execute at the specified price or better, never worse, and maker orders must not pay taker fees.
+- Market orders must stop at `worstPrice`; complete-fill orders must revert without mutation if constraints cannot be satisfied; partial-fill orders must cancel the unfilled remainder.
+- Market-to-limit orders must consume executable liquidity up to the limit price, then rest any remaining quantity as a limit order on the same side at that limit price.
+- Live tracked orders must match on-chain storage, and aggregate price-level liquidity must cover live orders resting at that price.
+- Client order IDs must stay in `1..1023`, be unique while active for a user, be cancelable/decreaseable by CLOID, and be reusable after cancellation or fill. CLOID list views and single-order views must agree.
+- Replacing a partially filled order must move only remaining liquidity to the new price and must not resurrect filled quantity.
+
+### Price and Quote Views
+
+- `getPrice`, `getPriceLevels`, and `getPriceLevelsFromMid` must return active levels that are bounded, sorted in the requested direction, and consistent with direct `getPriceLevel` values.
+- For fixed state and inputs, `getQuote(...)` must predict the next successful `marketOrder(...)` within explicit rounding tolerance and must not mutate state.
+- `getAmountsOut` and `getAmountsIn` must match direct market quotes for each valid full-fill hop and must not mutate state. Partial-fill path quotes must not be treated as exact execution guarantees.
+
+### Vaults
+
+- Initial vault share supply must equal `sqrt(amountQuote * amountBase)`, and the owner must receive exactly that supply.
+- Follow-on vault deposits must mint proportional shares and consume only the proportional quote/base amounts.
+- `previewDeposit` and `previewWithdrawal` must equal the next successful deposit/withdrawal result, be caller-independent, and be non-mutating.
+- Vault `totalSupply`, user share balances, and factory `totalShares` must stay synchronized across deposits, withdrawals, and close.
+- A user who deposits into a vault and withdraws the received shares should not end with more quote or base than before, absent external fills or fees.
+- Vault shares must be non-transferable, even after approval.
+- Withdrawals before `unlockTimestamp` must revert; withdrawals at or after lockup must return previewed assets.
+- Vault buy and sell limit orders must lock collateral owned by the vault address and must not directly mutate depositor wallets.
+- Active-order withdrawal behavior must follow `decreaseOnWithdraw`: active orders are reduced proportionally or only by needed locked liquidity according to the vault setting.
+- Vault risk parameters must respect owner and factory-wide bounds, including `maxShares`, `orderCap`, `lockup`, and owner minimum stake constraints. Unsafe deposits or operator actions must reject without moving funds.
+- Closing a vault must return all previewed assets to the owner, burn all shares, set `closed == true`, and leave no factory total shares.
+- Vault actions must use the same exchange interface, fees, constraints, and order semantics as any other account.
+
+### Fees and Rewards
+
+- Taker fees, maker rebates, referral commission, creator commission, and protocol rewards must not exceed the taker notional fee budget unless explicitly funded.
+- Fee and rebate parameter updates must respect protocol bounds and must not mutate existing orders or user balances by configuration change alone.
+- Claiming fees must transfer exactly claimable amounts, clear claimed rewards, and keep claimable liabilities backed by assets held by `Crystal`. Expired-fee execution must only succeed after its deadline.
+
+### AMM and Liquidity
+
+- Initial AMM liquidity must mint `sqrt(amountQuote * amountBase)` LP shares and set reserves to the deposited amounts.
+- Exact-input AMM swaps must preserve the reserve product lower bound, with `reserveQuoteAfter * reserveBaseAfter >= reserveQuoteBefore * reserveBaseBefore`, while moving reserves in the expected direction.
+- Removing LP liquidity must burn exactly the requested liquidity and return quote/base amounts pro-rata to reserves and total supply.
+- When both book and AMM liquidity are available, execution should use the lower effective marginal price source, subject to slippage and maker rebate rules.
+- Add-liquidity-only orders that cross AMM-implied executable liquidity must revert or leave reserves unchanged according to the documented mode.
+
+### Batching, Fallback, and Router
+
+- If a batch action marked `isRequireSuccess == true` fails, all prior successful actions in the same batch must roll back.
+- If a batch action marked `isRequireSuccess == false` fails, later valid actions may still execute and earlier successful optional actions should remain.
+- Multi-batch and multi-market calls must settle atomically at the transaction boundary, including netted settlement and rollback on required failure.
+- Fallback calldata action words must decode to the same semantic operations as structured `batchOrders` actions for limit, cancel, market, and decrease flows.
+- Fallback internal-balance mode must debit and lock deposited balances instead of taking a fresh wallet transfer, while preserving `total == available + locked`.
+- Router exact-input and exact-output swaps must enforce deadline and slippage, transfer outputs to `to`, and support ERC20/native sentinel paths.
+- Invalid paths or missing markets must revert without changing balances, reserves, or orderbook state.
+- `routerDeposit` and `routerWithdraw` must use the same exchange ledger slots as direct deposit/withdraw and preserve native wrap/unwrap semantics.
+
+### Launchpad
+
+- `createToken` must initialize token metadata, virtual reserves, `k`, creator, market mapping, and token registry consistently.
+- Launchpad virtual reserves must be internally consistent: both reserves should be zero or both nonzero.
+- Launchpad buys and sells must move virtual native/token reserves in opposite directions while preserving bonding-curve constraints and the constant-product lower bound.
+- `quoteBuy` and `quoteSell` must predict `buy` and `sell` for exact-input and exact-output modes within explicit rounding tolerance, bound outputs by available virtual reserves, and avoid mutating virtual reserves.
+- Launchpad token metadata must remain valid, with nonempty name, nonempty symbol, 18 decimals, and nonzero total supply. `Crystal` must not hold more of a launchpad token than the token total supply.
+
+### Token and Event Surfaces
+
+- Market LP token `transferFrom` must update balances and finite allowances exactly, while max allowance must not be decremented.
+- Market LP token `mint` and `burn` must be callable only by `Crystal`; authorized mint/burn must change balance and total supply by the same amount.
+- Deposits, withdrawals, placements, cancellations, fills, mints, burns, and syncs must emit enough data to reconstruct account and market state from the exchange address.
+- Structured and fallback batches must emit order/fill events whose aggregate deltas match post-execution view snapshots.
+
+## Deploy Contracts
+
+Crystal includes two deployment scripts:
+
+- `scripts/deploy.js` deploys the core `Crystal` contract, the configured markets, and `CrystalVaultFactory`.
+- `scripts/deployMarket.js` deploys additional markets against an existing `Crystal` deployment.
+
+Before deploying the smart contracts, create a `.env` file in the root directory with the following configuration:
+
+```env
+PRIVATE_KEY=0x...
+RPC_URL=https://rpc.monad.xyz
+CHAIN_ID=143
+GAS_PRICE=150000000000
+USDC=0x754704Bc059F8C67012fEd69BC8A327a5aafb603
+WETH=0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A
+CRYSTAL_ADDRESS=0x...
+```
+
+Variable definitions:
+
+- `PRIVATE_KEY`: deployer key. Required for both scripts.
+- `RPC_URL`: JSON-RPC endpoint. Defaults to Monad mainnet RPC.
+- `CHAIN_ID`: chain id used for manual transaction signing. Defaults to `143`.
+- `GAS_PRICE`: gas price used by the deployment scripts. Defaults to `150000000000` wei.
+- `USDC`: quote token address used by the example market configs.
+- `WETH`: wrapped native token address used by the core deployment script.
+- `CRYSTAL_ADDRESS`: existing Crystal deployment address. Required only for `deployMarket.js`.
+
+```bash
+npx hardhat run scripts/deploy.js
+```
+
+- deploys `Crystal`
+- deploys the default markets listed in [`scripts/deploy.js`](./scripts/deploy.js)
+- deploys `CrystalVaultFactory`
+- logs the deployed `crystal`, `vaultFactory`, and individual market addresses
+
+```bash
+npx hardhat run scripts/deployMarket.js
+```
+
+- reads `CRYSTAL_ADDRESS` from `.env`
+- deploys any additional markets listed in [`scripts/deployMarket.js`](./scripts/deployMarket.js)
+- logs the deployed market addresses
+
+To customize deployment parameters, edit the `MARKETS` arrays in [`scripts/deploy.js`](./scripts/deploy.js) or [`scripts/deployMarket.js`](./scripts/deployMarket.js). The market tuple format is:
+
+```text
+[canonical, quoteAsset, baseAsset, marketType, scaleFactor, tickSize, maxPrice, minSize, takerFee, makerRebate]
+```
+
+The core deployment script also hardcodes `Crystal` constructor parameters, launchpad parameters, and `CrystalVaultFactory` constructor parameters in [`scripts/deploy.js`](./scripts/deploy.js)
 
 ## License
 

@@ -1,0 +1,4 @@
+forge-std/=lib/forge-std/src/
+@openzeppelin/=node_modules/@openzeppelin/
+@chimera/=lib/chimera/src/
+@recon/=lib/setup-helpers/src/

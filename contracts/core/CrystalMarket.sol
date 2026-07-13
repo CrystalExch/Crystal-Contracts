@@ -116,9 +116,9 @@ contract CrystalMarket is ERC20 {
     uint256 internal constant LEADING_HEX_4 = 0x4000000000000000000000000000000000000000000000000000000000000000;
 
     /**
-     * @notice Sets up this market with configuration from the main Crystal contract
+     * @notice Sets up this market with configuration from the main Crystal contract.
      *
-     * @dev Gets called during deployment to grab all the market parameters and set up the permit domain separator
+     * @dev Gets called during deployment to grab all the market parameters and set up the permit domain separator.
      */
     constructor() ERC20("Crystal V2", "CRY-V2") {
         (quoteAsset, baseAsset, marketId, marketType, scaleFactor, tickSize, maxPrice) = ICrystal(msg.sender).parameters();
@@ -130,12 +130,12 @@ contract CrystalMarket is ERC20 {
     }
 
     /**
-     * @notice Creates new LP tokens and sends them to someone
+     * @notice Creates new LP tokens and sends them to someone.
      *
-     * @dev Can only be called by the main Crystal contract
+     * @dev Can only be called by the main Crystal contract.
      *
-     * @param to Who gets the newly minted tokens
-     * @param value How many tokens to create
+     * @param to Who gets the newly minted tokens.
+     * @param value How many tokens to create.
      */
     function mint(address to, uint256 value) external {
         require(msg.sender == crystal, ICrystal.Unauthorized(msg.sender));
@@ -143,12 +143,12 @@ contract CrystalMarket is ERC20 {
     }
 
     /**
-     * @notice Destroys LP tokens from someone's balance
+     * @notice Destroys LP tokens from someone's balance.
      *
-     * @dev Can only be called by the main Crystal contract
+     * @dev Can only be called by the main Crystal contract.
      *
-     * @param from Whose tokens we're burning
-     * @param value How many tokens to destroy
+     * @param from Whose tokens we're burning.
+     * @param value How many tokens to destroy.
      */
     function burn(address from, uint256 value) external {
         require(msg.sender == crystal, ICrystal.Unauthorized(msg.sender));
@@ -156,15 +156,15 @@ contract CrystalMarket is ERC20 {
     }
 
     /**
-     * @notice Moves LP tokens on someone else's behalf (requires prior approval)
+     * @notice Moves LP tokens on someone else's behalf (requires prior approval).
      *
-     * @dev If you have infinite allowance or you're the Crystal contract itself, we skip the allowance check
+     * @dev If you have infinite allowance or you're the Crystal contract itself, we skip the allowance check.
      *
-     * @param from Who's sending the tokens
-     * @param to Who's receiving the tokens
-     * @param value How many tokens to move
+     * @param from Who's sending the tokens.
+     * @param to Who's receiving the tokens.
+     * @param value How many tokens to move.
      *
-     * @return success Always returns true
+     * @return success Always returns true.
      */
     function transferFrom(address from, address to, uint256 value) external override returns (bool) {
         if (allowance[from][msg.sender] != type(uint256).max && msg.sender != crystal) {
@@ -180,9 +180,9 @@ contract CrystalMarket is ERC20 {
     // ===================================================================================================
 
     /**
-     * @notice Adds encoded order update data to the OrdersUpdated event buffer in memory
+     * @notice Adds encoded order update data to the OrdersUpdated event buffer in memory.
      *
-     * @param logData The encoded order update information to append
+     * @param logData The encoded order update information to append.
      */
     function _addToOrdersUpdatedEvent(uint256 logData) internal pure {
         assembly {
@@ -221,16 +221,16 @@ contract CrystalMarket is ERC20 {
     }
 
     /**
-     * @notice Handles the actual token transfers for settling trades - either moves real tokens or updates internal balances
+     * @notice Handles the actual token transfers for settling trades - either moves real tokens or updates internal balances.
      *
-     * @dev The balance mode flags control whether we do external token transfers or just update internal accounting. 0 = external, 1 = internal
+     * @dev The balance mode flags control whether we do external token transfers or just update internal accounting. 0 = external, 1 = internal.
      *
-     * @param quoteAssetDebt How much quote asset is owed (positive means you owe, negative means you receive)
-     * @param baseAssetDebt How much base asset is owed (positive means you owe, negative means you receive)
-     * @param userId Your user ID for internal accounting
-     * @param balanceMode 0 to use external transfers, 1 to use internal balances
-     * @param balanceModeOut 0 to send outputs as real tokens, 1 to credit the router's internal balance
-     * @param balanceModeIn 0 to pull from your wallet, 1 to pull from router's internal balance
+     * @param quoteAssetDebt How much quote asset is owed (positive means you owe, negative means you receive).
+     * @param baseAssetDebt How much base asset is owed (positive means you owe, negative means you receive).
+     * @param userId Your user ID for internal accounting.
+     * @param balanceMode 0 to use external transfers, 1 to use internal balances.
+     * @param balanceModeOut 0 to send outputs as real tokens, 1 to credit the router's internal balance.
+     * @param balanceModeIn 0 to pull from your wallet, 1 to pull from router's internal balance.
      */
     function _settleBalances(int256 quoteAssetDebt, int256 baseAssetDebt, uint256 userId, uint256 balanceMode, uint256 balanceModeOut, uint256 balanceModeIn) internal {
         unchecked {
@@ -323,7 +323,7 @@ contract CrystalMarket is ERC20 {
     /**
      * @notice Finds the next active tick at or above the current search position.
      *
-     * @dev isWrite is true when invoked through _marketOrder as slot is potentially persisted across multiple calls.
+     * @dev isWrite is true when invoked through _marketOrder as slot is potentially persisted across multiple calls
      * cachedGroupsSlot is the groups slot passed as a parameter when invoked through getQuote as the groups slot is
      * never written to between calls.
      *
@@ -376,7 +376,7 @@ contract CrystalMarket is ERC20 {
     /**
      * @notice Finds the previous active tick strictly below the current search position.
      *
-     * @dev isWrite is true when invoked through _marketOrder as slot is potentially persisted across multiple calls.
+     * @dev isWrite is true when invoked through _marketOrder as slot is potentially persisted across multiple calls
      * cachedGroupsSlot is the groups slot passed as a parameter when invoked through getQuote as the groups slot is
      * never written to between calls.
      *
@@ -564,6 +564,9 @@ contract CrystalMarket is ERC20 {
                         }
                     }
                     price = marketType == 0 ? (tick * tickSize) : CM._tickToPrice(tick, tickSize);
+                    if (max == 0 || (tick >= startPrice + distance)) {
+                        break;
+                    }
                     if ((((price + interval - 1) / interval) * interval) == bucket) {
                         (uint256 key, uint256 offset) = CS._getPriceLevel(marketType, tickSize, marketId, price);
                         uint256 priceLevel = CS._readMapping(key, offset, CS.PRICELEVELS_KEY);
@@ -573,9 +576,6 @@ contract CrystalMarket is ERC20 {
                             mstore(add(length, position), add(existing, and(priceLevel, MASK_KEEP_0_112)))
                         }
                     } else {
-                        if (max == 0 || (tick >= startPrice + distance)) {
-                            break;
-                        }
                         --max;
                         bucket = ((price + interval - 1) / interval) * interval; // Round up for ask-side aggregation
                         (uint256 key, uint256 offset) = CS._getPriceLevel(marketType, tickSize, marketId, price);
@@ -612,6 +612,9 @@ contract CrystalMarket is ERC20 {
                         groupsSlot &= ~(1 << (slotIndex % 255));
                     }
                     price = marketType == 0 ? (tick * tickSize) : CM._tickToPrice(tick, tickSize);
+                    if (max == 0 || (tick <= startPrice - distance)) {
+                        break;
+                    }
                     if (((price / interval) * interval) == bucket) {
                         (uint256 key, uint256 offset) = CS._getPriceLevel(marketType, tickSize, marketId, price);
                         uint256 priceLevel = CS._readMapping(key, offset, CS.PRICELEVELS_KEY);
@@ -621,9 +624,6 @@ contract CrystalMarket is ERC20 {
                             mstore(add(length, position), add(existing, and(priceLevel, MASK_KEEP_0_112)))
                         }
                     } else {
-                        if (max == 0 || (tick <= startPrice - distance)) {
-                            break;
-                        }
                         --max;
                         bucket = (price / interval) * interval; // Round down for bid-side aggregation
                         (uint256 key, uint256 offset) = CS._getPriceLevel(marketType, tickSize, marketId, price);
@@ -738,8 +738,9 @@ contract CrystalMarket is ERC20 {
     /**
      * @notice Quotes a trade against the orderbook and AMM without modifying state.
      *
-     * @dev Mirrors execution behavior including taker fee and maker rebate adjustments.
-     * @dev View function, but delegatecalled w/value, so needs to be payable.
+     * @dev Called as a view function, but delegatecalled sometimes with value so is payable
+     * Due to shortcuts in how quotes are calculated (by price level rather than individual order),
+     * the quote produced by this function is not directly equivalent to the actual trade result.
      *
      * @param isBuy True for buy, false for sell.
      * @param isExactInput True if `size` is an input amount, false if it is output.
@@ -756,6 +757,9 @@ contract CrystalMarket is ERC20 {
             uint256 price;
             if (isBuy) {
                 if (isExactInput) {
+                    assembly {
+                        mstore(0x60, size)
+                    }
                     size = (size * uint256(m.takerFee) + 99999) / 100000;
                 }
                 if (worstPrice >= maxPrice || worstPrice == 0) {
@@ -888,18 +892,25 @@ contract CrystalMarket is ERC20 {
                     break;
                 }
             }
-            isBuy ? amountIn = (amountIn * 100000) / uint256(m.takerFee) : amountOut = (amountOut * uint256(m.takerFee)) / 100000;
+            if (isBuy && isExactInput && size == amountIn) {
+                assembly {
+                    amountIn := mload(0x60)
+                }
+            }
+            else {
+                isBuy ? amountIn = (amountIn * 100000 + uint256(m.takerFee) - 1) / uint256(m.takerFee) : amountOut = (amountOut * uint256(m.takerFee)) / 100000;
+            }
             return (amountIn, amountOut);
         }
     }
 
     /**
-     * @notice Shows how much of each token is currently in the AMM pool
+     * @notice Shows how much of each token is currently in the AMM pool.
      *
-     * @dev Gets called through delegatecall from the main Crystal contract
+     * @dev Gets called through delegatecall from the main Crystal contract.
      *
-     * @return reserveQuote Amount of quote asset in the pool
-     * @return reserveBase Amount of base asset in the pool
+     * @return reserveQuote Amount of quote asset in the pool.
+     * @return reserveBase Amount of base asset in the pool.
      */
     function getReserves() external payable returns (uint112 reserveQuote, uint112 reserveBase) {
         ICrystal.Market storage m = _getMarket[market];
@@ -909,8 +920,7 @@ contract CrystalMarket is ERC20 {
     /**
      * @notice Executes a market-style order across resting liquidity and the AMM.
      *
-     * @dev `orderInfo` encodes side, exactness, STP behavior, balance routing, caller, and optional cloid metadata.
-     * @dev `orderInfo` is 256-252 orderType, 252-248 !isExactInput, 248-244 !isBuy, 244-240 STP, 240-236 !useexternalbalance, 236-232 !fromcaller
+     * @dev `orderInfo` is 256-252 orderType, 252-248 !isExactInput, 248-244 !isBuy, 244-240 STP, 240-236 !useexternalbalance, 236-232 !fromcaller, 218-208 cloid if needed, 208-160 userId if needed, 160-0 caller address.
      *
      * @param size Input or output amount depending on `orderInfo` flags.
      * @param worstPrice Worst price limit.
@@ -1119,11 +1129,13 @@ contract CrystalMarket is ERC20 {
                             uint256 limitSize = size; // Avoid stack too deep
                             uint256 limitPrice = worstPrice; // Avoid stack too deep
                             if (isBuy) {
-                                if (isExactInput) { // Get original input amount before adjustment
+                                if (isExactInput) { // Get original input amount before adjustment for fee
                                     assembly {
                                         limitSize := mload(0x60)
                                     }
-                                    limitSize -= (amountIn * 100000) / uint256(m.takerFee);
+                                    uint256 feeAmount = (amountIn * 100000);
+                                    feeAmount = (feeAmount + uint256(m.takerFee) - 1) / uint256(m.takerFee);
+                                    limitSize -= feeAmount;
                                 } else {
                                     limitSize = (((limitSize - amountOut) * limitPrice) / scaleFactor);
                                 }
@@ -1368,13 +1380,12 @@ contract CrystalMarket is ERC20 {
                         (tick, slot, slotIndex, ) = _searchDown(true, tick, slot, slotIndex, 0);
                     }
                     price = marketType == 0 ? (tick * tickSize) : CM._tickToPrice(tick, tickSize);
-                } else {
+                }
+                if (sizeLeft == 0 || ((orderInfo >> 252) == 3 && gasleft() < 200000)) { // If type 3 order and less than 200k gas remaining, exit
                     (uint256 key, uint256 offset) = CS._getActivated(marketId, tick / 255);
                     if (CS._readMapping(key, offset, CS.PRICELEVELS_KEY) & MASK_OUT_255_256 != slot) {
                         CS._writeMapping(key, offset, CS.PRICELEVELS_KEY, slot | MASK_KEEP_255_256);
                     }
-                }
-                if (sizeLeft == 0 || ((orderInfo >> 252) == 3 && gasleft() < 200000)) { // If type 3 order and less than 200k gas remaining, exit
                     break;
                 }
             }
@@ -1393,7 +1404,13 @@ contract CrystalMarket is ERC20 {
             }
             uint256 feeAmount;
             if (isBuy) { // Trading fees are always denominated in quote asset
-                feeAmount = (amountIn * 100000) / uint256(m.takerFee) - amountIn;
+                feeAmount = (amountIn * 100000 + uint256(m.takerFee) - 1) / uint256(m.takerFee) - amountIn;
+                if (isExactInput && size == amountIn) {
+                    assembly {
+                        size := mload(0x60)
+                    }
+                    feeAmount = size - amountIn; // Satisfy the invariant that a complete fill exact input order consumes the specified amount
+                }
                 amountIn += feeAmount;
                 require(((settlementDelta >> 128) + feeAmount) <= MASK_KEEP_0_128, ICrystal.ActionFailed());
                 settlementDelta += (feeAmount << 128);
@@ -1439,7 +1456,7 @@ contract CrystalMarket is ERC20 {
     /**
      * @notice Places a limit order on the orderbook.
      *
-     * @dev Validates prices against spread, AMM bounds, cloid uniqueness, and minimum size. `isRecieveTokens` toggles whether maker proceeds are sent externally or kept in internal balances.
+     * @dev Validates prices against spread, AMM bounds, cloid uniqueness, and minimum size.
      *
      * @param isBuy True for bids, false for asks.
      * @param isRecieveTokens True to receive proceeds as token transfers, false to use internal balances.
@@ -1749,7 +1766,10 @@ contract CrystalMarket is ERC20 {
                 isBuy = true;
             }
             if (newPrice == 0) {
-                newPrice += price;
+                newPrice = price;
+            }
+            if (newSize == 0 && newPrice == price) {
+                return (0, 0, 0); // No state change; silent return permitted
             }
             if ((((options >> 48) & 1) != 0) || (newPrice == price && (prevSize > newSize))) {
                 if (prevSize <= newSize) {
@@ -1838,7 +1858,7 @@ contract CrystalMarket is ERC20 {
             uint256 userId;
             {
                 uint256 orderFlags = ((orderType & 0xF) << 252) | ((isExactInput ? 0 : (1 << 248))) | ((isBuy ? 0 : (1 << 244))) | (((options >> 56) & 0xF) << 240); // Encode order type: exactInput=0, isBuy=0, with STP mode
-                orderInfo = orderFlags | (((options >> 68) & 1) << 236) | (((options >> 64) & 1) << 232) | uint160(user); // Embed caller address; userId at bits 160-208 for internal/MTL, cloid at 208-218 for MTL
+                orderInfo = orderFlags | (((options >> 68) & 1) << 236) | (((options >> 64) & 1) << 232) | uint160(user); // Embed caller address, userId at bits 160-208 for internal/MTL, cloid at 208-218 for MTL
                 userId = (options & MASK_KEEP_0_41);
                 if (userId != 0) {
                     require(userIdToAddress[userId] == user, ICrystal.Unauthorized(msg.sender));
@@ -1860,7 +1880,7 @@ contract CrystalMarket is ERC20 {
             }
             (amountIn, amountOut, id, settlementDelta) = _marketOrder(size, worstPrice, orderInfo);
             address token = isBuy ? quoteAsset : baseAsset;
-            if ((settlementDelta >> 128) != 0) { // Handle input token for limit order placement and maker fills
+            if ((settlementDelta >> 128) != 0) { // Handle input token for limit order placement, maker fills, and the trade fee for buys
                 if (((options >> 68) & 1) != 0) {
                     uint256 balance = tokenBalances[userId][token];
                     require(uint128(balance) >= (settlementDelta >> 128), ICrystal.ActionFailed());
@@ -2076,12 +2096,13 @@ contract CrystalMarket is ERC20 {
                 mstore(0xc0, referrer)
                 mstore(0x40, 0x100) // Reserve memory; 0x80 used internally by _marketOrder
             }
-            while (offset < actions.length) {
-                action = actions[offset].action & 0xF;
-                param1 = actions[offset].param1 & MASK_KEEP_0_80;
-                param2 = actions[offset].param2 & MASK_KEEP_0_112;
-                cloid = actions[offset].param3 & MASK_KEEP_0_10;
-                if (action == 1) { // Cancel order: accepts price+id or cloid
+            while (offset < actions.length) { // An action with invalid parameters always reverts the full transaction
+                require(actions[offset].action > 0 && actions[offset].action <= 12 && actions[offset].param1 <= MASK_KEEP_0_80 && actions[offset].param2 <= MASK_KEEP_0_112 && (((actions[offset].action & 0xF) == 12) || (actions[offset].param3 < 1024)), ICrystal.InvalidParams());
+                action = actions[offset].action;
+                param1 = actions[offset].param1;
+                param2 = actions[offset].param2;
+                cloid = actions[offset].param3;
+                if (action == 1) { // Cancel order; parameters are price, id, and optionally cloid
                     if (cloid != 0) {
                         (param1, action, isBuy) = _cancelOrder(0, cloid, userId);
                         param2 = (cloid << 41) | userId; // Encode cloid with userId for event emission
@@ -2094,7 +2115,7 @@ contract CrystalMarket is ERC20 {
                     } else {
                         require(!actions[offset].isRequireSuccess, ICrystal.ActionFailed());
                     }
-                } else if (action == 2 || action == 3) { // Limit buy order: requires price, size; optional cloid
+                } else if (action == 2 || action == 3) { // Limit buy/sell order: parameters are price, size, and optionally cloid
                     (cloid, param2) = _limitOrder((action & 1) == 0, balanceMode == 0, param1, param2, userId, cloid);
                     if (cloid != 0) {
                         ((action & 1) == 0) ? quoteAssetDebt += int256(cloid) : baseAssetDebt += int256(cloid);
@@ -2112,11 +2133,10 @@ contract CrystalMarket is ERC20 {
                         quoteAssetDebt += int256(settlementDelta >> 128);
                         baseAssetDebt -= int256(param1 + (settlementDelta & MASK_KEEP_0_128)); // Safe: value bounded by uint128 intrinsic limit
                     }
-                } else if (action == 12) { // Decrease order: use cloid if price provided, otherwise use id
+                } else if (action == 12) { // Decrease order: use native id if price provided, otherwise use cloid
                     bool isCloid;
-                    if (param1 != 0) { // Price provided: use native order ID
-                        cloid = actions[offset].param3;
-                        cloid &= MASK_KEEP_0_41; // Mask to uint41 order ID
+                    if (param1 != 0) { // Native id path as price is nonzero
+                        require(cloid <= MASK_KEEP_0_41, ICrystal.InvalidParams()); // Param3/cloid variable represents the native order id, so uint41 instead of uint10
                     } else {
                         isCloid = true;
                     }
@@ -2153,15 +2173,15 @@ contract CrystalMarket is ERC20 {
     }
 
     /**
-     * @notice Adds the initial liquidity to a launchpad market's AMM (happens before regular trading starts)
+     * @notice Adds the initial liquidity to a launchpad market's AMM (happens before regular trading starts).
      *
-     * @dev Can only be called when the pool has no LP tokens yet
+     * @dev Can only be called when the pool has no LP tokens yet.
      *
-     * @param to Who gets the LP tokens
-     * @param amountQuoteDesired How much quote asset to add
-     * @param amountBaseDesired How much base asset to add
+     * @param to Who gets the LP tokens.
+     * @param amountQuoteDesired How much quote asset to add.
+     * @param amountBaseDesired How much base asset to add.
      *
-     * @return liquidity How many LP tokens were created
+     * @return liquidity How many LP tokens were created.
      */
     function premint(address to, uint256 amountQuoteDesired, uint256 amountBaseDesired) external payable returns (uint256 liquidity) {
         ICrystal.Market storage m = _getMarket[market];
@@ -2172,18 +2192,18 @@ contract CrystalMarket is ERC20 {
     }
 
     /**
-     * @notice Adds liquidity to the AMM and gets LP tokens in return
+     * @notice Adds liquidity to the AMM and gets LP tokens in return.
      *
-     * @dev The `options` parameter controls whether we pull funds directly from you or use the router's internal balance
+     * @dev The `options` parameter controls whether we pull funds directly from you or use the router's internal balance.
      *
-     * @param to Who receives the LP tokens
-     * @param amountQuoteDesired How much quote asset you want to add
-     * @param amountBaseDesired How much base asset you want to add
-     * @param amountQuoteMin Minimum quote asset you'll accept (slippage protection)
-     * @param amountBaseMin Minimum base asset you'll accept (slippage protection)
-     * @param options Bit flags controlling where quote and base tokens come from
+     * @param to Who receives the LP tokens.
+     * @param amountQuoteDesired How much quote asset you want to add.
+     * @param amountBaseDesired How much base asset you want to add.
+     * @param amountQuoteMin Minimum quote asset you'll accept (slippage protection).
+     * @param amountBaseMin Minimum base asset you'll accept (slippage protection).
+     * @param options Bit flags controlling where quote and base tokens come from.
      *
-     * @return liquidity How many LP tokens you got
+     * @return liquidity How many LP tokens you got.
      */
     function addLiquidity(address to, uint256 amountQuoteDesired, uint256 amountBaseDesired, uint256 amountQuoteMin, uint256 amountBaseMin, uint256 options) external payable returns (uint256 liquidity) {
         ICrystal.Market storage m = _getMarket[market];
@@ -2233,28 +2253,48 @@ contract CrystalMarket is ERC20 {
     }
 
     /**
-     * @notice Burns LP tokens to withdraw your share of the AMM pool
+     * @notice Burns LP tokens to withdraw your share of the AMM pool.
      *
-     * @dev The `options` parameter controls whether we send tokens to you directly or credit your internal balance
+     * @dev The `options` parameter controls whether we send tokens to you directly or credit your internal balance.
      *
-     * @param to Who gets the tokens if we're sending them externally
-     * @param liquidity How many LP tokens to burn
-     * @param amountQuoteMin Minimum quote asset you'll accept (slippage protection)
-     * @param amountBaseMin Minimum base asset you'll accept (slippage protection)
-     * @param options Bit flags controlling where quote and base tokens go
+     * @param to Who gets the tokens if we're sending them externally.
+     * @param liquidity How many LP tokens to burn.
+     * @param amountQuoteMin Minimum quote asset you'll accept (slippage protection).
+     * @param amountBaseMin Minimum base asset you'll accept (slippage protection).
+     * @param options Bit flags controlling where quote and base tokens go.
      *
-     * @return amountQuote Quote asset you received
-     * @return amountBase Base asset you received
+     * @return amountQuote Quote asset you received.
+     * @return amountBase Base asset you received.
      */
     function removeLiquidity(address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin, uint256 options) external payable returns (uint256 amountQuote, uint256 amountBase) {
         ICrystal.Market storage m = _getMarket[market];
+        uint256 _totalSupply = IERC20(market).totalSupply();
         (uint256 reserveQuote, uint256 reserveBase) = (m.reserveQuote, m.reserveBase);
         IERC20(market).transferFrom(msg.sender, address(this), liquidity);
-
-        uint256 _totalSupply = IERC20(market).totalSupply();
+        IERC20(market).burn(address(this), liquidity);
         amountQuote = (liquidity * reserveQuote) / _totalSupply;
         amountBase = (liquidity * reserveBase) / _totalSupply;
-        IERC20(market).burn(address(this), liquidity);
+        reserveQuote -= uint112(amountQuote);
+        reserveBase -= uint112(amountBase);
+        if (m.isAMMEnabled) {
+            uint256 ammAsk = ((reserveQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000));
+            uint256 ammBid = ((reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * uint256(m.makerRebate)));
+            if (m.highestBid > ammAsk) {
+                uint256 newReserveQuote = (((uint256(m.highestBid) - 1) * reserveBase * 9975 * 100000) / (scaleFactor * 10000 * uint256(m.makerRebate))) + 1;
+                ammBid = ((newReserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * uint256(m.makerRebate)));
+                require(newReserveQuote - reserveQuote <= amountQuote && m.lowestAsk >= ammBid, ICrystal.SlippageExceeded());
+                amountQuote -= (newReserveQuote - reserveQuote);
+                reserveQuote = newReserveQuote;
+            } else if (m.lowestAsk < ammBid) {
+                uint256 newReserveBase = ((reserveQuote * scaleFactor * 9975 * 100000) / ((uint256(m.lowestAsk) + 1) * 10000 * uint256(m.makerRebate))) + 1;
+                ammAsk = ((reserveQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (newReserveBase * 9975 * 100000 - 1)) / (newReserveBase * 9975 * 100000));
+                require(newReserveBase - reserveBase <= amountBase && m.highestBid <= ammAsk, ICrystal.SlippageExceeded());
+                amountBase -= (newReserveBase - reserveBase);
+                reserveBase = newReserveBase;
+            }
+        }
+        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin, ICrystal.SlippageExceeded());
+        (m.reserveQuote, m.reserveBase) = (uint112(reserveQuote), uint112(reserveBase));
         if ((options & 1) == 0) {
             IERC20(quoteAsset).transfer(to, amountQuote);
         } else {
@@ -2267,21 +2307,14 @@ contract CrystalMarket is ERC20 {
             require(((tokenBalances[0][baseAsset] & MASK_KEEP_0_128) + amountBase) <= MASK_KEEP_0_128, ICrystal.Overflow());
             tokenBalances[0][baseAsset] += amountBase;
         }
-        reserveQuote -= uint112(amountQuote);
-        reserveBase -= uint112(amountBase);
-        uint256 ammAsk = ((reserveQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000));
-        uint256 ammBid = ((reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * uint256(m.makerRebate)));
-        require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && (m.isAMMEnabled == false || (m.highestBid <= ammAsk && m.lowestAsk >= ammBid)), ICrystal.SlippageExceeded());
-        (m.reserveQuote, m.reserveBase) = (uint112(reserveQuote), uint112(reserveBase));
         emit ICrystal.Sync(market, uint112(reserveQuote), uint112(reserveBase));
         emit ICrystal.Burn(market, msg.sender, amountQuote, amountBase, to);
     }
 
     /**
-     * @notice Processes tightly packed batch actions supplied via calldata.
+     * @notice Market maker endpoint for executing batch actions supplied via calldata.
      *
-     * @dev The first 32-byte word carries the userId and action count; subsequent words consist of 32-byte actions.
-     * @dev userId is prevalidated.
+     * @dev The first 32-byte word carries the userId and action count; subsequent words consist of 32-byte actions. `userId` is already validated.
      */
     fallback() external payable {
         unchecked {
@@ -2310,6 +2343,12 @@ contract CrystalMarket is ERC20 {
                     param2 := and(MASK_KEEP_0_112, action) // Extract bits 144-256
                     cloid := and(MASK_KEEP_0_10, shr(192, action)) // Extract cloid from bits 54-64
                     action := shr(252, action) // Extract action code from bits 0-4
+                }
+                if (action == 0 || action > 12) { // If invalid action and action must succeed, revert
+                    assembly { // Reuse isBuy variable for isRequireSuccess flag
+                        isBuy := and(0x1, shr(248, calldataload(offset))) // Extract bit 4-8
+                    }
+                    require(!isBuy, ICrystal.ActionFailed());
                 }
                 if (action == 1) { // Cancel order: accepts price + id or cloid
                     if (cloid != 0) {

@@ -6,6 +6,14 @@ node_modules
 /cache
 /artifacts
 
+# Foundry files
+/out
+/cache_forge
+/broadcast
+
+# Stateful fuzzing corpora
+/corpus
+
 # TypeChain files
 /typechain
 /typechain-types
@@ -13,6 +21,10 @@ node_modules
 # solidity-coverage files
 /coverage
 /coverage.json
+
+# Fuzzing logs
+/logs
+/crytic-export
 
 # Hardhat Ignition default folder for deployments against a local node
 ignition/deployments/chain-31337

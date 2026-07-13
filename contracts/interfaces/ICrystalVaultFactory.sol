@@ -43,9 +43,9 @@ interface ICrystalVaultFactory {
 
     function getVault(address vault) external view returns (address quoteAsset, address baseAsset, address owner, uint256 totalShares, uint256 maxShares, uint40 lockup, bool decreaseOnWithdraw, bool locked, bool closed, ICrystalVault.VaultMetaData memory metadata);
 
-    function minSize(address token) external view returns (uint256);
+    function minDeposit(address token) external view returns (uint256);
 
-    function minDeposit() external view returns (uint256);
+    function globalMinDeposit() external view returns (uint256);
 
     function maxOrderCap() external view returns (uint16);
 
@@ -57,7 +57,9 @@ interface ICrystalVaultFactory {
 
     function changeMaxLockup(uint40 newLockup) external;
 
-    function changeTokenMinSize(address token, uint256 newMinSize) external;
+    function changeGlobalMinDeposit(uint256 newGlobalMinDeposit) external;
+
+    function changeMinDeposit(address token, uint256 newMinSize) external;
 
     function deploy(
         address quoteAsset,
@@ -111,7 +113,7 @@ interface ICrystalVaultFactory {
 
     function changeMarket(address vault) external;
 
-    function claimFees(address vault) external;
+    function claimFees(address vault, address[] calldata tokens) external;
 
     function clearCloidSlots(address vault, uint256 userId, uint256[] calldata ids) external;
 }

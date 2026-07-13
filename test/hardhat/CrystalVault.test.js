@@ -240,7 +240,7 @@ describe("CrystalVault", function () {
 
   describe("_sqrt", function () {
     it("Should return 0 for sqrt(0) - y == 0 branch", async function () {
-      const { crystal, _owner, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, user1, quote, weth } = await loadFixture(deployFixture);
       const MockFactory = await ethers.getContractFactory("MockFactory");
       const deployer = await MockFactory.deploy();
 
@@ -496,13 +496,13 @@ describe("CrystalVault", function () {
 
   describe("claimFees", function () {
     it("Should revert when not called by factory", async function () {
-      const { vault, depositor } = await loadFixture(vaultFixture);
-      await expect(vault.connect(depositor).claimFees()).to.be.reverted;
+      const { vault, depositor, quote } = await loadFixture(vaultFixture);
+      await expect(vault.connect(depositor).claimFees([quote.target])).to.be.reverted;
     });
 
     it("Should claim fees", async function () {
-      const { vault, vaultFactory, vaultOperator } = await loadFixture(vaultFixture);
-      await vaultFactory.connect(vaultOperator).claimFees(vault.target);
+      const { vault, vaultFactory, vaultOperator, quote } = await loadFixture(vaultFixture);
+      await vaultFactory.connect(vaultOperator).claimFees(vault.target, [quote.target]);
     });
   });
 
@@ -521,7 +521,7 @@ describe("CrystalVault", function () {
 
   describe("previewDeposit", function () {
     it("Should return shares using sqrt when totalSupply == 0", async function () {
-      const { crystal, _owner, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, user1, quote, weth } = await loadFixture(deployFixture);
       const MockFactory = await ethers.getContractFactory("MockFactory");
       const deployer = await MockFactory.deploy();
 
@@ -1135,8 +1135,8 @@ describe("CrystalVault", function () {
     });
 
     it("Should revert when crystal.call fails with requireSuccess true", async function () {
-      const { vault, vaultOperator, _quote, crystal } = await loadFixture(vaultFixture);
-      const _marketInfo = await crystal.getMarket(await vault.market());
+      const { vault, vaultOperator, crystal } = await loadFixture(vaultFixture);
+      await crystal.getMarket(await vault.market());
 
       await expect(vault.connect(vaultOperator).execute(
         [{ action: 2n, requireSuccess: true, cloid: 1n, param1: 0n, param2: 1000n }],

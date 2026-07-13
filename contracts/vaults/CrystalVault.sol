@@ -47,7 +47,7 @@ contract CrystalVault is ERC20 {
     /// @notice Whether to proportionally decrease all active orders upon withdrawal.
     bool public decrease;
 
-    /// @notice Whether deposits and strategy execution are paused.
+    /// @notice Whether new deposits into the vault are paused.
     bool public locked;
 
     /// @notice Whether the vault has been permanently closed.
@@ -104,7 +104,7 @@ contract CrystalVault is ERC20 {
     }
 
     /**
-     * @notice Accepts native token transfers for priority bid
+     * @notice Accepts native token transfers for priority bid.
      */
     receive() external payable {}
 
@@ -122,27 +122,21 @@ contract CrystalVault is ERC20 {
     }
 
     /**
-     * @notice Disabled ERC20 transfer.
-     *
-     * @dev Vault shares are non-transferable. Always reverts.
+     * @notice Vault shares are non-transferable. Always reverts.
      */
     function transfer(address, uint) external pure override returns (bool) {
         revert();
     }
 
     /**
-     * @notice Disabled ERC20 transferFrom.
-     *
-     * @dev Vault shares are non-transferable. Always reverts.
+     * @notice Vault shares are non-transferable. Always reverts.
      */
     function transferFrom(address, address, uint) external pure override returns (bool) {
         revert();
     }
 
     /**
-     * @notice Pauses deposits and strategy execution.
-     *
-     * @dev Only callable by the factory.
+     * @notice Pauses new deposits into the vault.
      */
     function lock() external onlyFactory {
         require(!locked, ICrystalVault.InvalidState());
@@ -150,9 +144,7 @@ contract CrystalVault is ERC20 {
     }
 
     /**
-     * @notice Resumes deposits and strategy execution.
-     *
-     * @dev Only callable by the factory.
+     * @notice Resumes allowing new deposits into the vault.
      */
     function unlock() external onlyFactory {
         require(locked && !closed, ICrystalVault.InvalidState());
@@ -216,12 +208,13 @@ contract CrystalVault is ERC20 {
     }
 
     /**
-     * @notice Claims accrued trading fees to the vault owner.
+     * @notice Claims any available rewards to the vault owner.
+     * 
+     * @dev As a vault cannot create markets and is unlikely to be used as a referrer address, these rewards are likely in the form of incentives distributed by the protocol or third parties.
+     *
+     * @param tokens Token list to claim.
      */
-    function claimFees() external onlyFactory {
-        address[] memory tokens = new address[](2);
-        tokens[0] = quoteAsset;
-        tokens[1] = baseAsset;
+    function claimFees(address[] calldata tokens) external onlyFactory {
         ICrystal(crystal).claimFees(owner, tokens);
     }
 
@@ -252,6 +245,7 @@ contract CrystalVault is ERC20 {
             amountBase = amountBaseDesired;
             shares = CrystalMath._sqrt(amountQuote * amountBase);
         } else {
+            require(quoteBalance != 0 && baseBalance != 0, ICrystalVault.InvalidState()); // Pause deposits if the vault is entirely skewed to one side
             uint256 amountBaseOptimal = (amountQuoteDesired * baseBalance) / quoteBalance;
             if (amountBaseOptimal <= amountBaseDesired) {
                 amountQuote = amountQuoteDesired;
@@ -274,6 +268,9 @@ contract CrystalVault is ERC20 {
      * @return amountBase Base amount returned.
      */
     function previewWithdrawal(uint256 shares) external view returns (uint256 amountQuote, uint256 amountBase) {
+        if (totalSupply == 0 || shares == 0) {
+            return (0, 0);
+        }
         (uint256 quoteBalance, uint256 baseBalance, , ) = getBalances();
         amountQuote = (quoteBalance * shares) / totalSupply;
         amountBase = (baseBalance * shares) / totalSupply;
@@ -301,6 +298,7 @@ contract CrystalVault is ERC20 {
             amountBase = amountBaseDesired;
             shares = CrystalMath._sqrt(amountQuote * amountBase);
         } else {
+            require(quoteBalance != 0 && baseBalance != 0, ICrystalVault.InvalidState()); // Pause deposits if the vault is entirely skewed to one side
             uint256 amountBaseOptimal = (amountQuoteDesired * baseBalance) / quoteBalance;
             if (amountBaseOptimal <= amountBaseDesired) {
                 amountQuote = amountQuoteDesired;
@@ -315,10 +313,14 @@ contract CrystalVault is ERC20 {
 
         require(amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && shares != 0 && (maxShares == 0 || totalSupply + shares <= maxShares), ICrystal.InvalidParams());
 
-        IERC20(quoteAsset).transferFrom(msg.sender, address(this), amountQuote);
-        IERC20(baseAsset).transferFrom(msg.sender, address(this), amountBase);
-        ICrystal(crystal).deposit(quoteAsset, amountQuote);
-        ICrystal(crystal).deposit(baseAsset, amountBase);
+        if (amountQuote > 0) {
+            IERC20(quoteAsset).transferFrom(msg.sender, address(this), amountQuote);
+            ICrystal(crystal).deposit(quoteAsset, amountQuote);
+        }
+        if (amountBase > 0) {
+            IERC20(baseAsset).transferFrom(msg.sender, address(this), amountBase);
+            ICrystal(crystal).deposit(baseAsset, amountBase);
+        }
 
         _mint(user, shares);
         unlockTimestamp[user] = block.timestamp + lockup;
@@ -355,19 +357,19 @@ contract CrystalVault is ERC20 {
                 require(balanceOf[owner] * 20 > totalSupply, ICrystalVault.InvalidOwnerShare());
             }
         }
-        if (decrease) {
+        if (decrease) { // Round with cumulative ceiling rounding
             (uint256[] memory cloids, ICrystal.Order[] memory orders) = ICrystal(crystal).getAllOrdersByCloid(address(this), orderCap);
             bytes32[] memory data = new bytes32[](cloids.length + 1);
             data[0] = bytes32((1 << 252) | (cloids.length << 160) | uint160(market));
-            ICrystal.Order memory order;
-            uint256 cloid;
+            uint256 quote;
+            uint256 base;
             for (uint256 i; i < cloids.length; ++i) {
-                order = orders[i];
-                cloid = cloids[i];
-                if (order.isBuy) {
-                    data[i + 1] = bytes32((12 << 252) | ((cloid & 0x3FF) << 192) | (((order.size * amountQuote + quoteBalance - 1) / quoteBalance) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
+                if (orders[i].isBuy) {
+                    data[i + 1] = bytes32((uint256(12) << 252) | ((cloids[i] & 0x3FF) << 192) | ((((quote + orders[i].size) * amountQuote + quoteBalance - 1) / quoteBalance) - ((quote * amountQuote + quoteBalance - 1) / quoteBalance) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
+                    quote += orders[i].size;
                 } else {
-                    data[i + 1] = bytes32((12 << 252) | ((cloid & 0x3FF) << 192) | (((order.size * amountBase + baseBalance - 1) / baseBalance) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
+                    data[i + 1] = bytes32((uint256(12) << 252) | ((cloids[i] & 0x3FF) << 192) | ((((base + orders[i].size) * amountBase + baseBalance - 1) / baseBalance) - ((base * amountBase + baseBalance - 1) / baseBalance) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
+                    base += orders[i].size;
                 }
             }
             (bool success, bytes memory returnData) = crystal.call(abi.encodePacked(data));

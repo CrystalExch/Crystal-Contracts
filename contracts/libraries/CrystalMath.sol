@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
+/**
+ * @title CrystalMath
+ * @author Crystal Labs
+ *
+ * @notice Math library for the Crystal spot protocol.
+ */
 library CrystalMath {
     /**
      * @notice Computes the integer square root of the input.
@@ -39,11 +45,11 @@ library CrystalMath {
     }
 
     /**
-     * @notice Converts a tick number into its actual price value
+     * @notice Converts a tick number into its actual price value.
      *
-     * @param t The tick index
+     * @param t The tick index.
      *
-     * @return The price that corresponds to this tick
+     * @return The price that corresponds to this tick.
      */
     function _tickToPrice(uint256 t, uint256 tickSize) internal pure returns (uint256) {
         unchecked {
@@ -54,14 +60,14 @@ library CrystalMath {
     }
 
     /**
-     * @notice Converts a price into its tick index
+     * @notice Converts a price into its tick index.
      *
-     * @dev Will revert if the price doesn't line up with the allowed price grid for that range
+     * @dev Will revert if the price doesn't line up with the allowed price grid for that range.
      *
-     * @param p The price value
-     * @param tickSize The market's tick size
+     * @param p The price value.
+     * @param tickSize The market's tick size.
      *
-     * @return The tick index for this price
+     * @return The tick index for this price.
      */
     function _priceToTick(uint256 p, uint256 tickSize) internal pure returns (uint256) {
         unchecked {
@@ -103,12 +109,12 @@ library CrystalMath {
     }
 
     /**
-     * @notice Snaps a price to the nearest valid price on the grid
+     * @notice Snaps a price to the nearest valid price on the grid.
      *
      * @param p Raw price.
      * @param roundUp Whether to round up or down.
      *
-     * @return The price adjusted to fit the valid grid
+     * @return The price adjusted to fit the valid grid.
      */
     function _toValidPrice(uint256 p, bool roundUp) internal pure returns (uint256) {
         unchecked {
@@ -130,12 +136,12 @@ library CrystalMath {
     }
 
     /**
-     * @notice Searches upward through a bitmap to find the next tick that has active orders
+     * @notice Searches upward through a bitmap to find the next tick that has active orders.
      *
-     * @param slot The bitmap containing tick activity flags
-     * @param tick Where to start searching from
+     * @param slot The bitmap containing tick activity flags.
+     * @param tick Where to start searching from.
      *
-     * @return The next active tick we found
+     * @return The next active tick we found.
      */
     function _searchSlotUp(uint256 slot, uint256 tick) internal pure returns (uint256) {
         unchecked {
@@ -175,12 +181,12 @@ library CrystalMath {
     }
 
     /**
-     * @notice Searches downward through a bitmap to find the previous tick that has active orders
+     * @notice Searches downward through a bitmap to find the previous tick that has active orders.
      *
-     * @param slot The bitmap containing tick activity flags
-     * @param tick Where to start searching from
+     * @param slot The bitmap containing tick activity flags.
+     * @param tick Where to start searching from.
      *
-     * @return The previous active tick we found
+     * @return The previous active tick we found.
      */
     function _searchSlotDown(uint256 slot, uint256 tick) internal pure returns (uint256) {
         unchecked {
@@ -220,17 +226,17 @@ library CrystalMath {
     }
 
     /**
-     * @notice Figures out how much quote asset you need to spend on a buy to hit a specific execution price
+     * @notice Figures out how much quote asset you need to spend on a buy to hit a specific execution price.
      *
-     * @dev Uses binary search to find the answer, with `high` as the maximum we'll search up to
+     * @dev Uses binary search to find the answer, with `high` as the maximum we'll search up to.
      *
-     * @param reserveQuote Current quote asset in the AMM
-     * @param reserveBase Current base asset in the AMM
-     * @param targetPrice The execution price you want to reach
-     * @param makerRebate Maker rebate that affects the price
-     * @param high Maximum input amount to consider
+     * @param reserveQuote Current quote asset in the AMM.
+     * @param reserveBase Current base asset in the AMM.
+     * @param targetPrice The execution price you want to reach.
+     * @param makerRebate Maker rebate that affects the price.
+     * @param high Maximum input amount to consider.
      *
-     * @return low Minimum quote amount needed to hit your target price
+     * @return low Minimum quote amount needed to hit your target price.
      */
     function _exactInputBuySolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 makerRebate, uint256 high, uint256 scaleFactor) internal pure returns (uint256 low) {
         unchecked {
@@ -250,17 +256,17 @@ library CrystalMath {
     }
 
     /**
-     * @notice Figures out how much base asset you'll get from a buy at a specific execution price
+     * @notice Figures out how much base asset you'll get from a buy at a specific execution price.
      *
-     * @dev Uses binary search to find the answer, maxing out at `high`
+     * @dev Uses binary search to find the answer, maxing out at `high`.
      *
-     * @param reserveQuote Current quote asset in the AMM
-     * @param reserveBase Current base asset in the AMM
-     * @param targetPrice The execution price you want
-     * @param makerRebate Maker rebate that affects the price
-     * @param high Maximum output amount to consider
+     * @param reserveQuote Current quote asset in the AMM.
+     * @param reserveBase Current base asset in the AMM.
+     * @param targetPrice The execution price you want.
+     * @param makerRebate Maker rebate that affects the price.
+     * @param high Maximum output amount to consider.
      *
-     * @return low Minimum base amount you'll get at your target price
+     * @return low Minimum base amount you'll get at your target price.
      */
     function _exactOutputBuySolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 makerRebate, uint256 high, uint256 scaleFactor) internal pure returns (uint256 low) {
         unchecked {
@@ -280,17 +286,17 @@ library CrystalMath {
     }
 
     /**
-     * @notice Figures out how much base asset you need to sell to hit a specific execution price
+     * @notice Figures out how much base asset you need to sell to hit a specific execution price.
      *
-     * @dev Uses binary search to find the answer, with `high` as the maximum
+     * @dev Uses binary search to find the answer, with `high` as the maximum.
      *
-     * @param reserveQuote Current quote asset in the AMM
-     * @param reserveBase Current base asset in the AMM
-     * @param targetPrice The execution price you want to reach
-     * @param makerRebate Maker rebate that affects the price
-     * @param high Maximum input amount to consider
+     * @param reserveQuote Current quote asset in the AMM.
+     * @param reserveBase Current base asset in the AMM.
+     * @param targetPrice The execution price you want to reach.
+     * @param makerRebate Maker rebate that affects the price.
+     * @param high Maximum input amount to consider.
      *
-     * @return low Minimum base amount needed to hit your target price
+     * @return low Minimum base amount needed to hit your target price.
      */
     function _exactInputSellSolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 makerRebate, uint256 high, uint256 scaleFactor) internal pure returns (uint256 low) {
         unchecked {
@@ -309,17 +315,17 @@ library CrystalMath {
     }
 
     /**
-     * @notice Figures out how much quote asset you'll get from a sell at a specific execution price
+     * @notice Figures out how much quote asset you'll get from a sell at a specific execution price.
      *
-     * @dev Uses binary search to find the answer, maxing out at `high`
+     * @dev Uses binary search to find the answer, maxing out at `high`.
      *
-     * @param reserveQuote Current quote asset in the AMM
-     * @param reserveBase Current base asset in the AMM
-     * @param targetPrice The execution price you want
-     * @param makerRebate Maker rebate that affects the price
-     * @param high Maximum output amount to consider
+     * @param reserveQuote Current quote asset in the AMM.
+     * @param reserveBase Current base asset in the AMM.
+     * @param targetPrice The execution price you want.
+     * @param makerRebate Maker rebate that affects the price.
+     * @param high Maximum output amount to consider.
      *
-     * @return low Minimum quote amount you'll get at your target price
+     * @return low Minimum quote amount you'll get at your target price.
      */
     function _exactOutputSellSolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 makerRebate, uint256 high, uint256 scaleFactor) internal pure returns (uint256 low) {
         unchecked {

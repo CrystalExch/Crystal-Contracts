@@ -75,7 +75,7 @@ interface ICrystalVault {
 
     function changeLockup(uint40 newLockup) external;
 
-    function claimFees() external;
+    function claimFees(address[] calldata tokens) external;
 
     function clearCloidSlots(uint256 userId, uint256[] calldata ids) external;
 

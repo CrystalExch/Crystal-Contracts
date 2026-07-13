@@ -1,0 +1,87 @@
+{
+  "fuzzing": {
+    "workers": 4,
+    "workerResetLimit": 50,
+    "timeout": 0,
+    "testLimit": 0,
+    "callSequenceLength": 80,
+    "corpusDirectory": "corpus/medusa",
+    "coverageEnabled": true,
+    "deploymentOrder": [],
+    "targetContracts": ["CryticTester"],
+    "targetContractsBalances": ["0x100000000000000000000000"],
+    "predeployedContracts": {
+      "CryticTester": "0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496"
+    },
+    "constructorArgs": {},
+    "deployerAddress": "0xf5e4fFeB7d2183B61753AA4074d72E51873C1D0a",
+    "senderAddresses": ["0x10000", "0x20000", "0x30000", "0x40000"],
+    "blockNumberDelayMax": 60480,
+    "blockTimestampDelayMax": 604800,
+    "blockGasLimit": 125000000,
+    "transactionGasLimit": 12500000,
+    "testing": {
+      "stopOnFailedTest": false,
+      "stopOnFailedContractMatching": false,
+      "stopOnNoTests": true,
+      "testAllContracts": false,
+      "traceAll": false,
+      "assertionTesting": {
+        "enabled": true,
+        "testViewMethods": true,
+        "panicCodeConfig": {
+          "failOnCompilerInsertedPanic": false,
+          "failOnAssertion": true,
+          "failOnArithmeticUnderflow": false,
+          "failOnDivideByZero": false,
+          "failOnEnumTypeConversionOutOfBounds": false,
+          "failOnIncorrectStorageAccess": false,
+          "failOnPopEmptyArray": false,
+          "failOnOutOfBoundsArrayAccess": false,
+          "failOnAllocateTooMuchMemory": false,
+          "failOnCallUninitializedVariable": false
+        }
+      },
+      "propertyTesting": {
+        "enabled": false,
+        "testPrefixes": ["echidna_"]
+      },
+      "optimizationTesting": {
+        "enabled": false,
+        "testPrefixes": ["optimize_"]
+      }
+    },
+    "chainConfig": {
+      "codeSizeCheckDisabled": true,
+      "cheatCodes": {
+        "cheatCodesEnabled": true,
+        "enableFFI": false
+      },
+      "skipAccountChecks": true,
+      "forkConfig": {
+        "forkModeEnabled": false,
+        "rpcUrl": "",
+        "rpcBlock": 1,
+        "poolSize": 20
+      }
+    }
+  },
+  "compilation": {
+    "platform": "crytic-compile",
+    "platformConfig": {
+      "target": ".",
+      "solcVersion": "",
+      "exportDirectory": "",
+      "args": ["--foundry-compile-all"]
+    }
+  },
+  "slither": {
+    "useSlither": false,
+    "cachePath": "slither_results.json",
+    "args": []
+  },
+  "logging": {
+    "level": "info",
+    "logDirectory": ""
+  }
+}

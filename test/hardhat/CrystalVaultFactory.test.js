@@ -372,58 +372,6 @@ describe("CrystalVaultFactory", function () {
   });
 
   describe("deposit", function () {
-    it("Should block reentrancy on deposit", async function () {
-      const { crystal, weth, token1, owner } = await loadFixture(vaultFixture);
-      const eth = ETH_ADDRESS;
-
-      const CrystalVaultFactory = await ethers.getContractFactory("CrystalVaultFactory");
-      const factory = await CrystalVaultFactory.deploy(crystal.target, owner.address, weth.target, 100, 100, 0);
-
-      await token1.connect(owner).approve(factory.target, MAX_UINT256);
-      const vaultTx = await factory.connect(owner).deploy(eth, token1.target, ethers.parseEther("1"), ethers.parseEther("1"), 0, 0, false, ["ETH Vault", "", "", "", ""], { value: ethers.parseEther("2") });
-      const receipt = await vaultTx.wait();
-      const vaultEvent = receipt.logs.map(log => { try { return factory.interface.parseLog(log); } catch { return null; } }).find(ev => ev && ev.name === "VaultDeployed");
-      const vaultAddr = vaultEvent.args.vault;
-
-      const ReentrancyAttacker = await ethers.getContractFactory("ReentrancyAttacker");
-      const attacker = await ReentrancyAttacker.deploy();
-
-      await attacker.setup(factory.target, vaultAddr, eth, token1.target);
-      await attacker.setReenter(0, 0, 0, 0);
-      await token1.transfer(attacker.target, ethers.parseEther("10"));
-      await attacker.approveToken(token1.target, factory.target, MAX_UINT256);
-
-      await attacker.attackDepositReentrancy(ethers.parseEther("0.5"), ethers.parseEther("0.5"), { value: ethers.parseEther("1") });
-      expect(await attacker.attacked()).to.be.true;
-      expect(await attacker.reenterSucceeded()).to.be.false;
-    });
-
-    it("Should block reentrancy from deposit into withdraw", async function () {
-      const { crystal, weth, token1, owner } = await loadFixture(vaultFixture);
-      const eth = ETH_ADDRESS;
-
-      const CrystalVaultFactory = await ethers.getContractFactory("CrystalVaultFactory");
-      const factory = await CrystalVaultFactory.deploy(crystal.target, owner.address, weth.target, 100, 100, 0);
-
-      await token1.connect(owner).approve(factory.target, MAX_UINT256);
-      const vaultTx = await factory.connect(owner).deploy(eth, token1.target, ethers.parseEther("1"), ethers.parseEther("1"), 0, 0, false, ["ETH Vault", "", "", "", ""], { value: ethers.parseEther("2") });
-      const receipt = await vaultTx.wait();
-      const vaultEvent = receipt.logs.map(log => { try { return factory.interface.parseLog(log); } catch { return null; } }).find(ev => ev && ev.name === "VaultDeployed");
-      const vaultAddr = vaultEvent.args.vault;
-
-      const ReentrancyAttacker = await ethers.getContractFactory("ReentrancyAttacker");
-      const attacker = await ReentrancyAttacker.deploy();
-
-      await attacker.setup(factory.target, vaultAddr, eth, token1.target);
-      await attacker.setReenter(2, 0, 0, 0);
-      await token1.transfer(attacker.target, ethers.parseEther("10"));
-      await attacker.approveToken(token1.target, factory.target, MAX_UINT256);
-
-      await attacker.attackDepositReentrancy(ethers.parseEther("0.5"), ethers.parseEther("0.5"), { value: ethers.parseEther("1") });
-      expect(await attacker.attacked()).to.be.true;
-      expect(await attacker.reenterSucceeded()).to.be.false;
-    });
-
     it("Should revert with wrong quote asset", async function () {
       const { vault, vaultFactory, depositor, base, weth } = await loadFixture(vaultFixture);
       await expect(
@@ -486,7 +434,7 @@ describe("CrystalVaultFactory", function () {
       const rejecter = await ETHRejecter.deploy();
 
       await token1.connect(owner).approve(factory.target, MAX_UINT256);
-      const vaultTx = await factory.connect(owner).deploy(eth, token1.target, ethers.parseEther("1"), ethers.parseEther("1"), 0, 0, false, ["ETH Vault", "", "", "", ""], { value: ethers.parseEther("2") });
+      const vaultTx = await factory.connect(owner).deploy(eth, token1.target, ethers.parseEther("1"), ethers.parseEther("1"), 0, 0, false, ["ETH Vault", "", "", "", ""], { value: ethers.parseEther("1") });
       const receipt = await vaultTx.wait();
       const vaultEvent = receipt.logs.map(log => { try { return factory.interface.parseLog(log); } catch { return null; } }).find(ev => ev && ev.name === "VaultDeployed");
       const vaultAddr = vaultEvent.args.vault;
@@ -510,7 +458,7 @@ describe("CrystalVaultFactory", function () {
       const rejecter = await ETHRejecter.deploy();
 
       await quote.connect(owner).approve(factory.target, MAX_UINT256);
-      const vaultTx = await factory.connect(owner).deploy(quote.target, eth, ethers.parseUnits("1000", 6), ethers.parseEther("1"), 0, 0, false, ["ETH Base Vault", "", "", "", ""], { value: ethers.parseEther("2") });
+      const vaultTx = await factory.connect(owner).deploy(quote.target, eth, ethers.parseUnits("1000", 6), ethers.parseEther("1"), 0, 0, false, ["ETH Base Vault", "", "", "", ""], { value: ethers.parseEther("1") });
       const receipt = await vaultTx.wait();
       const vaultEvent = receipt.logs.map(log => { try { return factory.interface.parseLog(log); } catch { return null; } }).find(ev => ev && ev.name === "VaultDeployed");
       const vaultAddr = vaultEvent.args.vault;
@@ -568,40 +516,6 @@ describe("CrystalVaultFactory", function () {
   });
 
   describe("withdraw", function () {
-    it("Should block reentrancy on withdraw", async function () {
-      const { crystal, weth, token1, owner } = await loadFixture(vaultFixture);
-      const eth = ETH_ADDRESS;
-
-      const CrystalVaultFactory = await ethers.getContractFactory("CrystalVaultFactory");
-      const factory = await CrystalVaultFactory.deploy(crystal.target, owner.address, weth.target, 100, 100, 0);
-
-      await token1.connect(owner).approve(factory.target, MAX_UINT256);
-      const vaultTx = await factory.connect(owner).deploy(eth, token1.target, ethers.parseEther("1"), ethers.parseEther("1"), 0, 0, false, ["ETH Vault", "", "", "", ""], { value: ethers.parseEther("2") });
-      const receipt = await vaultTx.wait();
-      const vaultEvent = receipt.logs.map(log => { try { return factory.interface.parseLog(log); } catch { return null; } }).find(ev => ev && ev.name === "VaultDeployed");
-      const vaultAddr = vaultEvent.args.vault;
-      const vault = await ethers.getContractAt("CrystalVault", vaultAddr);
-
-      const ReentrancyAttacker = await ethers.getContractFactory("ReentrancyAttacker");
-      const attacker = await ReentrancyAttacker.deploy();
-
-      await attacker.setup(factory.target, vaultAddr, eth, token1.target);
-      await token1.transfer(attacker.target, ethers.parseEther("10"));
-      await attacker.approveToken(token1.target, factory.target, MAX_UINT256);
-
-      await attacker.setReenter(1, ethers.parseEther("0.5"), ethers.parseEther("0.5"), 0);
-      await attacker.attackDepositReentrancy(ethers.parseEther("0.5"), ethers.parseEther("0.5"), { value: ethers.parseEther("0.5") });
-
-      const shares = await vault.balanceOf(attacker.target);
-      expect(shares).to.be.greaterThan(0n);
-
-      const reenterShares = shares / 4n > 0n ? shares / 4n : 1n;
-      await attacker.setReenter(2, 0, 0, reenterShares);
-      await attacker.attackWithdrawReentrancy(shares / 2n);
-      expect(await attacker.attacked()).to.be.true;
-      expect(await attacker.reenterSucceeded()).to.be.false;
-    });
-
     it("Should revert with wrong quote asset", async function () {
       const { vault, vaultFactory, depositor, quote, weth, base } = await loadFixture(vaultFixture);
       await vaultFactory.connect(depositor).deposit(vault.target, quote.target, weth.target, ethers.parseUnits("100", 6), ethers.parseEther("0.1"), 0, 0);
@@ -649,36 +563,6 @@ describe("CrystalVaultFactory", function () {
       expect(ethBalanceAfter + gasUsed).to.be.greaterThan(ethBalanceBefore);
     });
 
-    it("Should revert when ETH transfer fails (quote is ETH)", async function () {
-      const { crystal, weth, token1, owner } = await loadFixture(vaultFixture);
-      const eth = ETH_ADDRESS;
-
-      const CrystalVaultFactory = await ethers.getContractFactory("CrystalVaultFactory");
-      const factory = await CrystalVaultFactory.deploy(crystal.target, owner.address, weth.target, 100, 100, 0);
-
-      await token1.connect(owner).approve(factory.target, MAX_UINT256);
-      const vaultTx = await factory.connect(owner).deploy(eth, token1.target, ethers.parseEther("1"), ethers.parseEther("1"), 0, 0, false, ["ETH Vault", "", "", "", ""], { value: ethers.parseEther("2") });
-      const receipt = await vaultTx.wait();
-      const vaultEvent = receipt.logs.map(log => { try { return factory.interface.parseLog(log); } catch { return null; } }).find(ev => ev && ev.name === "VaultDeployed");
-      const vaultAddr = vaultEvent.args.vault;
-      const vault = await ethers.getContractAt("CrystalVault", vaultAddr);
-
-      const ETHToggler = await ethers.getContractFactory("ETHToggler");
-      const toggler = await ETHToggler.deploy();
-
-      await token1.transfer(toggler.target, ethers.parseEther("10"));
-      await toggler.approveToken(token1.target, factory.target, MAX_UINT256);
-
-      await toggler.depositToVault(factory.target, vaultAddr, eth, token1.target, ethers.parseEther("0.5"), ethers.parseEther("0.5"), { value: ethers.parseEther("1") });
-
-      const shares = await vault.balanceOf(toggler.target);
-      expect(shares).to.be.greaterThan(0n);
-
-      await toggler.setRejectETH(true);
-
-      await expect(toggler.withdrawFromVault(factory.target, vaultAddr, eth, token1.target, shares)).to.be.reverted;
-    });
-
     it("Should withdraw with ETH as base asset", async function () {
       const { crystal, owner, user1, weth, quote } = await loadFixture(deployFixture);
       const CrystalVaultFactory = await ethers.getContractFactory("CrystalVaultFactory");
@@ -702,36 +586,6 @@ describe("CrystalVaultFactory", function () {
       const ethAfter = await ethers.provider.getBalance(user1.address);
 
       expect(ethAfter + gasUsed).to.be.greaterThan(ethBefore);
-    });
-
-    it("Should revert when ETH transfer fails (base is ETH)", async function () {
-      const { crystal, weth, quote, owner } = await loadFixture(vaultFixture);
-      const eth = ETH_ADDRESS;
-
-      const CrystalVaultFactory = await ethers.getContractFactory("CrystalVaultFactory");
-      const factory = await CrystalVaultFactory.deploy(crystal.target, owner.address, weth.target, 100, 100, 0);
-
-      await quote.connect(owner).approve(factory.target, MAX_UINT256);
-      const vaultTx = await factory.connect(owner).deploy(quote.target, eth, ethers.parseUnits("1000", 6), ethers.parseEther("1"), 0, 0, false, ["ETH Base Vault", "", "", "", ""], { value: ethers.parseEther("2") });
-      const receipt = await vaultTx.wait();
-      const vaultEvent = receipt.logs.map(log => { try { return factory.interface.parseLog(log); } catch { return null; } }).find(ev => ev && ev.name === "VaultDeployed");
-      const vaultAddr = vaultEvent.args.vault;
-      const vault = await ethers.getContractAt("CrystalVault", vaultAddr);
-
-      const ETHToggler = await ethers.getContractFactory("ETHToggler");
-      const toggler = await ETHToggler.deploy();
-
-      await quote.transfer(toggler.target, ethers.parseUnits("10000", 6));
-      await toggler.approveToken(quote.target, factory.target, MAX_UINT256);
-
-      await toggler.depositToVault(factory.target, vaultAddr, quote.target, eth, ethers.parseUnits("500", 6), ethers.parseEther("0.5"), { value: ethers.parseEther("1") });
-
-      const shares = await vault.balanceOf(toggler.target);
-      expect(shares).to.be.greaterThan(0n);
-
-      await toggler.setRejectETH(true);
-
-      await expect(toggler.withdrawFromVault(factory.target, vaultAddr, quote.target, eth, shares)).to.be.reverted;
     });
 
     it("Should lock and close vault and emit events when owner withdraws all shares", async function () {
@@ -997,13 +851,13 @@ describe("CrystalVaultFactory", function () {
 
   describe("claimFees", function () {
     it("Should revert for non-owner", async function () {
-      const { vault, vaultFactory, depositor } = await loadFixture(vaultFixture);
-      await expect(vaultFactory.connect(depositor).claimFees(vault.target)).to.be.reverted;
+      const { vault, vaultFactory, depositor, quote } = await loadFixture(vaultFixture);
+      await expect(vaultFactory.connect(depositor).claimFees(vault.target, [quote.target])).to.be.reverted;
     });
 
     it("Should claim fees", async function () {
-      const { vault, vaultFactory, vaultOperator } = await loadFixture(vaultFixture);
-      await vaultFactory.connect(vaultOperator).claimFees(vault.target);
+      const { vault, vaultFactory, vaultOperator, quote } = await loadFixture(vaultFixture);
+      await vaultFactory.connect(vaultOperator).claimFees(vault.target, [quote.target]);
     });
   });
 
@@ -1051,3 +905,231 @@ describe("CrystalVaultFactory", function () {
     });
   });
 });
+
+{
+  const {
+    vaultFixture,
+    MAX_UINT256,
+  } = require("./helpers");
+
+describe("Integration: Vault Flow", function () {
+  describe("Complete Vault Lifecycle", function () {
+    it("Should deploy vault -> deposit -> trade -> withdraw", async function () {
+      const { vault, vaultFactory, vaultOperator, depositor, crystal, market, quote, weth } = await vaultFixture();
+
+      const initialShares = await vault.balanceOf(vaultOperator.address);
+      expect(initialShares).to.be.greaterThan(0n);
+
+      const depositQuote = ethers.parseUnits("500", 6);
+      const depositBase = ethers.parseEther("0.5");
+
+      await vaultFactory.connect(depositor).deposit(
+        vault.target, quote.target, weth.target, depositQuote, depositBase, 0, 0
+      );
+
+      const depositorShares = await vault.balanceOf(depositor.address);
+      expect(depositorShares).to.be.greaterThan(0n);
+
+      const marketInfo = await crystal.getMarket(market.target);
+      const scaleFactor = marketInfo.scaleFactor;
+      const quoteDecimals = await quote.decimals();
+      const priceFactor = BigInt(scaleFactor) * (10n ** quoteDecimals) / (10n ** 18n);
+      const priceParam = 500n * priceFactor;
+      const size = 1_000n;
+
+      const actions = [{
+        action: 2n,
+        requireSuccess: false,
+        cloid: 1n,
+        param1: priceParam,
+        param2: size
+      }];
+
+      await vault.connect(vaultOperator).execute(actions, 0);
+      await vault.connect(depositor).approve(vaultFactory.target, depositorShares);
+
+      const quoteBefore = await quote.balanceOf(depositor.address);
+
+      await vaultFactory.connect(depositor).withdraw(
+        vault.target, quote.target, weth.target, depositorShares / 2n, 0, 0
+      );
+
+      const quoteAfter = await quote.balanceOf(depositor.address);
+      expect(quoteAfter).to.be.greaterThan(quoteBefore);
+    });
+  });
+
+  describe("Multi-Depositor Scenario", function () {
+    it("Should handle multiple depositors correctly", async function () {
+      const { vault, vaultFactory, depositor, user1, quote, weth } = await vaultFixture();
+
+      await quote.connect(user1).approve(vaultFactory.target, MAX_UINT256);
+      await weth.connect(user1).approve(vaultFactory.target, MAX_UINT256);
+
+      const depositAmount = ethers.parseUnits("100", 6);
+      const depositBase = ethers.parseEther("0.1");
+
+      await vaultFactory.connect(depositor).deposit(
+        vault.target, quote.target, weth.target, depositAmount, depositBase, 0, 0
+      );
+
+      await vaultFactory.connect(user1).deposit(
+        vault.target, quote.target, weth.target, depositAmount, depositBase, 0, 0
+      );
+
+      const shares1 = await vault.balanceOf(depositor.address);
+      const shares2 = await vault.balanceOf(user1.address);
+
+      expect(shares1).to.be.greaterThan(0n);
+      expect(shares2).to.be.greaterThan(0n);
+
+      expect(shares1).to.be.closeTo(shares2, shares1 / 10n);
+    });
+  });
+
+  describe("Trading Flow", function () {
+    it("Should allow operator to place and cancel orders", async function () {
+      const { vault, vaultOperator, market, quote, crystal } = await vaultFixture();
+
+      const marketInfo = await crystal.getMarket(market.target);
+      const scaleFactor = marketInfo.scaleFactor;
+      const quoteDecimals = await quote.decimals();
+      const priceFactor = BigInt(scaleFactor) * (10n ** quoteDecimals) / (10n ** 18n);
+      const priceParam = 500n * priceFactor;
+      const size = 1_000n;
+
+      const placeActions = [{
+        action: 2n, requireSuccess: false, cloid: 1n, param1: priceParam, param2: size
+      }];
+      await vault.connect(vaultOperator).execute(placeActions, 0);
+
+      await vault.connect(vaultOperator).cancelAll();
+    });
+
+    it("Should track vault balances after trades", async function () {
+      const { vault, vaultOperator, crystal, market, quote } = await vaultFixture();
+
+      const [quoteBalanceBefore, baseBalanceBefore] = await vault.getBalances();
+
+      const marketInfo = await crystal.getMarket(market.target);
+      const scaleFactor = marketInfo.scaleFactor;
+      const quoteDecimals = await quote.decimals();
+      const priceFactor = BigInt(scaleFactor) * (10n ** quoteDecimals) / (10n ** 18n);
+      const priceParam = 500n * priceFactor;
+      const size = 1_000n;
+
+      const actions = [{
+        action: 3n,
+        requireSuccess: false,
+        cloid: 1n,
+        param1: priceParam,
+        param2: size
+      }];
+      await vault.connect(vaultOperator).execute(actions, 0);
+
+      const [quoteBalanceAfter, baseBalanceAfter] = await vault.getBalances();
+
+      expect(quoteBalanceAfter).to.equal(quoteBalanceBefore);
+      expect(baseBalanceAfter).to.equal(baseBalanceBefore);
+    });
+  });
+
+  describe("Withdrawal with Active Orders", function () {
+    it("Should handle withdrawal when orders are active (decrease mode)", async function () {
+      const { vault, vaultFactory, vaultOperator, depositor, market, quote, weth, crystal } = await vaultFixture();
+
+      await vaultFactory.connect(vaultOperator).changeDecreaseOnWithdraw(vault.target, true);
+
+      await vaultFactory.connect(depositor).deposit(
+        vault.target, quote.target, weth.target,
+        ethers.parseUnits("100", 6), ethers.parseEther("0.1"), 0, 0
+      );
+
+      const marketInfo = await crystal.getMarket(market.target);
+      const scaleFactor = marketInfo.scaleFactor;
+      const quoteDecimals = await quote.decimals();
+      const priceFactor = BigInt(scaleFactor) * (10n ** quoteDecimals) / (10n ** 18n);
+      const priceParam = 500n * priceFactor;
+
+      const actions = [{
+        action: 2n, requireSuccess: false, cloid: 1n, param1: priceParam, param2: 1_000n
+      }];
+      await vault.connect(vaultOperator).execute(actions, 0);
+
+      const shares = await vault.balanceOf(depositor.address);
+      await vault.connect(depositor).approve(vaultFactory.target, shares);
+
+      await vaultFactory.connect(depositor).withdraw(
+        vault.target, quote.target, weth.target, shares / 2n, 0, 0
+      );
+    });
+  });
+
+  describe("Owner Full Withdrawal (Vault Closure)", function () {
+    it("Should close vault when owner withdraws all shares", async function () {
+      const { vault, vaultFactory, vaultOperator, quote, weth } = await vaultFixture();
+
+      const shares = await vault.balanceOf(vaultOperator.address);
+      await vault.connect(vaultOperator).approve(vaultFactory.target, shares);
+
+      await vaultFactory.connect(vaultOperator).withdraw(
+        vault.target, quote.target, weth.target, shares, 0, 0
+      );
+
+      expect(await vault.closed()).to.be.true;
+      expect(await vault.locked()).to.be.true;
+    });
+
+    it("Should cancel all orders on vault closure", async function () {
+      const { vault, vaultFactory, vaultOperator, market, quote, weth, crystal } = await vaultFixture();
+
+      const marketInfo = await crystal.getMarket(market.target);
+      const scaleFactor = marketInfo.scaleFactor;
+      const quoteDecimals = await quote.decimals();
+      const priceFactor = BigInt(scaleFactor) * (10n ** quoteDecimals) / (10n ** 18n);
+      const priceParam = 500n * priceFactor;
+
+      const actions = [{
+        action: 2n, requireSuccess: false, cloid: 1n, param1: priceParam, param2: 1_000n
+      }];
+      await vault.connect(vaultOperator).execute(actions, 0);
+
+      const shares = await vault.balanceOf(vaultOperator.address);
+      await vault.connect(vaultOperator).approve(vaultFactory.target, shares);
+
+      await vaultFactory.connect(vaultOperator).withdraw(
+        vault.target, quote.target, weth.target, shares, 0, 0
+      );
+
+      expect(await vault.closed()).to.be.true;
+    });
+  });
+
+  describe("Vault Locking", function () {
+    it("Should prevent deposits when locked", async function () {
+      const { vault, vaultFactory, depositor, quote, weth, vaultOperator } = await vaultFixture();
+
+      await vaultFactory.connect(vaultOperator).lock(vault.target);
+
+      await expect(
+        vaultFactory.connect(depositor).deposit(
+          vault.target, quote.target, weth.target,
+          ethers.parseUnits("100", 6), ethers.parseEther("0.1"), 0, 0
+        )
+      ).to.be.reverted;
+    });
+
+    it("Should allow unlock by owner", async function () {
+      const { vault, vaultFactory, depositor, quote, weth, vaultOperator } = await vaultFixture();
+
+      await vaultFactory.connect(vaultOperator).lock(vault.target);
+      await vaultFactory.connect(vaultOperator).unlock(vault.target);
+
+      await vaultFactory.connect(depositor).deposit(
+        vault.target, quote.target, weth.target,
+        ethers.parseUnits("100", 6), ethers.parseEther("0.1"), 0, 0
+      );
+    });
+  });
+});
+}

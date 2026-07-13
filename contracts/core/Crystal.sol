@@ -96,7 +96,7 @@ contract Crystal is ICrystal {
     uint256 public latestUserId;
 
     /**
-     * @notice Duration before expired fee claims can be processed.
+     * @notice Duration before fee claims expire and can be processed.
      */
     uint256 public feeClaimDuration;
 
@@ -118,9 +118,9 @@ contract Crystal is ICrystal {
     mapping(address => bool) public isCanonicalDeployer;
 
     /**
-     * @notice Approved forwarders per user.
+     * @notice Approved forwarders are addresses authorized to trade on an user's behalf.
      *
-     * @dev user => forwarder => approved.
+     * @dev user => forwarder => whether the forwarder is approved.
      */
     mapping(address => mapping(address => bool)) public approvedForwarder;
 
@@ -164,13 +164,13 @@ contract Crystal is ICrystal {
     /// @notice Placeholder market address.
     address internal constant placeholder = 0xCcCCccccCCCCcCCCCCCcCcCccCcCCCcCcccccccC;
 
-    /// @notice Maximum protocol taker fee (10%).
+    /// @notice Maximum protocol taker fee (equivalent to 10%).
     uint256 internal constant MAX_FEE = 90000;
 
     /// @notice Initial launchpad token reserve.
     uint256 internal constant INITIAL_TOKEN_SUPPLY = 1000000000000000000000000000;
 
-    /// @notice Graduated launchpad token reserve threshold.
+    /// @notice Launchpad token reserve to be migrated to graduated market.
     uint256 internal constant GRADUATED_TOKEN_SUPPLY = 200000000000000000000000000;
     
     /// @notice Graduated launchpad market default max price.
@@ -209,14 +209,14 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Sets up the main Crystal contract with all its configuration
+     * @notice Sets up the main Crystal contract with all its configuration.
      *
-     * @param _weth Address of the wrapped ETH token
-     * @param _gov Who has governance/admin control
-     * @param _feeRecipient Where protocol fees go
-     * @param _feeCommission What percentage referrers get
-     * @param _feeClaimDuration How long before expired fee claims can be processed
-     * @param _launchpadParams All the launchpad settings
+     * @param _weth Address of the wrapped ETH token.
+     * @param _gov Who has governance/admin control.
+     * @param _feeRecipient Where protocol fees go.
+     * @param _feeCommission What percentage referrers get.
+     * @param _feeClaimDuration How long before fee claims expire and can be processed.
+     * @param _launchpadParams All the launchpad settings.
      */
     constructor(address _weth, address _gov, address _feeRecipient, uint8 _feeCommission, uint256 _feeClaimDuration, ICrystal.LaunchpadParams memory _launchpadParams) {
         weth = _weth;
@@ -231,13 +231,13 @@ contract Crystal is ICrystal {
             minSize /= 10;
             ++minSizeZeroes;
         }
-        require(_feeCommission <= 50 && minSize > 0 && minSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20 && _launchpadParams.launchpadInitialNativeSupply > 1e18 && MAX_FEE <= _launchpadParams.launchpadFee && _launchpadParams.launchpadFee <= 100000 && MAX_FEE <= _launchpadParams.graduatedTakerFee, ICrystal.InvalidParams());
+        require(_feeCommission <= 50 && _feeClaimDuration >= 86400 && minSize > 0 && minSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20 && _launchpadParams.launchpadInitialNativeSupply > 1e18 && _launchpadParams.launchpadInitialNativeSupply <= (MASK_KEEP_0_112 / 5) && MAX_FEE <= _launchpadParams.launchpadFee && _launchpadParams.launchpadFee <= 100000 && MAX_FEE <= _launchpadParams.graduatedTakerFee, ICrystal.InvalidParams());
         require(_launchpadParams.graduatedTakerFee <= 100000 && MAX_FEE <= _launchpadParams.graduatedMakerRebate && _launchpadParams.graduatedMakerRebate <= 100000 && _launchpadParams.graduatedCreatorFeeSplit <= 50 && _launchpadParams.launchpadCreatorFeeSplit <= 50, ICrystal.InvalidParams());
         launchpadParams = _launchpadParams;
     }
 
     /**
-     * @notice Accepts native token transfers for ETH deposits and priority bid
+     * @notice Avoid random calls reverting, do not send native tokens directly to this contract.
      */
     receive() external payable {}
 
@@ -291,9 +291,9 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Checks that a market exists and locks it to prevent reentrancy attacks
+     * @notice Checks that a market exists and locks it to prevent reentrancy attacks.
      *
-     * @param market The market address to check and lock
+     * @param market The market address to check and lock.
      */
     function _verifyMarket(address market) internal view {
         assembly {
@@ -306,11 +306,11 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Figures out who the actual user is and makes sure they're authorized (defaults to msg.sender)
+     * @notice Figures out who the actual user is and makes sure they're authorized (defaults to msg.sender).
      *
-     * @param user The user address provided (can be zero to use msg.sender)
+     * @param user The user address provided (can be zero to use msg.sender).
      *
-     * @return The verified user address after checking forwarder permissions
+     * @return The verified user address after checking forwarder permissions.
      */
     function _verifyUser(address user) internal view returns (address) {
         if (user == address(0)) {
@@ -322,12 +322,12 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Calls into a market contract with user data attached, using delegatecall with a reentrancy lock
+     * @notice Calls into a market contract with user data attached, using delegatecall with a reentrancy lock.
      *
-     * @param market Which market to call
-     * @param selector Which function to call on the market
-     * @param size How much calldata we have (not counting the selector and user address)
-     * @param user The user address to attach to the call (can also pass options in the case of add/remove liquidity)
+     * @param market Which market to call.
+     * @param selector Which function to call on the market.
+     * @param size How much calldata we have (not counting the selector and user address).
+     * @param user The user address to attach to the call (can also pass options in the case of add/remove liquidity).
      */
     function _delegateToMarket(address market, bytes4 selector, uint256 size, address user) internal {
         _verifyMarket(market);
@@ -345,13 +345,13 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Registers a new user and gives them a user ID
+     * @notice Registers a new user and gives them a user ID.
      *
      * @dev Only default accounts are supported.
      *
-     * @param user The address to register
+     * @param user The address to register.
      *
-     * @return _latestUserId The user ID that was assigned
+     * @return _latestUserId The user ID that was assigned.
      */
     function _registerUser(address user) internal returns (uint256 _latestUserId) {
         _latestUserId = latestUserId;
@@ -435,6 +435,7 @@ contract Crystal is ICrystal {
             }
             if (launchpadMarket.virtualNativeReserve >= ((launchpadMarket.k / GRADUATED_TOKEN_SUPPLY))) { // Graduate token from bonding curve to orderbook
                 address market = launchpadMarket.market;
+                delete pendingClosedMarkets[token];
                 delete launchpadTokenToMarket[token];
                 getMarketByTokens[weth][token] = market;
                 getMarketByTokens[token][weth] = market;
@@ -466,7 +467,7 @@ contract Crystal is ICrystal {
             if (!isExactInput) {
                 newInputAmount = amountOut - outputAmount;
             }
-            bytes memory ret = abi.encodeWithSelector(CrystalMarket.marketOrder.selector, true, isExactInput, (1 << 64), 1, newInputAmount, MASK_KEEP_0_80, address(0), msg.sender);
+            bytes memory ret = abi.encodeWithSelector(CrystalMarket.marketOrder.selector, true, isExactInput, (1 << 64), 1, newInputAmount, 0, address(0), msg.sender);
             bool result;
             address market = getMarketByTokens[weth][token];
             require(market != address(0) && market != placeholder, ICrystal.InvalidMarket(weth, token));
@@ -945,7 +946,7 @@ contract Crystal is ICrystal {
      * @param newFeeClaimDuration New fee claim duration.
      */
     function changeFeeClaimDuration(uint256 newFeeClaimDuration) external onlyOwner {
-        require(newFeeClaimDuration > 86400, ICrystal.InvalidParams());
+        require(newFeeClaimDuration >= 86400, ICrystal.InvalidParams());
         feeClaimDuration = newFeeClaimDuration;
     }
 
@@ -963,7 +964,7 @@ contract Crystal is ICrystal {
      * @notice Updates core parameters of a market.
      *
      * @param market Market address.
-     * @param newMinSize New minimum size.
+     * @param newMinSize New minimum resting limit order size, enforced at placement time.
      * @param newTakerFee New taker fee (scaled by 1e5).
      * @param newMakerRebate New maker rebate (scaled by 1e5).
      * @param isAMMEnabled Whether the AMM is enabled.
@@ -1026,7 +1027,7 @@ contract Crystal is ICrystal {
             minSize /= 10;
             ++minSizeZeroes;
         }
-        require(minSize > 0 && minSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20 && newLaunchpadParams.launchpadInitialNativeSupply > 1e18 && MAX_FEE <= newLaunchpadParams.launchpadFee && newLaunchpadParams.launchpadFee <= 100000 && MAX_FEE <= newLaunchpadParams.graduatedTakerFee, ICrystal.InvalidParams());
+        require(minSize > 0 && minSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20 && newLaunchpadParams.launchpadInitialNativeSupply > 1e18 && newLaunchpadParams.launchpadInitialNativeSupply <= (MASK_KEEP_0_112 / 5) && MAX_FEE <= newLaunchpadParams.launchpadFee && newLaunchpadParams.launchpadFee <= 100000 && MAX_FEE <= newLaunchpadParams.graduatedTakerFee, ICrystal.InvalidParams());
         require(newLaunchpadParams.graduatedTakerFee <= 100000 && MAX_FEE <= newLaunchpadParams.graduatedMakerRebate && newLaunchpadParams.graduatedMakerRebate <= 100000 && newLaunchpadParams.graduatedCreatorFeeSplit <= 50 && newLaunchpadParams.launchpadCreatorFeeSplit <= 50, ICrystal.InvalidParams());
         launchpadParams = newLaunchpadParams;
     }
@@ -1051,6 +1052,10 @@ contract Crystal is ICrystal {
 
     /**
      * @notice Approves a forwarder for msg.sender.
+     *
+     * @dev In addition to making trades, an approved forwarder can also redirect outputs, enabling
+     * more complex integrations, for example wrapping/unwrapping tokens. This is essentially equivalent
+     * to giving the forwarder full control of your assets, so use with caution.
      *
      * @param forwarder Forwarder address.
      */
@@ -1097,6 +1102,7 @@ contract Crystal is ICrystal {
             token = weth;
             IWETH(weth).deposit{value: amount}();
         } else {
+            require(msg.value == 0, ICrystal.InvalidMsgValue());
             IERC20(token).transferFrom(msg.sender, address(this), amount);
         }
         require(((tokenBalances[userId][token] & MASK_KEEP_0_128) + amount) <= MASK_KEEP_0_128, ICrystal.Overflow());
@@ -1205,7 +1211,7 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Adds claimable fee amounts for an address.
+     * @notice Adds claimable reward amounts for an address.
      *
      * @param to Address receiving fees.
      * @param tokens Token list.
@@ -1228,9 +1234,9 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Claims accumulated trading fees for selected tokens.
+     * @notice Claims accumulated referral, creator, and protocol fees as well as any miscellaneous rewards.
      *
-     * @dev Vault/margin operators can claim to their wallet, resets any pending expiry claims.
+     * @dev Fees expire and are available for the governance to reclaim after feeClaimDuration, but calling this function will reset any pending fee claims.
      *
      * @param to Recipient address.
      * @param tokens Token list to claim.
@@ -1257,9 +1263,11 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Queues a claim for expired fee balances.
+     * @notice Initiate the expiration of unclaimed fee balances.
+
+     * @dev Anyone can initiate this fee claim for any user, but only governance can execute the claim.
      *
-     * @param user User whose fees are expiring.
+     * @param user User with unclaimed fee balances.
      * @param tokens Tokens to claim.
      */
     function queueClaimExpiredFees(address user, address[] calldata tokens) external {
@@ -1286,7 +1294,7 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Executes a queued expired fee claim.
+     * @notice Allows the governance to execute a queued expired fee claim.
      *
      * @param user User whose fees are being claimed.
      *
@@ -1384,12 +1392,16 @@ contract Crystal is ICrystal {
     /**
      * @notice Quotes output amounts for a multi-hop swap path.
      *
+     * @dev Due to shortcuts in how quotes are calculated (by price level rather than individual order),
+     * the quote produced by this function is not directly equivalent to the actual trade result.
+     *
      * @param amountIn Input amount for the first hop.
      * @param path Token swap path.
      *
      * @return amounts Array of hop-by-hop amounts.
+     * @return isPartialFill Whether any hop in the path has insufficient liquidity to fully fill.
      */
-    function getAmountsOut(uint256 amountIn, address[] memory path) external returns (uint256[] memory amounts) {
+    function getAmountsOut(uint256 amountIn, address[] memory path) external returns (uint256[] memory amounts, bool isPartialFill) {
         require(path.length >= 2, ICrystal.InvalidPath(path));
         amounts = new uint256[](path.length);
         amounts[0] = amountIn;
@@ -1402,12 +1414,17 @@ contract Crystal is ICrystal {
             (bool result, bytes memory ret) = market.delegatecall(abi.encodeWithSelector(CrystalMarket.getQuote.selector, _getMarket[market].quoteAsset == asset0, true, i != 0, amounts[i], _getMarket[market].quoteAsset == asset0 ? MASK_KEEP_0_80 : 1));
             require(result, ICrystal.ActionFailed());
             (inputAmount, amounts[i + 1]) = abi.decode(ret, (uint256, uint256));
-            require(i == 0 || amounts[i] == inputAmount, ICrystal.SlippageExceeded());
+            if (amounts[i] != inputAmount) {
+                isPartialFill = true;
+            }
         }
     }
 
     /**
      * @notice Quotes required input amounts for a desired output across a path.
+     *
+     * @dev Due to shortcuts in how quotes are calculated (by price level rather than individual order),
+     * the quote produced by this function is not directly equivalent to the actual trade result.
      *
      * @param amountOut Desired final output amount.
      * @param path Token swap path.
@@ -1483,9 +1500,10 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Deposits tokens into the router's shared slot.
+     * @notice Deposits tokens into the router's shared slot. Tokens here are not intended to persist beyond
+     * a single atomic transaction and are freely withdrawable by anyone.
      *
-     * @dev Anyone can deposit/withdraw from 0 slot, used as in between for multihop swaps.
+     * @dev Anyone can deposit/withdraw from 0 slot, used as in between for multihop swaps and native token wrapping/unwrapping.
      *
      * @param token Token address.
      * @param amount Amount to deposit.
@@ -1496,6 +1514,7 @@ contract Crystal is ICrystal {
             token = weth;
             IWETH(weth).deposit{value: amount}();
         } else {
+            require(msg.value == 0, ICrystal.InvalidMsgValue());
             IERC20(token).transferFrom(msg.sender, address(this), amount);
         }
         tokenBalances[0][token] += amount;
@@ -1532,15 +1551,15 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Swaps an exact amount of ETH for as many tokens as possible
+     * @notice Swaps an exact amount of ETH for as many tokens as possible.
      *
-     * @param amountOutMin Minimum tokens you're willing to accept (slippage protection)
-     * @param path The trading route (e.g., [ETH, USDC, DAI] to swap ETH → USDC → DAI)
-     * @param to Who receives the tokens
-     * @param deadline When this transaction expires
-     * @param referrer Optional address that gets a referral commission
+     * @param amountOutMin Minimum tokens you're willing to accept (slippage protection).
+     * @param path The trading route (e.g., [ETH, USDC, DAI] to swap ETH → USDC → DAI).
+     * @param to Who receives the tokens.
+     * @param deadline When this transaction expires.
+     * @param referrer Optional address that gets a referral commission.
      *
-     * @return amounts How much was swapped at each step of the route
+     * @return amounts How much was swapped at each step of the route.
      */
     function swapExactETHForTokens(uint256 amountOutMin, address[] memory path, address to, uint256 deadline, address referrer) external payable nonReentrant returns (uint256[] memory amounts) {
         require(path.length >= 2 && path[0] == eth && path[path.length - 1] != eth, ICrystal.InvalidPath(path));
@@ -1560,16 +1579,16 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Swaps an exact amount of tokens for as much ETH as possible
+     * @notice Swaps an exact amount of tokens for as much ETH as possible.
      *
-     * @param amountIn How many tokens you're swapping
-     * @param amountOutMin Minimum ETH you're willing to accept (slippage protection)
-     * @param path The trading route (must end with ETH)
-     * @param to Who receives the ETH
-     * @param deadline When this transaction expires
-     * @param referrer Optional address that gets a referral commission
+     * @param amountIn How many tokens you're swapping.
+     * @param amountOutMin Minimum ETH you're willing to accept (slippage protection).
+     * @param path The trading route (must end with ETH).
+     * @param to Who receives the ETH.
+     * @param deadline When this transaction expires.
+     * @param referrer Optional address that gets a referral commission.
      *
-     * @return amounts How much was swapped at each step of the route
+     * @return amounts How much was swapped at each step of the route.
      */
     function swapExactTokensForETH(uint256 amountIn, uint256 amountOutMin, address[] memory path, address to, uint256 deadline, address referrer) external nonReentrant returns (uint256[] memory amounts) {
         require(deadline >= block.timestamp, ICrystal.Expired(deadline));
@@ -1586,16 +1605,16 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Swaps an exact amount of one token for as much of another token as possible
+     * @notice Swaps an exact amount of one token for as much of another token as possible.
      *
-     * @param amountIn How many tokens you're swapping
-     * @param amountOutMin Minimum output tokens you're willing to accept (slippage protection)
-     * @param path The trading route (can't end with ETH, use swapExactTokensForETH for that)
-     * @param to Who receives the output tokens
-     * @param deadline When this transaction expires
-     * @param referrer Optional address that gets a referral commission
+     * @param amountIn How many tokens you're swapping.
+     * @param amountOutMin Minimum output tokens you're willing to accept (slippage protection).
+     * @param path The trading route (can't end with ETH, use swapExactTokensForETH for that).
+     * @param to Who receives the output tokens.
+     * @param deadline When this transaction expires.
+     * @param referrer Optional address that gets a referral commission.
      *
-     * @return amounts How much was swapped at each step of the route
+     * @return amounts How much was swapped at each step of the route.
      */
     function swapExactTokensForTokens(uint256 amountIn, uint256 amountOutMin, address[] memory path, address to, uint256 deadline, address referrer) external nonReentrant returns (uint256[] memory amounts) {
         require(deadline >= block.timestamp, ICrystal.Expired(deadline));
@@ -1613,15 +1632,15 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Swaps the minimum amount of ETH needed to get exactly the tokens you want
+     * @notice Swaps the minimum amount of ETH needed to get exactly the tokens you want.
      *
-     * @param amountOut Exactly how many tokens you want to receive
-     * @param path The trading route (must start with ETH)
-     * @param to Who receives the tokens
-     * @param deadline When this transaction expires
-     * @param referrer Optional address that gets a referral commission
+     * @param amountOut Exactly how many tokens you want to receive.
+     * @param path The trading route (must start with ETH).
+     * @param to Who receives the tokens.
+     * @param deadline When this transaction expires.
+     * @param referrer Optional address that gets a referral commission.
      *
-     * @return amounts How much was swapped at each step (any leftover ETH is refunded)
+     * @return amounts How much was swapped at each step (any leftover ETH is refunded).
      */
     function swapETHForExactTokens(uint256 amountOut, address[] memory path, address to, uint256 deadline, address referrer) external payable nonReentrant returns (uint256[] memory amounts) {
         require(deadline >= block.timestamp, ICrystal.Expired(deadline));
@@ -1650,16 +1669,16 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Swaps up to a maximum amount of tokens to get exactly the ETH you want
+     * @notice Swaps up to a maximum amount of tokens to get exactly the ETH you want.
      *
-     * @param amountOut Exactly how much ETH you want to receive
-     * @param amountInMax Maximum tokens you're willing to spend (slippage protection)
-     * @param path The trading route (must end with ETH)
-     * @param to Who receives the ETH
-     * @param deadline When this transaction expires
-     * @param referrer Optional address that gets a referral commission
+     * @param amountOut Exactly how much ETH you want to receive.
+     * @param amountInMax Maximum tokens you're willing to spend (slippage protection).
+     * @param path The trading route (must end with ETH).
+     * @param to Who receives the ETH.
+     * @param deadline When this transaction expires.
+     * @param referrer Optional address that gets a referral commission.
      *
-     * @return amounts How much was swapped at each step
+     * @return amounts How much was swapped at each step.
      */
     function swapTokensForExactETH(uint256 amountOut, uint256 amountInMax, address[] memory path, address to, uint256 deadline, address referrer) external nonReentrant returns (uint256[] memory amounts) {
         require(deadline >= block.timestamp, ICrystal.Expired(deadline));
@@ -1677,16 +1696,16 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Swaps up to a maximum amount of one token to get exactly the amount of another token you want
+     * @notice Swaps up to a maximum amount of one token to get exactly the amount of another token you want.
      *
-     * @param amountOut Exactly how many output tokens you want
-     * @param amountInMax Maximum input tokens you're willing to spend (slippage protection)
-     * @param path The trading route (can't end with ETH, use swapTokensForExactETH for that)
-     * @param to Who receives the output tokens
-     * @param deadline When this transaction expires
-     * @param referrer Optional address that gets a referral commission
+     * @param amountOut Exactly how many output tokens you want.
+     * @param amountInMax Maximum input tokens you're willing to spend (slippage protection).
+     * @param path The trading route (can't end with ETH, use swapTokensForExactETH for that).
+     * @param to Who receives the output tokens.
+     * @param deadline When this transaction expires.
+     * @param referrer Optional address that gets a referral commission.
      *
-     * @return amounts How much was swapped at each step
+     * @return amounts How much was swapped at each step.
      */
     function swapTokensForExactTokens(uint256 amountOut, uint256 amountInMax, address[] memory path, address to, uint256 deadline, address referrer) external nonReentrant returns (uint256[] memory amounts) {
         require(deadline >= block.timestamp, ICrystal.Expired(deadline));
@@ -1705,7 +1724,7 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Executes a swap directly through a specific market (advanced function for direct market access)
+     * @notice Executes a swap directly through a specific market (advanced function for direct market access).
      *
      * @param isExactInput True if `size` is input amount, false if output.
      * @param tokenIn Input token.
@@ -1831,7 +1850,7 @@ contract Crystal is ICrystal {
             IWETH(weth).deposit{value: msg.value}();
             tokenBalances[0][weth] += msg.value;
         }
-        deadline = ((tokenIn == eth) ? (1 << 56) : 0) | ((tokenOut == eth) ? (1 << 52) : 0) | (isDecrease ? (1 << 48) : 0) | (isPostOnly ? 0 : (1 << 44));
+        deadline = ((tokenIn == eth) ? (1 << 56) : 0) | ((tokenIn == eth || tokenOut == eth) ? (1 << 52) : 0) | (isDecrease ? (1 << 48) : 0) | (isPostOnly ? 0 : (1 << 44));
         (bool result, bytes memory ret) = market.delegatecall(abi.encodeWithSelector(CrystalMarket.replaceOrder.selector, deadline, price, id, newPrice, newSize, referrer, msg.sender));
         require(result, ICrystal.ActionFailed());
         id = abi.decode(ret, (uint256));
@@ -1842,6 +1861,12 @@ contract Crystal is ICrystal {
                 IWETH(weth).withdraw(balance);
                 (bool success, ) = msg.sender.call{value: balance}("");
                 require(success, ICrystal.TransferFailed(msg.sender));
+            }
+            address otherToken = tokenIn == eth ? tokenOut : tokenIn;
+            balance = tokenBalances[0][otherToken] & MASK_KEEP_0_128;
+            if (balance != 0) {
+                tokenBalances[0][otherToken] = 0;
+                IERC20(otherToken).transfer(msg.sender, balance);
             }
         }
         return id;
@@ -2085,15 +2110,40 @@ contract Crystal is ICrystal {
             }
             if (virtualNativeReserve >= ((launchpadMarket.k / GRADUATED_TOKEN_SUPPLY))) { // Graduate token from bonding curve to orderbook
                 graduatedMarket = launchpadMarket.market;
-                ICrystal.Market storage m = _getMarket[graduatedMarket];
-                (m.lowestAsk, m.minSize, m.takerFee, m.makerRebate, m.createTimestamp) = (uint80(GRADUATED_MAX_PRICE), uint40(0), uint24(launchpadParams.graduatedTakerFee), uint24(launchpadParams.graduatedMakerRebate), uint88(0)); // init market
                 graduated = true;
+                ICrystal.Market storage m = _getMarket[graduatedMarket];
+                bool _isExactInput = isExactInput;
+                uint256 newInputAmount = _isExactInput ? (amountIn - inputAmount) : (amountOut - outputAmount);
+                uint256 ammAmountIn;
+                uint256 ammAmountOut;
+                if (_isExactInput) {
+                    assembly {
+                        mstore(0x60, newInputAmount)
+                    }
+                    newInputAmount = (newInputAmount * uint256(launchpadParams.graduatedTakerFee) + 99999) / 100000;
+                    ammAmountIn = CM._exactInputBuySolve(m.reserveQuote, m.reserveBase, CM._tickToPrice(CM._priceToTick(GRADUATED_MAX_PRICE, 1) - 1, 1), launchpadParams.graduatedMakerRebate, newInputAmount, 9);
+                    ammAmountOut = (ammAmountIn * 9975 * m.reserveBase) / ((m.reserveQuote * 10000) + (ammAmountIn * 9975));
+                } else {
+                    ammAmountOut = CM._exactOutputBuySolve(m.reserveQuote, m.reserveBase, CM._tickToPrice(CM._priceToTick(GRADUATED_MAX_PRICE, 1) - 1, 1), launchpadParams.graduatedMakerRebate, newInputAmount, 9);
+                    ammAmountIn = (ammAmountOut * m.reserveQuote * 10000) / ((m.reserveBase - ammAmountOut) * 9975) + 1;
+                }
+                if (_isExactInput) {
+                    assembly {
+                        ammAmountIn := mload(0x60)
+                    }
+                }
+                else {
+                    ammAmountIn = (ammAmountIn * 100000 + uint256(launchpadParams.graduatedTakerFee) - 1) / uint256(launchpadParams.graduatedTakerFee);
+                }
+                inputAmount += ammAmountIn;
+                outputAmount += ammAmountOut;
             }
         }
         if (isExactInput ? inputAmount < amountIn : outputAmount < amountOut) { // Token is graduated, swap through orderbook
             uint256 newInputAmount = isExactInput ? (amountIn - inputAmount) : (amountOut - outputAmount);
-            bytes memory ret = abi.encodeWithSelector(CrystalMarket.getQuote.selector, true, isExactInput, true, newInputAmount, MASK_KEEP_0_80);
+            bytes memory ret = abi.encodeWithSelector(CrystalMarket.getQuote.selector, true, isExactInput, true, newInputAmount, 0);
             bool result;
+            graduated = true;
             graduatedMarket = graduatedMarket != address(0) ? graduatedMarket : getMarketByTokens[weth][token];
             require(graduatedMarket != address(0) && graduatedMarket != placeholder, ICrystal.InvalidMarket(weth, token));
             (result, ret) = graduatedMarket.delegatecall(ret);
@@ -2104,10 +2154,6 @@ contract Crystal is ICrystal {
             outputAmount += newOutputAmount;
         }
         isExactInput ? require(outputAmount >= amountOut, ICrystal.SlippageExceeded()) : require(amountIn != 0 ? inputAmount <= amountIn : true, ICrystal.SlippageExceeded());
-        if (graduated) {
-            ICrystal.Market storage m = _getMarket[graduatedMarket];
-            (m.lowestAsk, m.minSize, m.takerFee, m.makerRebate, m.createTimestamp) = (uint80(0), uint40(0), uint24(0), uint24(0), uint88(0)); // If simulation graduates the market, un-graduate it
-        }
         return (inputAmount, outputAmount, graduated);
     }
 
@@ -2159,7 +2205,11 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Queues closure of an inactive launchpad or market.
+     * @notice Queues the closure of an inactive launchpad token or market.
+     *
+     * @dev Graduating a market will remove it from the queue
+     * Only markets created by the launchpad can be queued as otherwise the
+     * createTimestamp field will not be set.
      *
      * @param token Launchpad token address.
      */
@@ -2175,6 +2225,22 @@ contract Crystal is ICrystal {
             require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
             require(m.createTimestamp != 0 && block.timestamp > (m.createTimestamp + (86400 * 365)), ICrystal.InvalidCloseWindow());
             pendingClosedMarkets[market] = block.timestamp;
+        }
+    }
+
+    /**
+     * @notice Unqueues an inactive launchpad token or market from being closed.
+     *
+     * @param token Launchpad token address.
+     */
+    function unqueueCloseInactiveMarket(address token) external {
+        address market = getMarketByTokens[weth][token];
+        if (market == address(0) || market == placeholder) {
+            require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
+            delete pendingClosedMarkets[token];
+        } else {
+            require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
+            delete pendingClosedMarkets[token];
         }
     }
 

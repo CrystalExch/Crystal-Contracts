@@ -3,6 +3,12 @@ pragma solidity ^0.8.28;
 
 import {CrystalMath as CM} from "../libraries/CrystalMath.sol";
 
+/**
+ * @title CrystalStorage
+ * @author Crystal Labs
+ *
+ * @notice Storage library for the Crystal spot protocol.
+ */
 library CrystalStorage {
     /// @notice Base mapping slot for both cloid and non-cloid resting limit orders.
     uint256 internal constant ORDERS_KEY = 0x100;
@@ -61,7 +67,7 @@ library CrystalStorage {
      */
     function _getCloidOrder(uint256 userId, uint256 cloid) internal pure returns (uint256 key, uint256 offset) {
         unchecked {
-            require(userId <= type(uint128).max && cloid <= type(uint16).max);
+            require(cloid != 0 && userId <= type(uint128).max && cloid <= type(uint16).max);
             uint256 cloidPairIndex = (cloid - 1) >> 1;
             key = userId << 128 | (cloidPairIndex / 42);
             offset = (cloidPairIndex % 42) * 3 + ((cloid & 1) == 0 ? 1 : 0);
@@ -79,7 +85,7 @@ library CrystalStorage {
      */
     function _getVerifyCloid(uint256 userId, uint256 cloid) internal pure returns (uint256 key, uint256 offset) {
         unchecked {
-            require(userId <= type(uint128).max && cloid <= type(uint16).max);
+            require(cloid != 0 && userId <= type(uint128).max && cloid <= type(uint16).max);
             uint256 cloidPairIndex = (cloid - 1) >> 1;
             key = userId << 128 | (cloidPairIndex / 42);
             offset = (cloidPairIndex % 42) * 3 + 2;
@@ -117,7 +123,7 @@ library CrystalStorage {
      */
     function _getPriceLevel(uint256 marketType, uint256 tickSize, uint256 marketId, uint256 price) internal pure returns (uint256 key, uint256 offset) {
         unchecked {
-            require(price <= type(uint80).max);
+            require(price <= type(uint80).max && (price % tickSize) == 0);
             uint256 tick = marketType == 0 ? (price / tickSize) : CM._priceToTick(price, tickSize);
             uint256 priceLevelIndex = (tick << 8) / 255;
             key = marketId | (priceLevelIndex >> 7);

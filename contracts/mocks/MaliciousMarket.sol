@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-/// @notice Malicious market for testing edge cases in Crystal.sol
+/// @notice Malicious market for testing edge cases in Crystal.sol.
 /// @dev This contract mimics CrystalMarket but doesn't update tokenBalances
-/// When called via delegatecall, this causes balance checks to fail with ActionFailed
+/// When called via delegatecall, this causes balance checks to fail with ActionFailed.
 contract MaliciousMarket {
-    /// @notice getQuote - selector 0x638571e3
+    /// @notice getQuote - selector 0x638571e3.
     /// @dev Returns quote for a swap. Always returns 1:1 ratio.
     function getQuote(
         bool isBuy,
@@ -19,8 +19,8 @@ contract MaliciousMarket {
         outputAmount = size;
     }
 
-    /// @notice marketOrder - selector 0xe690552b
-    /// @dev Executes a market order. Returns values but doesn't update tokenBalances.
+    /// @notice marketOrder - selector 0xe690552b.
+    /// @dev Executes a market order. Returns values but doesn't update tokenBalances
     /// This causes ActionFailed when Crystal checks balances post-swap.
     function marketOrder(
         bool isBuy,
@@ -45,7 +45,7 @@ contract MaliciousMarket {
     }
 }
 
-/// @notice Malicious market that reverts on marketOrder
+/// @notice Malicious market that reverts on marketOrder.
 contract FailingMarket {
     function getQuote(
         bool isBuy,
@@ -73,7 +73,7 @@ contract FailingMarket {
 }
 
 /// @notice Market that uses inline assembly to return false from delegatecall
-/// This is needed because normal reverts don't trigger coverage for the caller's error handling
+/// This is needed because normal reverts don't trigger coverage for the caller's error handling.
 contract AssemblyFailingMarket {
     function getQuote(
         bool,
@@ -104,7 +104,7 @@ contract AssemblyFailingMarket {
 }
 
 /// @notice Market that returns inconsistent quote values
-/// Used to trigger line 1642: if (i != 0 && amounts[i] != inputAmount)
+/// Used to trigger line 1642: if (i != 0 && amounts[i] != inputAmount).
 contract InconsistentQuoteMarket {
     function getQuote(
         bool,
@@ -141,8 +141,8 @@ contract InconsistentQuoteMarket {
     }
 }
 
-/// @notice Market that fails on getQuote (selector 0x638571e3)
-/// @dev Used to test quoteBuy/quoteSell delegatecall failure branches (lines 3236-3237, 3333-3334)
+/// @notice Market that fails on getQuote (selector 0x638571e3).
+/// @dev Used to test quoteBuy/quoteSell delegatecall failure branches (lines 3236-3237, 3333-3334).
 contract FailingQuoteMarket {
     function getQuote(
         bool,

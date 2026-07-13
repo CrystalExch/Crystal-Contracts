@@ -5,7 +5,7 @@ import {IERC20} from '../interfaces/IERC20.sol';
 import {ICrystal} from "../interfaces/ICrystal.sol";
 import {ICrystalVaultFactory} from "../interfaces/ICrystalVaultFactory.sol";
 
-/// @notice Contract that rejects ETH transfers - used for testing ETH transfer failure branches
+/// @notice Contract that rejects ETH transfers - used for testing ETH transfer failure branches.
 contract ETHRejecter {
     function approveToken(address token, address spender, uint256 amount) external {
         IERC20(token).approve(spender, amount);
@@ -169,7 +169,7 @@ contract ETHRejecter {
     // No receive() or fallback() - will reject ETH transfers
 }
 
-/// @notice Contract that can toggle ETH rejection - accepts ETH during deposit, rejects during withdraw
+/// @notice Contract that can toggle ETH rejection - accepts ETH during deposit, rejects during withdraw.
 contract ETHToggler {
     bool public rejectETH;
 
@@ -209,7 +209,7 @@ contract ETHToggler {
     }
 }
 
-/// @notice Contract that attempts reentrancy attack on VaultFactory
+/// @notice Contract that attempts reentrancy attack on VaultFactory.
 contract ReentrancyAttacker {
     address public factory;
     address public vault;
@@ -282,7 +282,7 @@ contract ReentrancyAttacker {
     }
 }
 
-/// @notice Contract that attempts reentrancy attacks against Crystal core functions
+/// @notice Contract that attempts reentrancy attacks against Crystal core functions.
 contract CrystalReentrancyAttacker {
     address public crystal;
     address public token;

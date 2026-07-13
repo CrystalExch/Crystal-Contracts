@@ -5,17 +5,12 @@ const {
   deployFixture,
   launchpadFixture,
   calculatePriceParams,
-  advanceTime,
   MARKET_TYPES,
   ACTIONS,
   ORDER_TYPES,
-  TIME,
-  ETH_ADDRESS,
   MAX_UINT256,
-  makeHeader,
   encodeAction,
   findEvent,
-  findAllEvents,
 } = require("./helpers");
 
 const MASK_KEEP_0_128 = (1n << 128n) - 1n;
@@ -24,8 +19,6 @@ const MASK_KEEP_0_41 = (1n << 41n) - 1n;
 const TOKEN_BALANCES_SLOT = 11n;
 const abiCoder = ethers.AbiCoder.defaultAbiCoder();
 const toBytes32 = (value) => ethers.zeroPadValue(ethers.toBeHex(value), 32);
-const mappingSlot = (key, slot) =>
-  ethers.keccak256(abiCoder.encode(["uint256", "uint256"], [key, slot]));
 const nestedMappingSlot = (outerKey, innerKey, slot) => {
   const inner = ethers.keccak256(
     abiCoder.encode(["uint256", "uint256"], [outerKey, slot])
@@ -57,7 +50,7 @@ const setRouterBalance = async (crystalAddress, tokenAddress, value) => {
     ethers.toBeHex(value, 32)
   ]);
 };
-const getMarketIdShifted = async (crystal, market) =>
+async (crystal, market) =>
   (BigInt(await crystal.marketToMarketId(market.target)) << 128n);
 
 describe("CrystalMarket", function () {
@@ -795,12 +788,11 @@ describe("CrystalMarket", function () {
     });
 
     it("fallback cancel covers buy order branch (line 2499)", async function () {
-      const { harness, quote, base, marketId, owner } = await deployHarness({
+      const { harness, quote, owner } = await deployHarness({
         marketType: 0,
         tickSize: 1,
         maxPrice: 1_000_000,
       });
-      const marketIdShifted = BigInt(marketId) << 128n;
       const userId = 7n;
       await harness.setUserIdToAddress(userId, owner.address);
       await harness.setAddressToUserId(owner.address, userId);
@@ -829,12 +821,11 @@ describe("CrystalMarket", function () {
     });
 
     it("fallback decrease covers buy order full cancel branch (line 2557)", async function () {
-      const { harness, quote, base, marketId, owner } = await deployHarness({
+      const { harness, quote, owner } = await deployHarness({
         marketType: 0,
         tickSize: 1,
         maxPrice: 1_000_000,
       });
-      const marketIdShifted = BigInt(marketId) << 128n;
       const userId = 8n;
       await harness.setUserIdToAddress(userId, owner.address);
       await harness.setAddressToUserId(owner.address, userId);
@@ -864,7 +855,7 @@ describe("CrystalMarket", function () {
     });
 
     it("fallback limit order covers buy order branch (line 2514)", async function () {
-      const { harness, quote, base, marketId, owner } = await deployHarness({
+      const { harness, quote, owner } = await deployHarness({
         marketType: 0,
         tickSize: 1,
         maxPrice: 1_000_000,
@@ -894,7 +885,7 @@ describe("CrystalMarket", function () {
     });
 
     it("overflow guard: size exceeds 128 bits (line 1264)", async function () {
-      const { harness, quote, base, marketId } = await deployHarness({
+      const { harness } = await deployHarness({
         marketType: 0,
         tickSize: 1,
         maxPrice: 1_000_000,
@@ -912,7 +903,7 @@ describe("CrystalMarket", function () {
     });
 
     it("overflow guard: tokenBalance overflow (line 725)", async function () {
-      const { harness, quote, base, marketId } = await deployHarness({
+      const { harness, quote } = await deployHarness({
         marketType: 0,
         maxPrice: 1_000_000,
       });
@@ -925,7 +916,7 @@ describe("CrystalMarket", function () {
     });
 
     it("overflow guard: router balance overflow (line 326)", async function () {
-      const { harness, quote, base, marketId } = await deployHarness({
+      const { harness, quote, base } = await deployHarness({
         marketType: 2,
         scaleFactor: 1,
         maxPrice: 1_000_000,
@@ -943,7 +934,7 @@ describe("CrystalMarket", function () {
     });
 
     it("overflow guard: priceLevel size overflow (line 1825)", async function () {
-      const { harness, quote, base, marketId } = await deployHarness({
+      const { harness, quote, marketId } = await deployHarness({
         marketType: 0,
         tickSize: 1,
         maxPrice: 1_000_000,
@@ -969,7 +960,7 @@ describe("CrystalMarket", function () {
     });
 
     it("overflow guard: order size overflow (line 1781)", async function () {
-      const { harness, quote, marketId } = await deployHarness({
+      const { harness, quote } = await deployHarness({
         marketType: 0,
         tickSize: 1,
         maxPrice: 1_000_000,
@@ -989,7 +980,7 @@ describe("CrystalMarket", function () {
     });
 
     it("price clamping: endprice >= maxPrice AMM buy (line 1326)", async function () {
-      const { harness, quote, base, marketId, owner } = await deployHarness({
+      const { harness, quote, owner } = await deployHarness({
         marketType: 0,
         tickSize: 1,
         scaleFactor: 1,
@@ -1009,7 +1000,7 @@ describe("CrystalMarket", function () {
     });
 
     it("price clamping: endprice <= tickSize AMM buy (line 1326)", async function () {
-      const { harness, quote, base, marketId, owner } = await deployHarness({
+      const { harness, quote, owner } = await deployHarness({
         marketType: 0,
         tickSize: 1,
         scaleFactor: 1,
@@ -1029,7 +1020,7 @@ describe("CrystalMarket", function () {
     });
 
     it("price clamping: endprice >= maxPrice AMM sell (line 1361)", async function () {
-      const { harness, quote, base, marketId, owner } = await deployHarness({
+      const { harness, base, owner } = await deployHarness({
         marketType: 0,
         tickSize: 1,
         scaleFactor: 1,
@@ -1049,7 +1040,7 @@ describe("CrystalMarket", function () {
     });
 
     it("price clamping: startprice <= tickSize AMM sell (line 1364)", async function () {
-      const { harness, quote, base, marketId, owner } = await deployHarness({
+      const { harness, base, owner } = await deployHarness({
         marketType: 0,
         tickSize: 1,
         scaleFactor: 1,
@@ -2052,7 +2043,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should track total supply after liquidity add", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -2079,7 +2070,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should transfer LP tokens", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -2102,7 +2093,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should transferFrom with approval", async function () {
-      const { crystal, market, maker, taker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, user1 } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -2124,7 +2115,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle max approval transferFrom", async function () {
-      const { crystal, market, maker, taker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, user1 } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -2290,7 +2281,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM Integration", function () {
     it("Should add liquidity and mint LP tokens", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -2318,7 +2309,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should add liquidity with optimal base amount", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -2347,7 +2338,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should add liquidity with optimal quote amount", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -2412,7 +2403,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should get reserves", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -2431,7 +2422,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should update reserves after swap", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -2445,10 +2436,8 @@ describe("CrystalMarket", function () {
       );
 
       const infoBefore = await crystal.getMarket(market.target);
-
-      const scaleFactor = await market.scaleFactor();
-      const quoteDecimals = await quote.decimals();
-      const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
+      await market.scaleFactor();
+      await quote.decimals();
       const swapSize = ethers.parseEther("1");
       const maxPrice = await market.maxPrice();
 
@@ -2499,8 +2488,7 @@ describe("CrystalMarket", function () {
         const scaleFactor = await market.scaleFactor();
         const quoteDecimals = await quote.decimals();
         const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
-        const info = await crystal.getMarket(market.target);
-        const minSizeRaw = info.minSize;
+        await crystal.getMarket(market.target);
         const priceParam = 500n * priceFactor;
 
         const minSize = ethers.parseEther("1");
@@ -2512,9 +2500,8 @@ describe("CrystalMarket", function () {
 
       it("Should place sell order below maxPrice", async function () {
         const { crystal, market, maker, quote } = await loadFixture(deployFixture);
-        const scaleFactor = await market.scaleFactor();
-        const quoteDecimals = await quote.decimals();
-        const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
+        await market.scaleFactor();
+        await quote.decimals();
         const maxPrice = await market.maxPrice();
         const size = ethers.parseEther("1");
 
@@ -2712,7 +2699,7 @@ describe("CrystalMarket", function () {
 
   describe("Market Order Execution", function () {
     it("Should execute market buy against sell orders", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -2733,7 +2720,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute market sell against buy orders", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -2754,7 +2741,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should fill orders and emit trade event", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -2775,7 +2762,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should traverse multiple price levels", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -2794,7 +2781,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Types", function () {
     it("Should handle NORMAL order type", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -2809,7 +2796,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle STP order type (self-trade prevention)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -2869,7 +2856,7 @@ describe("CrystalMarket", function () {
     });
 
     it("getQuote() should return quote for buy", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -2892,7 +2879,7 @@ describe("CrystalMarket", function () {
     });
 
     it("getQuote() should return quote for sell", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -2915,7 +2902,7 @@ describe("CrystalMarket", function () {
     });
 
     it("getPrice() should return mid price", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -2936,11 +2923,10 @@ describe("CrystalMarket", function () {
   describe("Market Type Specifics", function () {
     it("Linear market (type 0) should validate tick size", async function () {
       const { crystal, linearMarket, maker, quote, base } = await loadFixture(deployFixture);
-      const scaleFactor = await linearMarket.scaleFactor();
+      await linearMarket.scaleFactor();
       const tickSize = await linearMarket.tickSize();
-      const quoteDecimals = await quote.decimals();
-      const baseDecimals = await base.decimals();
-      const priceFactor = scaleFactor * (10n ** quoteDecimals) / (10n ** baseDecimals);
+      await quote.decimals();
+      await base.decimals();
       const priceParam = 500n * tickSize;
       const size = ethers.parseEther("1");
 
@@ -2948,7 +2934,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Logarithmic market should handle different price ranges", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -2981,7 +2967,7 @@ describe("CrystalMarket", function () {
 
   describe("Fee Collection", function () {
     it("Should collect fees on market order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -3002,7 +2988,7 @@ describe("CrystalMarket", function () {
 
   describe("Edge Cases", function () {
     it("Should handle order at price boundary", async function () {
-      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const tickSize = await market.tickSize();
       const size = ethers.parseEther("1");
 
@@ -3069,7 +3055,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM and Order Book Interaction", function () {
     it("Should interact with AMM liquidity on market order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -3081,10 +3067,8 @@ describe("CrystalMarket", function () {
         0,
         0
       );
-
-      const scaleFactor = await market.scaleFactor();
-      const quoteDecimals = await quote.decimals();
-      const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
+      await market.scaleFactor();
+      await quote.decimals();
       const maxPrice = await market.maxPrice();
 
       const swapSize = ethers.parseEther("1");
@@ -3097,7 +3081,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place limit orders with AMM present", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -3125,7 +3109,7 @@ describe("CrystalMarket", function () {
 
   describe("Slippage Protection", function () {
     it("Should respect slippage limit on market buy", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -3183,7 +3167,7 @@ describe("CrystalMarket", function () {
 
   describe("Linear Market Operations", function () {
     it("Should place orders on linear market", async function () {
-      const { crystal, linearMarket, maker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
       const tickSize = await linearMarket.tickSize();
       const size = ethers.parseEther("1");
       const priceParam = 500n * tickSize;
@@ -3195,7 +3179,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute market order on linear market", async function () {
-      const { crystal, linearMarket, maker, taker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker, taker } = await loadFixture(deployFixture);
       const tickSize = await linearMarket.tickSize();
       const size = ethers.parseEther("10");
       const priceParam = 500n * tickSize;
@@ -3211,7 +3195,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should get price on linear market with bids only", async function () {
-      const { crystal, linearMarket, maker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
       const tickSize = await linearMarket.tickSize();
       const bidPrice = 450n * tickSize;
       const size = ethers.parseEther("1");
@@ -3225,7 +3209,7 @@ describe("CrystalMarket", function () {
 
   describe("Exact Output Orders", function () {
     it("Should execute exact output market buy", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -3244,7 +3228,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute exact output market sell", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -3265,7 +3249,7 @@ describe("CrystalMarket", function () {
 
   describe("Get Quote Edge Cases", function () {
     it("Should get quote with exact output buy", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -3288,7 +3272,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should get quote with exact output sell", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -3311,7 +3295,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should get quote with AMM liquidity", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -3370,7 +3354,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should calculate mid price with AMM", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -3427,7 +3411,7 @@ describe("CrystalMarket", function () {
 
   describe("Referrer Fee Distribution", function () {
     it("Should distribute fees to referrer on trade", async function () {
-      const { crystal, market, maker, taker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, user1, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -3575,7 +3559,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Fill Queue", function () {
     it("Should fill orders in FIFO order at same price", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -3599,7 +3583,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should consume full first order before second", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -3622,7 +3606,7 @@ describe("CrystalMarket", function () {
 
   describe("Market Order Slippage Modes", function () {
     it("Should not fill when slippage exceeded", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -3646,7 +3630,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM Swap Paths", function () {
     it("Should swap through AMM on buy side", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -3670,7 +3654,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should swap through AMM on sell side", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -3694,7 +3678,7 @@ describe("CrystalMarket", function () {
 
   describe("LP Token Edge Cases", function () {
     it("Should fail transfer exceeding balance", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -3715,7 +3699,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should fail transferFrom exceeding allowance", async function () {
-      const { crystal, market, maker, taker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, user1 } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -3738,7 +3722,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should decrease allowance on transferFrom", async function () {
-      const { crystal, market, maker, taker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, user1 } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -3764,7 +3748,7 @@ describe("CrystalMarket", function () {
 
   describe("Empty Order Book", function () {
     it("Should return no fill on empty book buy", async function () {
-      const { crystal, market, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, taker } = await loadFixture(deployFixture);
       const maxPrice = await market.maxPrice();
 
       await crystal.connect(taker).marketOrder(
@@ -3774,7 +3758,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should return no fill on empty book sell", async function () {
-      const { crystal, market, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(taker).marketOrder(
         market.target, false, true, 0, ORDER_TYPES.NORMAL, ethers.parseEther("1"), 1n, ethers.ZeroAddress, taker.address
@@ -3841,7 +3825,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should emit Mint on addLiquidity", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -3859,7 +3843,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should emit Burn on removeLiquidity", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -3898,7 +3882,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should return correct reserves after liquidity added", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -3919,7 +3903,7 @@ describe("CrystalMarket", function () {
 
   describe("getPriceLevels", function () {
     it("Should return price levels ascending from start price", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -3940,7 +3924,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should return price levels descending from start price", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -3963,7 +3947,7 @@ describe("CrystalMarket", function () {
 
   describe("getPriceLevelsFromMid", function () {
     it("Should return bid and ask price levels from mid", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -3985,7 +3969,7 @@ describe("CrystalMarket", function () {
 
   describe("batchOrders", function () {
     it("Should execute batch limit orders", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4003,7 +3987,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute batch cancel orders", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4021,7 +4005,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute batch decrease order", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4039,7 +4023,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute market orders in batch", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -4058,7 +4042,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute batch with userId validation", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4078,7 +4062,7 @@ describe("CrystalMarket", function () {
 
   describe("Exact Output Functions", function () {
     it("Should execute exact output buy via marketOrder", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -4107,7 +4091,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute exact output sell via marketOrder", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -4138,7 +4122,7 @@ describe("CrystalMarket", function () {
 
   describe("Permit Edge Cases", function () {
     it("Should handle permit with valid signature", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -4191,7 +4175,7 @@ describe("CrystalMarket", function () {
 
   describe("Additional Market Order Types", function () {
     it("Should execute partial fill buy order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -4210,7 +4194,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute partial fill sell order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -4229,7 +4213,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute complete fill buy order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -4248,7 +4232,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute complete fill sell order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -4269,7 +4253,7 @@ describe("CrystalMarket", function () {
 
   describe("Decrease Order via BatchOrders", function () {
     it("Should decrease buy order size via batchOrders action 12", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4297,7 +4281,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should decrease sell order size via batchOrders action 12", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4327,7 +4311,7 @@ describe("CrystalMarket", function () {
 
   describe("Internal Balance Mode for Liquidity", function () {
     it("Should add liquidity with internal quote balance", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -4345,7 +4329,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should remove liquidity to internal quote balance", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -4373,7 +4357,7 @@ describe("CrystalMarket", function () {
 
   describe("Exact Output Sell with AMM", function () {
     it("Should execute exact output sell that triggers _exactOutputSellSolve", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -4387,7 +4371,7 @@ describe("CrystalMarket", function () {
       );
 
       const desiredQuote = ethers.parseUnits("1000", 6);
-      const scaleFactor = await market.scaleFactor();
+      await market.scaleFactor();
 
       await crystal.connect(taker).marketOrder(
         market.target,
@@ -4405,7 +4389,7 @@ describe("CrystalMarket", function () {
 
   describe("Small Values in sqrt", function () {
     it("Should handle sqrt with small totalSupply values through addLiquidity", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("2", 6);
       const amountBase = ethers.parseUnits("2", 18);
 
@@ -4422,7 +4406,7 @@ describe("CrystalMarket", function () {
 
   describe("Price Level Traversal", function () {
     it("Should traverse multiple sell price levels in exact output buy", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4454,7 +4438,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should traverse multiple buy price levels in exact output sell", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4489,7 +4473,7 @@ describe("CrystalMarket", function () {
 
   describe("Complete Fill Order Types", function () {
     it("Should execute complete fill buy on full order book match", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4520,7 +4504,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute complete fill sell on full order book match", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4553,11 +4537,9 @@ describe("CrystalMarket", function () {
 
   describe("Price Tick Edge Cases", function () {
     it("Should handle prices in 100k-1M range", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
-
-      const scaleFactor = await market.scaleFactor();
-      const quoteDecimals = await quote.decimals();
-      const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+      await market.scaleFactor();
+      await quote.decimals();
       const tickSize = await market.tickSize();
 
       const price = 500000n * tickSize;
@@ -4572,7 +4554,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle prices in 1M-10M range", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const tickSize = await market.tickSize();
 
       const price = 5000000n * tickSize;
@@ -4589,7 +4571,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Book State After Operations", function () {
     it("Should correctly update state after multiple cancels at same price", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4622,7 +4604,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should correctly cancel orders at different prices", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4659,7 +4641,7 @@ describe("CrystalMarket", function () {
 
   describe("STP and FOK Order Types", function () {
     it("Should handle FOK order that cannot be fully filled", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("1000", 6);
       const amountBase = ethers.parseEther("1");
 
@@ -4687,7 +4669,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle STP order matching own order", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4719,7 +4701,7 @@ describe("CrystalMarket", function () {
 
   describe("Bitmap Slot Operations", function () {
     it("Should search slots up through multiple levels", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4748,7 +4730,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should search slots down through multiple levels", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4779,7 +4761,7 @@ describe("CrystalMarket", function () {
 
   describe("Market Order with No Liquidity", function () {
     it("Should handle market buy with no asks and no AMM", async function () {
-      const { crystal, market, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, taker } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       await crystal.connect(taker).marketOrder(
@@ -4796,9 +4778,8 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle market sell with no bids and no AMM", async function () {
-      const { crystal, market, taker, quote, weth } = await loadFixture(deployFixture);
-
-      const scaleFactor = await market.scaleFactor();
+      const { crystal, market, taker } = await loadFixture(deployFixture);
+      await market.scaleFactor();
       await crystal.connect(taker).marketOrder(
         market.target,
         false,
@@ -4815,7 +4796,7 @@ describe("CrystalMarket", function () {
 
   describe("Higher Price Ranges in _priceToTick", function () {
     it("Should handle prices in 10M-100M range", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const tickSize = await market.tickSize();
 
       const price = 50000000n * tickSize;
@@ -4830,7 +4811,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle prices in 100M-1B range", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const tickSize = await market.tickSize();
 
       const price = 500000000n * tickSize;
@@ -4845,7 +4826,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle prices in 1B-10B range", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const tickSize = await market.tickSize();
 
       const price = 5000000000n * tickSize;
@@ -4862,7 +4843,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM Exact Output with Large Amounts", function () {
     it("Should execute large exact output buy through AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("1000000", 6);
       const amountBase = ethers.parseEther("1000");
 
@@ -4890,7 +4871,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute large exact output sell through AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("1000000", 6);
       const amountBase = ethers.parseEther("1000");
 
@@ -4920,7 +4901,7 @@ describe("CrystalMarket", function () {
 
   describe("Batch Order Action Types", function () {
     it("Should execute batch with market buy action", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -4940,7 +4921,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute batch with market sell action", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -4959,7 +4940,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute batch with replace action", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -4985,7 +4966,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Fill with Different Order Types", function () {
     it("Should partially fill multiple orders", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -5025,7 +5006,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM and Order Book Hybrid Fills", function () {
     it("Should fill buy order partially from AMM and partially from order book", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -5066,7 +5047,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should fill sell order partially from AMM and partially from order book", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -5107,7 +5088,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute exact output buy with AMM and order book", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("50000", 6);
       const amountBase = ethers.parseEther("50");
@@ -5147,7 +5128,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute exact output sell with AMM and order book", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("50000", 6);
       const amountBase = ethers.parseEther("50");
@@ -5189,7 +5170,7 @@ describe("CrystalMarket", function () {
 
   describe("Wide Price Range Order Traversal", function () {
     it("Should traverse many sell price levels", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -5220,7 +5201,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should traverse many buy price levels", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -5253,7 +5234,7 @@ describe("CrystalMarket", function () {
 
   describe("getPriceLevels With Active Orders", function () {
     it("Should return ascending price levels with multiple orders", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -5282,7 +5263,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should return descending price levels with multiple orders", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -5311,7 +5292,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should aggregate price levels within interval", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -5349,7 +5330,7 @@ describe("CrystalMarket", function () {
 
   describe("Exact Output Edge Cases", function () {
     it("Should execute exact output buy consuming entire liquidity", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -5378,7 +5359,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute exact output sell consuming entire liquidity", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -5409,7 +5390,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM Only Exact Output", function () {
     it("Should execute AMM-only exact output buy", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
@@ -5437,7 +5418,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute AMM-only exact output sell", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
@@ -5466,7 +5447,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Book Full Consumption", function () {
     it("Should fully consume multiple sell orders and continue to next", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -5513,7 +5494,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should fully consume multiple buy orders and continue to next", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -5562,7 +5543,7 @@ describe("CrystalMarket", function () {
 
   describe("Slippage Revert Cases", function () {
     it("Should not fill buy when no liquidity at acceptable price", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -5591,7 +5572,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should not fill sell when no liquidity at acceptable price", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -5622,7 +5603,7 @@ describe("CrystalMarket", function () {
 
   describe("getQuote Edge Cases", function () {
     it("Should get quote for exact output buy with AMM", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -5647,7 +5628,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should get quote for exact output sell with AMM", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -5659,8 +5640,7 @@ describe("CrystalMarket", function () {
         0,
         0
       );
-
-      const scaleFactor = await market.scaleFactor();
+      await market.scaleFactor();
       await crystal.getQuote.staticCall(
         market.target,
         false,
@@ -5672,7 +5652,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should get quote for complete fill buy", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -5697,7 +5677,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should get quote for complete fill sell", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -5709,8 +5689,7 @@ describe("CrystalMarket", function () {
         0,
         0
       );
-
-      const scaleFactor = await market.scaleFactor();
+      await market.scaleFactor();
       await crystal.getQuote.staticCall(
         market.target,
         false,
@@ -5724,7 +5703,7 @@ describe("CrystalMarket", function () {
 
   describe("Router Internal Balance for Liquidity", function () {
     it("Should remove liquidity to router internal quote balance", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -5750,7 +5729,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should remove liquidity to router internal base balance", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -5776,7 +5755,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should remove liquidity to router internal balance for both", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -5804,7 +5783,7 @@ describe("CrystalMarket", function () {
 
   describe("More Exact Output Paths", function () {
     it("Should execute exact output buy that hits size limit", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -5832,7 +5811,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute exact output sell that hits size limit", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -5861,7 +5840,7 @@ describe("CrystalMarket", function () {
 
   describe("Deeper Order Book Traversal", function () {
     it("Should traverse deep into sell order book", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -5892,7 +5871,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should traverse deep into buy order book", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -5925,7 +5904,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM Boundary Conditions", function () {
     it("Should execute buy at AMM price boundary", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -5965,7 +5944,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute sell at AMM price boundary", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -6007,7 +5986,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Book to AMM Transition", function () {
     it("Should fill partially from order book then AMM on buy", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("50000", 6);
       const amountBase = ethers.parseEther("50");
@@ -6047,7 +6026,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should fill partially from order book then AMM on sell", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("50000", 6);
       const amountBase = ethers.parseEther("50");
@@ -6090,7 +6069,7 @@ describe("CrystalMarket", function () {
   describe("MarketType 3 (Graduated Launchpad Markets)", function () {
     async function deployType3Market() {
       const base = await loadFixture(deployFixture);
-      const { crystal, quote, weth, owner, maker, taker } = base;
+      const { crystal, quote, weth } = base;
 
       const type3MarketAddr = await crystal.deploy.staticCall(
         true,
@@ -6135,7 +6114,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should add initial liquidity on type 3 market", async function () {
-      const { crystal, type3Market, type3MarketAddr, quote, weth, owner } = await deployType3Market();
+      const { crystal, type3Market, type3MarketAddr, owner } = await deployType3Market();
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -6154,7 +6133,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should have creator fee split on type 3 market trades", async function () {
-      const { crystal, type3Market, type3MarketAddr, quote, weth, owner, maker, taker } = await deployType3Market();
+      const { crystal, type3Market, type3MarketAddr, quote, owner, taker } = await deployType3Market();
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -6180,7 +6159,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute market buy on type 3 market", async function () {
-      const { crystal, type3Market, type3MarketAddr, quote, weth, owner, taker } = await deployType3Market();
+      const { crystal, type3Market, type3MarketAddr, owner, taker } = await deployType3Market();
 
       const amountQuote = ethers.parseUnits("50000", 6);
       const amountBase = ethers.parseEther("50");
@@ -6201,7 +6180,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute market sell on type 3 market", async function () {
-      const { crystal, type3Market, type3MarketAddr, quote, weth, owner, taker } = await deployType3Market();
+      const { crystal, type3MarketAddr, owner, taker } = await deployType3Market();
 
       const amountQuote = ethers.parseUnits("50000", 6);
       const amountBase = ethers.parseEther("50");
@@ -6221,7 +6200,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should get price on type 3 market with liquidity", async function () {
-      const { crystal, type3Market, type3MarketAddr, quote, weth, owner } = await deployType3Market();
+      const { crystal, type3MarketAddr, owner } = await deployType3Market();
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -6232,7 +6211,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place limit order on type 3 market", async function () {
-      const { crystal, type3Market, type3MarketAddr, quote, weth, owner, taker } = await deployType3Market();
+      const { crystal, type3Market, type3MarketAddr, quote, owner, taker } = await deployType3Market();
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -6253,7 +6232,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should have creator fee on trades with referrer on type 3 market", async function () {
-      const { crystal, type3Market, type3MarketAddr, quote, weth, owner, maker, taker, user1 } = await deployType3Market();
+      const { crystal, type3Market, type3MarketAddr, owner, taker, user1 } = await deployType3Market();
 
       const amountQuote = ethers.parseUnits("50000", 6);
       const amountBase = ethers.parseEther("50");
@@ -6276,7 +6255,7 @@ describe("CrystalMarket", function () {
 
   describe("getPriceLevels Edge Cases", function () {
     it("Should handle getPriceLevels with max=0", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -6290,8 +6269,7 @@ describe("CrystalMarket", function () {
         ethers.parseEther("0.1"),
         maker.address
       );
-
-      const levels = await crystal.getPriceLevels.staticCall(
+      await crystal.getPriceLevels.staticCall(
         market.target,
         true,
         999n * priceFactor,
@@ -6302,11 +6280,10 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getPriceLevels with startPrice at maxPrice", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market } = await loadFixture(deployFixture);
 
       const maxPrice = await market.maxPrice();
-
-      const levels = await crystal.getPriceLevels.staticCall(
+      await crystal.getPriceLevels.staticCall(
         market.target,
         true,
         maxPrice,
@@ -6319,7 +6296,7 @@ describe("CrystalMarket", function () {
 
   describe("_sqrt Edge Cases", function () {
     it("Should handle sqrt with y = 0", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -6332,7 +6309,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle sqrt with y = 1", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       try {
         await crystal.connect(maker).addLiquidity(
@@ -6348,7 +6325,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle sqrt with y = 2", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       try {
         await crystal.connect(maker).addLiquidity(
@@ -6364,7 +6341,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle sqrt with y = 3", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       try {
         await crystal.connect(maker).addLiquidity(
@@ -6382,7 +6359,7 @@ describe("CrystalMarket", function () {
 
   describe("Price Conversion Edge Cases", function () {
     it("Should handle very low price in _priceToTick", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const tickSize = await market.tickSize();
 
       await crystal.connect(maker).limitOrder(
@@ -6396,7 +6373,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle prices where p % 10 != 0", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const tickSize = await market.tickSize();
 
       await crystal.connect(maker).limitOrder(
@@ -6410,7 +6387,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle prices where p % 100 != 0 but p % 10 == 0", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const tickSize = await market.tickSize();
 
       await crystal.connect(maker).limitOrder(
@@ -6424,7 +6401,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle prices where p % 1000 != 0 but p % 100 == 0", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const tickSize = await market.tickSize();
 
       await crystal.connect(maker).limitOrder(
@@ -6440,7 +6417,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Book Slot Boundary Crossing", function () {
     it("Should handle crossing slot boundary on buy order traversal", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -6472,7 +6449,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle crossing slot boundary on sell order traversal", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -6508,7 +6485,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM Exact Output Solve Functions", function () {
     it("Should trigger _exactOutputBuySolve with AMM and order book", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
@@ -6548,7 +6525,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should trigger _exactOutputSellSolve with AMM and order book", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
@@ -6590,7 +6567,7 @@ describe("CrystalMarket", function () {
 
   describe("Internal Balance Mode for addLiquidity via ETH (Lines 198, 204)", function () {
     it("Should add liquidity using ETH for WETH base asset", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("1000", 6);
       const amountBase = ethers.parseEther("1");
@@ -6610,7 +6587,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should add more liquidity using ETH for WETH base asset", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -6635,7 +6612,7 @@ describe("CrystalMarket", function () {
 
   describe("Internal Balance Mode for removeLiquidity via ETH (Lines 226-227, 233-234)", function () {
     it("Should remove liquidity to ETH for WETH base market", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -6676,7 +6653,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should revert addLiquidity when amounts below minimum", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -6700,7 +6677,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should revert removeLiquidity when amounts below minimum", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -6728,7 +6705,7 @@ describe("CrystalMarket", function () {
 
   describe("Price Range Coverage for _priceToTick and _toValidPrice", function () {
     it("Should handle price in small range", async function () {
-      const { crystal, linearMarket, maker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).limitOrder(
         linearMarket.target,
@@ -6741,7 +6718,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in medium range", async function () {
-      const { crystal, linearMarket, maker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).limitOrder(
         linearMarket.target,
@@ -6754,7 +6731,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle sell order at high price for _toValidPrice", async function () {
-      const { crystal, linearMarket, maker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).limitOrder(
         linearMarket.target,
@@ -6769,7 +6746,7 @@ describe("CrystalMarket", function () {
 
   describe("addLiquidity amountOptimal Branches", function () {
     it("Should use amountBaseOptimal when less than desired", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -6791,7 +6768,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should use amountQuoteOptimal when amountBaseOptimal exceeds desired", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -6813,7 +6790,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should revert when amountQuoteOptimal > amountQuoteDesired (line 186)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -6837,7 +6814,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit quote ratio < base ratio branch in liquidity calculation (line 190)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -6862,7 +6839,7 @@ describe("CrystalMarket", function () {
   describe("addLiquidity/removeLiquidity with Internal Balance via ETH", function () {
 
     it("Should add liquidity using internal base balance via ETH (line 200 else, options bit 4)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("1000", 6);
       const amountBase = ethers.parseEther("1");
@@ -6881,7 +6858,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should add liquidity with ETH and refund excess (tests line 200 else + refund path)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -6913,7 +6890,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should remove liquidity to ETH via removeLiquidityETH (line 233 else, options bit 4)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -6947,7 +6924,7 @@ describe("CrystalMarket", function () {
 
     it("Should add liquidity using internal quote balance with WETH-quote market (line 194 else)", async function () {
 
-      const { crystal, owner, maker, weth, token1 } = await loadFixture(deployFixture);
+      const { crystal, maker, weth, token1 } = await loadFixture(deployFixture);
 
       const wethQuoteAmmAddr = await crystal.deploy.staticCall(
         false,
@@ -6995,7 +6972,7 @@ describe("CrystalMarket", function () {
 
     it("Should remove liquidity to ETH from WETH-quote market (line 222 else)", async function () {
 
-      const { crystal, owner, maker, weth, token1 } = await loadFixture(deployFixture);
+      const { crystal, maker, weth, token1 } = await loadFixture(deployFixture);
 
       const wethQuoteAmmAddr = await crystal.deploy.staticCall(
         false,
@@ -7073,7 +7050,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Execution with Different Order Types", function () {
     it("Should handle IOC order type", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -7100,7 +7077,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle STP_BOTH order type with same-user orders", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -7129,7 +7106,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle STP_MAKER order type", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -7160,7 +7137,7 @@ describe("CrystalMarket", function () {
 
   describe("Bitmap Slot Operations", function () {
     it("Should clear price level when all orders cancelled", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -7189,7 +7166,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should update bitmap on order fill", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -7223,7 +7200,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM Edge Cases", function () {
     it("Should handle very small AMM trade", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -7250,7 +7227,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle large AMM trade approaching reserve limits", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -7279,7 +7256,7 @@ describe("CrystalMarket", function () {
 
   describe("getQuote Edge Cases", function () {
     it("Should get quote for exact output buy", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -7304,7 +7281,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should get quote for exact output sell", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -7314,8 +7291,7 @@ describe("CrystalMarket", function () {
         0,
         0
       );
-
-      const scaleFactor = await market.scaleFactor();
+      await market.scaleFactor();
 
       const quoteResult = await crystal.getQuote.staticCall(
         market.target,
@@ -7332,7 +7308,7 @@ describe("CrystalMarket", function () {
   describe("High Price Market Coverage", function () {
     async function deployHighPriceMarket() {
       const base = await loadFixture(deployFixture);
-      const { crystal, quote, base: baseToken, owner, maker, taker } = base;
+      const { crystal, quote, base: baseToken } = base;
 
       const highPriceMarketAddr = await crystal.deploy.staticCall(
         false,
@@ -7365,7 +7341,7 @@ describe("CrystalMarket", function () {
     }
 
     it("Should place order at price in 1M-10M range", async function () {
-      const { crystal, highPriceMarket, highPriceMarketAddr, maker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarketAddr, maker } = await deployHighPriceMarket();
 
       await crystal.connect(maker).limitOrder(
         highPriceMarketAddr,
@@ -7378,7 +7354,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place order at price in 10M-100M range", async function () {
-      const { crystal, highPriceMarket, highPriceMarketAddr, maker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarketAddr, maker } = await deployHighPriceMarket();
 
       await crystal.connect(maker).limitOrder(
         highPriceMarketAddr,
@@ -7391,7 +7367,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place order at price in 100M-1B range", async function () {
-      const { crystal, highPriceMarket, highPriceMarketAddr, maker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarketAddr, maker } = await deployHighPriceMarket();
 
       await crystal.connect(maker).limitOrder(
         highPriceMarketAddr,
@@ -7404,7 +7380,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place order at price in 1B-10B range", async function () {
-      const { crystal, highPriceMarket, highPriceMarketAddr, maker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarketAddr, maker } = await deployHighPriceMarket();
 
       await crystal.connect(maker).limitOrder(
         highPriceMarketAddr,
@@ -7417,7 +7393,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place order at price in 10B-100B range", async function () {
-      const { crystal, highPriceMarket, highPriceMarketAddr, maker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarketAddr, maker } = await deployHighPriceMarket();
 
       await crystal.connect(maker).limitOrder(
         highPriceMarketAddr,
@@ -7430,7 +7406,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place order at price in 100B-1T range", async function () {
-      const { crystal, highPriceMarket, highPriceMarketAddr, maker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarketAddr, maker } = await deployHighPriceMarket();
 
       await crystal.connect(maker).limitOrder(
         highPriceMarketAddr,
@@ -7443,7 +7419,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place order at price in 1T-10T range", async function () {
-      const { crystal, highPriceMarket, highPriceMarketAddr, maker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarketAddr, maker } = await deployHighPriceMarket();
 
       await crystal.connect(maker).limitOrder(
         highPriceMarketAddr,
@@ -7456,7 +7432,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place order at price in 10T-100T range", async function () {
-      const { crystal, highPriceMarket, highPriceMarketAddr, maker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarketAddr, maker } = await deployHighPriceMarket();
 
       await crystal.connect(maker).limitOrder(
         highPriceMarketAddr,
@@ -7469,7 +7445,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place order at price in 100T-1Q range", async function () {
-      const { crystal, highPriceMarket, highPriceMarketAddr, maker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarketAddr, maker } = await deployHighPriceMarket();
 
       await crystal.connect(maker).limitOrder(
         highPriceMarketAddr,
@@ -7482,7 +7458,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place sell order at high price", async function () {
-      const { crystal, highPriceMarket, highPriceMarketAddr, maker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarketAddr, maker } = await deployHighPriceMarket();
 
       await crystal.connect(maker).limitOrder(
         highPriceMarketAddr,
@@ -7495,7 +7471,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute market order on high price market", async function () {
-      const { crystal, highPriceMarket, highPriceMarketAddr, maker, taker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarketAddr, maker, taker } = await deployHighPriceMarket();
 
       await crystal.connect(maker).limitOrder(
         highPriceMarketAddr,
@@ -7522,7 +7498,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Fill Edge Cases", function () {
     it("Should partially fill order leaving remaining", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -7595,7 +7571,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should fill order that exhausts price level", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -7626,7 +7602,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM with Order Book Interaction", function () {
     it("Should fill from AMM when no orders exist", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -7653,7 +7629,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should fill from order book sell order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -7692,7 +7668,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should fill sell from AMM when no buy orders exist", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -7717,7 +7693,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle AMM with order book combined execution", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -7758,7 +7734,7 @@ describe("CrystalMarket", function () {
 
   describe("Additional Order Operations", function () {
     it("Should replace order with new price and size", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -7786,7 +7762,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should replace sell order", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -7816,7 +7792,7 @@ describe("CrystalMarket", function () {
 
   describe("Linear Market Type Operations", function () {
     it("Should handle linear market tick calculations", async function () {
-      const { crystal, linearMarket, maker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
 
       const tickSize = await linearMarket.tickSize();
 
@@ -7831,7 +7807,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute market order on linear market", async function () {
-      const { crystal, linearMarket, maker, taker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).limitOrder(
         linearMarket.target,
@@ -7856,7 +7832,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place multiple orders at different ticks on linear market", async function () {
-      const { crystal, linearMarket, maker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
 
       const tickSize = await linearMarket.tickSize();
 
@@ -7891,7 +7867,7 @@ describe("CrystalMarket", function () {
 
   describe("Referrer Fee Distribution", function () {
     it("Should execute buy order with referrer address", async function () {
-      const { crystal, market, maker, taker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, user1 } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -7917,7 +7893,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute sell order with referrer address", async function () {
-      const { crystal, market, maker, taker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, user1 } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -7944,7 +7920,7 @@ describe("CrystalMarket", function () {
 
   describe("getOrder View Function", function () {
     it("Should return correct buy order details", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -7965,7 +7941,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should return correct sell order details", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -7988,7 +7964,7 @@ describe("CrystalMarket", function () {
 
   describe("AddLiquidity Option Branches", function () {
     it("Should trigger amountQuoteOptimal branch in addLiquidity", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -8012,7 +7988,7 @@ describe("CrystalMarket", function () {
 
   describe("RemoveLiquidity Branches", function () {
     it("Should remove liquidity with ETH wrapper", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -8038,7 +8014,7 @@ describe("CrystalMarket", function () {
 
   describe("SettleBalances Edge Cases", function () {
     it("Should handle zero debt values correctly", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -8099,7 +8075,7 @@ describe("CrystalMarket", function () {
     }
 
     it("Should handle price in 100k-1M range", async function () {
-      const { crystal, highTickMarket, maker, quote, base } = await deployHighTickMarket();
+      const { crystal, highTickMarket, maker } = await deployHighTickMarket();
 
       await crystal.connect(maker).limitOrder(
         highTickMarket.target,
@@ -8112,7 +8088,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in 1M-10M range", async function () {
-      const { crystal, highTickMarket, maker, quote, base } = await deployHighTickMarket();
+      const { crystal, highTickMarket, maker } = await deployHighTickMarket();
 
       await crystal.connect(maker).limitOrder(
         highTickMarket.target,
@@ -8125,7 +8101,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in 10M-100M range", async function () {
-      const { crystal, highTickMarket, maker, quote, base } = await deployHighTickMarket();
+      const { crystal, highTickMarket, maker } = await deployHighTickMarket();
 
       await crystal.connect(maker).limitOrder(
         highTickMarket.target,
@@ -8138,7 +8114,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in 100M-1B range", async function () {
-      const { crystal, highTickMarket, maker, quote, base } = await deployHighTickMarket();
+      const { crystal, highTickMarket, maker } = await deployHighTickMarket();
 
       await crystal.connect(maker).limitOrder(
         highTickMarket.target,
@@ -8151,7 +8127,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in 1B-10B range", async function () {
-      const { crystal, highTickMarket, maker, quote, base } = await deployHighTickMarket();
+      const { crystal, highTickMarket, maker } = await deployHighTickMarket();
 
       await crystal.connect(maker).limitOrder(
         highTickMarket.target,
@@ -8164,7 +8140,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in 10B-100B range", async function () {
-      const { crystal, highTickMarket, maker, quote, base } = await deployHighTickMarket();
+      const { crystal, highTickMarket, maker } = await deployHighTickMarket();
 
       await crystal.connect(maker).limitOrder(
         highTickMarket.target,
@@ -8177,7 +8153,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in 100B-1T range", async function () {
-      const { crystal, highTickMarket, maker, quote, base } = await deployHighTickMarket();
+      const { crystal, highTickMarket, maker } = await deployHighTickMarket();
 
       await crystal.connect(maker).limitOrder(
         highTickMarket.target,
@@ -8190,7 +8166,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in 1T-10T range", async function () {
-      const { crystal, highTickMarket, maker, quote, base } = await deployHighTickMarket();
+      const { crystal, highTickMarket, maker } = await deployHighTickMarket();
 
       await crystal.connect(maker).limitOrder(
         highTickMarket.target,
@@ -8203,7 +8179,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in 10T-100T range", async function () {
-      const { crystal, highTickMarket, maker, quote, base } = await deployHighTickMarket();
+      const { crystal, highTickMarket, maker } = await deployHighTickMarket();
 
       await crystal.connect(maker).limitOrder(
         highTickMarket.target,
@@ -8216,7 +8192,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price at max range 100T-1Q", async function () {
-      const { crystal, highTickMarket, maker, quote, base } = await deployHighTickMarket();
+      const { crystal, highTickMarket, maker } = await deployHighTickMarket();
 
       await crystal.connect(maker).limitOrder(
         highTickMarket.target,
@@ -8231,7 +8207,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Book Bitmap Operations", function () {
     it("Should handle orders across multiple bitmap slots", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -8250,7 +8226,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle sell orders across multiple bitmap slots", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -8271,7 +8247,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Execution Completeness", function () {
     it("Should complete partial fill and leave remaining order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -8304,7 +8280,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle complete fill of order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -8339,7 +8315,7 @@ describe("CrystalMarket", function () {
 
   describe("Cancel Order Edge Cases", function () {
     it("Should cancel buy order and refund", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -8359,7 +8335,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should cancel sell order and refund", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -8379,7 +8355,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should cancel partially filled order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -8431,7 +8407,7 @@ describe("CrystalMarket", function () {
 
   describe("AddLiquidity Branches", function () {
     it("Should hit amountQuoteOptimal branch when amountBaseOptimal > amountBaseDesired", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -8461,7 +8437,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should add initial liquidity (totalSupply == 0 branch)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const initialSupply = await market.totalSupply();
       expect(initialSupply).to.equal(0n);
@@ -8485,7 +8461,7 @@ describe("CrystalMarket", function () {
 
   describe("RemoveLiquidity Branches", function () {
     it("Should enforce removeLiquidity with AMM spread check (line 239)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
@@ -8581,7 +8557,7 @@ describe("CrystalMarket", function () {
     }
 
     it("Should handle price in range 100K-1M", async function () {
-      const { crystal, highScaleMarket, maker, quote, base } = await deployHighScaleMarket();
+      const { crystal, highScaleMarket, maker } = await deployHighScaleMarket();
 
       const price = 500000n;
 
@@ -8596,7 +8572,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in range 1M-10M", async function () {
-      const { crystal, highScaleMarket, maker, quote, base } = await deployHighScaleMarket();
+      const { crystal, highScaleMarket, maker } = await deployHighScaleMarket();
 
       const price = 5000000n;
 
@@ -8611,7 +8587,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in range 10M-100M", async function () {
-      const { crystal, highScaleMarket, maker, quote, base } = await deployHighScaleMarket();
+      const { crystal, highScaleMarket, maker } = await deployHighScaleMarket();
 
       const price = 50000000n;
 
@@ -8626,7 +8602,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in range 100M-1B", async function () {
-      const { crystal, highScaleMarket, maker, quote, base } = await deployHighScaleMarket();
+      const { crystal, highScaleMarket, maker } = await deployHighScaleMarket();
 
       const price = 500000000n;
 
@@ -8641,7 +8617,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in range 1B-10B", async function () {
-      const { crystal, highScaleMarket, maker, quote, base } = await deployHighScaleMarket();
+      const { crystal, highScaleMarket, maker } = await deployHighScaleMarket();
 
       const price = 5000000000n;
 
@@ -8656,7 +8632,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in range 10B-100B", async function () {
-      const { crystal, highScaleMarket, maker, quote, base } = await deployHighScaleMarket();
+      const { crystal, highScaleMarket, maker } = await deployHighScaleMarket();
 
       const price = 50000000000n;
 
@@ -8671,7 +8647,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in range 100B-1T", async function () {
-      const { crystal, highScaleMarket, maker, quote, base } = await deployHighScaleMarket();
+      const { crystal, highScaleMarket, maker } = await deployHighScaleMarket();
 
       const price = 500000000000n;
 
@@ -8686,7 +8662,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in range 1T-10T", async function () {
-      const { crystal, highScaleMarket, maker, quote, base } = await deployHighScaleMarket();
+      const { crystal, highScaleMarket, maker } = await deployHighScaleMarket();
 
       const price = 5000000000000n;
 
@@ -8701,7 +8677,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price in range 10T-100T", async function () {
-      const { crystal, highScaleMarket, maker, quote, base } = await deployHighScaleMarket();
+      const { crystal, highScaleMarket, maker } = await deployHighScaleMarket();
 
       const price = 50000000000000n;
 
@@ -8716,7 +8692,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle price at max range 100T-1Q", async function () {
-      const { crystal, highScaleMarket, maker, quote, base } = await deployHighScaleMarket();
+      const { crystal, highScaleMarket, maker } = await deployHighScaleMarket();
 
       const price = 500000000000000n;
 
@@ -8733,7 +8709,7 @@ describe("CrystalMarket", function () {
 
   describe("_settleBalances Branches", function () {
     it("Should settle with external transfer in and internal out (balanceModeOut != 0)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -8776,7 +8752,7 @@ describe("CrystalMarket", function () {
 
   describe("_internalCancel Branches", function () {
     it("Should cancel order that is fillnext (line 520)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -8789,7 +8765,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should cancel order that is latest (not fillnext) (line 523)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -8798,8 +8774,7 @@ describe("CrystalMarket", function () {
 
       await crystal.connect(maker).limitOrder(market.target, true, 0, price, size, maker.address);
       await crystal.connect(taker).limitOrder(market.target, true, 0, price, size, taker.address);
-
-      const levelBefore = await crystal.getPriceLevel(market.target, price);
+      await crystal.getPriceLevel(market.target, price);
 
       await crystal.connect(taker).cancelOrder(market.target, 0, price, 1n, taker.address);
 
@@ -8808,7 +8783,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle multiple orders in queue at same price", async function () {
-      const { crystal, market, maker, taker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, user1, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -8828,7 +8803,7 @@ describe("CrystalMarket", function () {
 
   describe("GetPriceLevels Branches", function () {
     it("Should return early when startPrice >= maxPrice (line 586-587)", async function () {
-      const { crystal, market, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, quote } = await loadFixture(deployFixture);
 
       const maxPrice = await market.maxPrice();
 
@@ -8845,7 +8820,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getPriceLevels descending (isAscending = false)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -8867,7 +8842,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getPriceLevelsFromMid", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
@@ -8890,7 +8865,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM Exact Output Buy/Sell Paths", function () {
     it("Should execute exact output buy through AMM (line 976-982)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -8920,7 +8895,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute exact output sell through AMM (line 1010-1016)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -8948,7 +8923,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle AMM buy with sizeLeft < _amountIn (line 971-972)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -8978,7 +8953,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle AMM sell with sizeLeft < _amountIn (line 1005-1006)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -9008,7 +8983,7 @@ describe("CrystalMarket", function () {
 
   describe("Self Trade Prevention (STP) Modes", function () {
     it("Should handle STP mode 1 - cancel resting (line 1105)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9038,7 +9013,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Type IOC and FOK", function () {
     it("Should revert on FOK (type 1) when slippage exceeded (line 1062-1063)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9063,7 +9038,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place limit order on IOC when slippage exceeded (type 2, line 1068-1095)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9131,7 +9106,7 @@ describe("CrystalMarket", function () {
 
   describe("GetPrice Edge Cases with AMM", function () {
     it("Should return AMM-adjusted highestBid when higher than orderbook bid (line 751-752)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -9162,7 +9137,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should return AMM-adjusted lowestAsk when lower than orderbook ask (line 756-757)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -9174,10 +9149,8 @@ describe("CrystalMarket", function () {
         0,
         0
       );
-
-      const scaleFactor = await market.scaleFactor();
-      const quoteDecimals = await quote.decimals();
-      const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
+      await market.scaleFactor();
+      await quote.decimals();
       const maxPrice = await market.maxPrice();
       await crystal.connect(maker).limitOrder(
         market.target,
@@ -9194,7 +9167,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle no bids (line 765-766)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9216,7 +9189,7 @@ describe("CrystalMarket", function () {
 
   describe("GetQuote Edge Cases", function () {
     it("Should handle getQuote with worstPrice at max (line 782-783)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9240,7 +9213,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getQuote sell with worstPrice = 0 (line 791-792)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9262,7 +9235,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getQuote exact output sell with fee adjustment (line 788-789)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9286,7 +9259,7 @@ describe("CrystalMarket", function () {
 
   describe("Cancel Across Multiple Bitmap Slots", function () {
     it("Should update lowestAsk across slot boundary (line 547-562)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9308,7 +9281,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should update highestBid across slot boundary (line 564-577)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9332,7 +9305,7 @@ describe("CrystalMarket", function () {
 
   describe("TransferFrom by Crystal", function () {
     it("Should not decrease allowance when caller is crystal (line 133)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -9364,7 +9337,7 @@ describe("CrystalMarket", function () {
 
   describe("Gas Limit Protection (Type 3 Orders)", function () {
     it("Should stop execution when gas is low for type 3 order (line 1102)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9400,7 +9373,7 @@ describe("CrystalMarket", function () {
 
   describe("_limitOrder Validation Branches (lines 1428, 1441)", function () {
     it("Should reject buy order that crosses the spread (price >= lowestAsk)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9415,7 +9388,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should reject sell order that crosses the spread (price <= highestBid)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9430,7 +9403,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should reject buy order that would cross AMM price (line 1428)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -9451,7 +9424,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should reject sell order that would cross AMM price (line 1441)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -9472,7 +9445,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should reject order with zero price (line 1428 price == 0)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const size = ethers.parseEther("1");
 
       await expect(
@@ -9481,7 +9454,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should reject sell order at maxPrice (line 1441 price >= maxPrice)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const maxPrice = await market.maxPrice();
       const size = ethers.parseEther("1");
 
@@ -9491,7 +9464,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should reject order below minimum size", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9509,7 +9482,7 @@ describe("CrystalMarket", function () {
 
       const scaleFactor = await linearMarket.scaleFactor();
       const quoteDecimals = await quote.decimals();
-      const baseDecimals = await base.decimals();
+      await base.decimals();
 
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
 
@@ -9528,7 +9501,7 @@ describe("CrystalMarket", function () {
 
   describe("GetQuote Edge Cases", function () {
     it("Should handle getQuote for buy with completeFill=true but insufficient liquidity", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9554,7 +9527,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Matching with Transfer Failures", function () {
     it("Should handle partial fills across multiple price levels", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9589,7 +9562,7 @@ describe("CrystalMarket", function () {
 
   describe("Complex AMM + Orderbook Interactions", function () {
     it("Should mix AMM and orderbook liquidity on buy", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9630,7 +9603,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should mix AMM and orderbook liquidity on sell", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9671,7 +9644,7 @@ describe("CrystalMarket", function () {
 
   describe("External vs Internal Balance Settlement", function () {
     it("Should handle buy order with external balance transferring to external maker", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -9722,7 +9695,7 @@ describe("CrystalMarket", function () {
 
   describe("Constructor and Premint Branches", function () {
     it("Should deploy market with non-zero reserves (premint path)", async function () {
-      const { crystal, quote, weth, owner } = await loadFixture(deployFixture);
+      const { crystal, quote, weth } = await loadFixture(deployFixture);
 
       const marketType = await ethers.getContractAt("CrystalMarket",
         await crystal.getMarketByTokens(quote.target, weth.target)
@@ -9734,7 +9707,7 @@ describe("CrystalMarket", function () {
 
   describe("RemoveLiquidity Edge Cases", function () {
     it("Should handle removeLiquidity with standard tokens (line 226)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -9764,7 +9737,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle removeLiquidityETH (line 233-239)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -9832,7 +9805,7 @@ describe("CrystalMarket", function () {
     }
 
     it("Should place and fill orders at 10K price range", async function () {
-      const { crystal, highPriceMarket, maker, taker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarket, maker, taker } = await deployHighPriceMarket();
 
       const price = 10000n;
       const size = ethers.parseEther("100");
@@ -9860,7 +9833,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place and fill orders at 100K price range", async function () {
-      const { crystal, highPriceMarket, maker, taker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarket, maker, taker } = await deployHighPriceMarket();
 
       const price = 500000n;
       const size = ethers.parseEther("10");
@@ -9888,7 +9861,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place and fill orders at 1M price range", async function () {
-      const { crystal, highPriceMarket, maker, taker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarket, maker, taker } = await deployHighPriceMarket();
 
       const price = 5000000n;
       const size = ethers.parseEther("1");
@@ -9916,7 +9889,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place and fill orders at 10M price range", async function () {
-      const { crystal, highPriceMarket, maker, taker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarket, maker, taker } = await deployHighPriceMarket();
 
       const price = 50000000n;
       const size = ethers.parseEther("1");
@@ -9944,7 +9917,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place and fill orders at 100M price range", async function () {
-      const { crystal, highPriceMarket, maker, taker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarket, maker, taker } = await deployHighPriceMarket();
 
       const price = 500000000n;
       const size = ethers.parseEther("1");
@@ -9972,7 +9945,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place and fill orders at 1B price range", async function () {
-      const { crystal, highPriceMarket, maker, taker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarket, maker, taker } = await deployHighPriceMarket();
 
       const price = 5000000000n;
       const size = ethers.parseEther("1");
@@ -10000,7 +9973,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place and fill sell orders at various ranges", async function () {
-      const { crystal, highPriceMarket, maker, taker, quote, base } = await deployHighPriceMarket();
+      const { crystal, highPriceMarket, maker, taker } = await deployHighPriceMarket();
 
       const prices = [100000n, 1000000n, 10000000n, 100000000n, 1000000000n];
       const size = ethers.parseEther("1");
@@ -10066,7 +10039,7 @@ describe("CrystalMarket", function () {
     }
 
     it("Should convert ticks in various ranges correctly", async function () {
-      const { crystal, logMarket, maker, quote, base } = await deployLogarithmicMarket();
+      const { crystal, logMarket, maker } = await deployLogarithmicMarket();
 
       const testPrices = [
         10000n,
@@ -10092,7 +10065,7 @@ describe("CrystalMarket", function () {
 
   describe("Solve Functions Edge Cases (lines 373, 406)", function () {
     it("Should trigger solve function through exact output buy", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -10121,7 +10094,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should trigger solve function through exact output sell", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -10150,7 +10123,7 @@ describe("CrystalMarket", function () {
 
   describe("Internal Cancel Advanced Scenarios", function () {
     it("Should cancel buy order at highestBid level", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10169,7 +10142,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should cancel sell order at lowestAsk level", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10190,7 +10163,7 @@ describe("CrystalMarket", function () {
 
   describe("Market Order Matching with AMM and Orderbook", function () {
     it("Should match order using AMM then orderbook", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10231,7 +10204,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should match sell order using orderbook then AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10272,7 +10245,7 @@ describe("CrystalMarket", function () {
 
   describe("_settleBalances Balance Mode Branches (lines 430-512)", function () {
     it("Should handle balanceMode=0 with external input and output (lines 453-477)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10286,7 +10259,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle balanceMode=1 internal balances for buy order (lines 481-507)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10303,7 +10276,7 @@ describe("CrystalMarket", function () {
 
   describe("Cancel Order Scenarios", function () {
     it("Should cancel single buy order", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10323,7 +10296,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should cancel single sell order", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10343,7 +10316,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should cancel first of multiple orders at same price", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10364,7 +10337,7 @@ describe("CrystalMarket", function () {
 
   describe("Market Order Fill Branches", function () {
     it("Should handle market order that matches multiple price levels", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10381,7 +10354,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle market order that matches AMM and orderbook", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10401,7 +10374,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Type Branches (Exact Output)", function () {
     it("Should handle exact output buy order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -10413,7 +10386,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle exact output sell order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -10426,7 +10399,7 @@ describe("CrystalMarket", function () {
 
   describe("Transfer and Approval Edge Cases", function () {
     it("Should handle transfer between users", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("1000", 6);
       const amountBase = ethers.parseEther("1");
 
@@ -10441,7 +10414,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle permit functionality", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("1000", 6);
       const amountBase = ethers.parseEther("1");
 
@@ -10454,7 +10427,7 @@ describe("CrystalMarket", function () {
 
   describe("Market State Tests", function () {
     it("Should verify market state after placing orders", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10474,7 +10447,7 @@ describe("CrystalMarket", function () {
 
   describe("Complex Order Matching Scenarios", function () {
     it("Should handle order that crosses multiple price levels", async function () {
-      const { crystal, linearMarket, maker, taker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await linearMarket.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10496,7 +10469,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle self-trade prevention with STP mode", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10513,7 +10486,7 @@ describe("CrystalMarket", function () {
 
   describe("AddLiquidity and RemoveLiquidity Branches", function () {
     it("Should handle addLiquidity with different amount ratios (lines 180-190)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -10526,7 +10499,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle addLiquidity when amountBaseOptimal > amountBaseDesired (lines 185-188)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -10563,7 +10536,7 @@ describe("CrystalMarket", function () {
 
   describe("Error Handling and Edge Cases", function () {
     it("Should fail when removing more liquidity than owned", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -10578,7 +10551,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should fail when minimum amounts not met in removeLiquidity", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -10646,7 +10619,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should update lowestAsk when canceling at lowest ask price", async function () {
-      const { crystal, market, maker, quote, taker } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10680,7 +10653,7 @@ describe("CrystalMarket", function () {
 
   describe("Price Conversion Branch Coverage", function () {
     it("Should handle prices in 100k-1M range (_priceToTick line 272)", async function () {
-      const { crystal, linearMarket, maker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
 
       const price = 500000n;
       const size = ethers.parseEther("1");
@@ -10700,7 +10673,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM Exact Output Solve Functions", function () {
     it("Should test exact output buy within limits", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
@@ -10711,7 +10684,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should test exact output sell within limits", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
@@ -10782,7 +10755,7 @@ describe("CrystalMarket", function () {
 
   describe("_searchSlotUp and _searchSlotDown branches", function () {
     it("Should traverse multiple slot levels when finding next price", async function () {
-      const { crystal, linearMarket, maker, taker } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
       const size = ethers.parseEther("1");
 
       await crystal.connect(maker).limitOrder(linearMarket.target, false, 0, 1000n, size, maker.address);
@@ -10795,7 +10768,7 @@ describe("CrystalMarket", function () {
 
   describe("transferFrom Edge Cases", function () {
     it("Should handle transferFrom with max approval", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -10812,7 +10785,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle transferFrom with limited approval", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -10908,7 +10881,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle multiple orders at same price being filled", async function () {
-      const { crystal, market, maker, taker, quote, user1 } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10939,7 +10912,7 @@ describe("CrystalMarket", function () {
 
   describe("BatchOrders with Internal Balance Modes", function () {
     it("Should execute batch buy limit order with standard balance mode", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -10963,28 +10936,24 @@ describe("CrystalMarket", function () {
       await crystal.connect(maker).batchOrders(market.target, actions, userId, deadline, ethers.ZeroAddress, maker.address);
     });
 
-    it("Should execute batch replace buy order", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+    it("Should execute batch buy order", async function () {
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
       const price1 = 1000n * priceFactor;
       const price2 = 1100n * priceFactor;
       const size = ethers.parseEther("1");
-
-      const orderId = await crystal.connect(maker).limitOrder.staticCall(market.target, true, 0, price1, size, maker.address);
+      await crystal.connect(maker).limitOrder.staticCall(market.target, true, 0, price1, size, maker.address);
       await crystal.connect(maker).limitOrder(market.target, true, 0, price1, size, maker.address);
 
       const userId = await crystal.addressToUserId(maker.address);
-
-      const packedParam1 = (price2 << 80n) | price1;
-      const packedParam2 = (size << 41n) | orderId;
       const actions = [
         {
           isRequireSuccess: true,
           action: 4,
-          param1: packedParam1,
-          param2: packedParam2,
+          param1: price2,
+          param2: size,
           param3: 0
         }
       ];
@@ -10995,7 +10964,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute multiple actions in single batch", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11028,7 +10997,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute batch order with toInternalBalances option", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11087,7 +11056,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute batch sell limit order", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11112,7 +11081,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute batch market sell order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11141,7 +11110,7 @@ describe("CrystalMarket", function () {
 
   describe("Price Conversion Edge Cases", function () {
     it("Should handle low price range orders", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11153,7 +11122,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle mid-range price orders", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11165,7 +11134,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle higher price range orders", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11179,7 +11148,7 @@ describe("CrystalMarket", function () {
 
   describe("Market Order with Exact Output", function () {
     it("Should execute exact output buy order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11193,7 +11162,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute exact output sell order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11210,7 +11179,7 @@ describe("CrystalMarket", function () {
 
   describe("Liquidity Edge Cases", function () {
     it("Should add liquidity with non-optimal base ratio", async function () {
-      const { crystal, market, owner, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const amountQuote1 = ethers.parseUnits("1000", 6);
       const amountBase1 = ethers.parseEther("1");
@@ -11222,7 +11191,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should add liquidity with non-optimal quote ratio", async function () {
-      const { crystal, market, owner, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const amountQuote1 = ethers.parseUnits("1000", 6);
       const amountBase1 = ethers.parseEther("1");
@@ -11236,7 +11205,7 @@ describe("CrystalMarket", function () {
 
   describe("Partial Fill and Cancel Scenarios", function () {
     it("Should handle partial fill then cancel remaining", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11253,7 +11222,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle multiple partial fills on same order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11273,7 +11242,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Type Variations", function () {
     it("Should execute market order with normal order type", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11287,7 +11256,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute market sell order with normal order type", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11302,7 +11271,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Queue Operations", function () {
     it("Should handle queue with multiple orders at same price level", async function () {
-      const { crystal, market, maker, taker, user1, user2, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, user1, user2, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11320,7 +11289,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should cancel middle order in queue", async function () {
-      const { crystal, market, maker, user1, user2, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, user1, user2, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11341,7 +11310,7 @@ describe("CrystalMarket", function () {
 
   describe("Tick and Slot Search Operations", function () {
     it("Should search through multiple slot boundaries on buy", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11359,7 +11328,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should search through multiple slot boundaries on sell", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11378,10 +11347,9 @@ describe("CrystalMarket", function () {
 
   describe("AMM Integration Edge Cases", function () {
     it("Should handle market order against AMM liquidity", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
-      const scaleFactor = await market.scaleFactor();
-      const quoteDecimals = await quote.decimals();
-      const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
+      await market.scaleFactor();
+      await quote.decimals();
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -11393,7 +11361,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle market sell against AMM liquidity", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
@@ -11453,7 +11421,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM and Orderbook Hybrid Operations", function () {
     it("Should execute buy order that trades with both AMM and orderbook", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11472,7 +11440,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute sell order that trades with both AMM and orderbook", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11492,7 +11460,7 @@ describe("CrystalMarket", function () {
 
   describe("Complete Fill Scenarios", function () {
     it("Should completely fill a buy order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11505,7 +11473,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should completely fill a sell order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11521,7 +11489,7 @@ describe("CrystalMarket", function () {
 
   describe("Large Order Scenarios", function () {
     it("Should handle very large buy order size", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11536,7 +11504,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle very large sell order size", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11552,7 +11520,7 @@ describe("CrystalMarket", function () {
 
   describe("Price Level Traversal", function () {
     it("Should traverse through many price levels on buy", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11570,7 +11538,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should traverse through many price levels on sell", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11589,7 +11557,7 @@ describe("CrystalMarket", function () {
 
   describe("Remove Liquidity Edge Cases", function () {
     it("Should remove liquidity with minimum amounts met", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("1000", 6);
       const amountBase = ethers.parseEther("1");
@@ -11605,7 +11573,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should remove all liquidity", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("1000", 6);
       const amountBase = ethers.parseEther("1");
@@ -11622,7 +11590,7 @@ describe("CrystalMarket", function () {
 
   describe("getPriceLevels Edge Cases", function () {
     it("Should get price levels ascending from mid", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11636,7 +11604,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should get price levels descending from mid", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11652,7 +11620,7 @@ describe("CrystalMarket", function () {
 
   describe("Limit Order Post-Only Mode", function () {
     it("Should place post-only buy order that doesn't cross", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11665,7 +11633,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place post-only sell order that doesn't cross", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11680,7 +11648,7 @@ describe("CrystalMarket", function () {
 
   describe("BatchOrders with Internal Balance Modes", function () {
     it("Should execute batchOrders with useInternalBalances=1 after depositing funds", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11706,7 +11674,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute batchOrders with toInternalBalances=1 on cancel", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11732,7 +11700,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute batchOrders with fromInternalBalances=1 after cancelling to router balance", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11771,8 +11739,11 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute market order action within batchOrders", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
+      const quoteDecimals = await quote.decimals();
+      const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
+      const price = 1000n * priceFactor;
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -11784,7 +11755,7 @@ describe("CrystalMarket", function () {
       );
 
       const actions = [
-        { action: 6n, param1: scaleFactor * 2000n, param2: ethers.parseUnits("100", 6), param3: 0n, isRequireSuccess: false }
+        { action: 6n, param1: price, param2: ethers.parseUnits("100", 6), param3: 0n, isRequireSuccess: false }
       ];
 
       await crystal.connect(taker).batchOrders(
@@ -11798,7 +11769,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute market sell action within batchOrders", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -11824,7 +11795,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle failed action with isRequireSuccess=false", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11844,7 +11815,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should revert failed action with isRequireSuccess=true", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11868,10 +11839,9 @@ describe("CrystalMarket", function () {
 
   describe("MarketOrder with Internal Balance Options", function () {
     it("Should execute market order with useInternalBalances option", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
-      const quoteDecimals = await quote.decimals();
-      const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
+      await quote.decimals();
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -11901,7 +11871,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute market order with toInternalBalances option", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
 
       await crystal.connect(maker).addLiquidity(
@@ -11933,7 +11903,7 @@ describe("CrystalMarket", function () {
 
   describe("ReplaceOrder Edge Cases", function () {
     it("Should replace buy order with new price", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -11969,7 +11939,7 @@ describe("CrystalMarket", function () {
 
   describe("Limit Order with Internal Balance Mode", function () {
     it("Should place limit buy order using internal balance (option 1)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12067,12 +12037,12 @@ describe("CrystalMarket", function () {
         taker.address
       );
 
-      const [totalBalance, availableBalance, lockedBalance] = await crystal.getDepositedBalance(maker.address, quote.target);
+      const [totalBalance, , ] = await crystal.getDepositedBalance(maker.address, quote.target);
       expect(totalBalance).to.be.greaterThan(0n);
     });
 
     it("Should handle order fill when maker wants tokens externally", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12119,7 +12089,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM Solve Function Edge Cases", function () {
     it("Should trigger _exactInputBuySolve with large trade", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
 
       await crystal.connect(maker).addLiquidity(
@@ -12145,7 +12115,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should trigger _exactInputSellSolve with large trade", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -12170,8 +12140,8 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle exact output with tight slippage near AMM price", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
-      const scaleFactor = await market.scaleFactor();
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
+      await market.scaleFactor();
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -12200,7 +12170,7 @@ describe("CrystalMarket", function () {
 
   describe("Slot Traversal Edge Cases", function () {
     it("Should traverse multiple slots on large price range orders", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12231,7 +12201,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getBidSlotBelow with slot boundary crossing", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12244,7 +12214,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getAskSlotAbove with slot boundary crossing", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12259,7 +12229,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Queue Multi-Order Operations", function () {
     it("Should handle cancelling middle order in queue of 3", async function () {
-      const { crystal, market, maker, taker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, user1, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12311,7 +12281,7 @@ describe("CrystalMarket", function () {
 
   describe("AddLiquidity with ETH Paths", function () {
     it("Should add liquidity with ETH when base is WETH", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const amountQuote = ethers.parseUnits("1000", 6);
       const amountBase = ethers.parseEther("1");
@@ -12343,7 +12313,7 @@ describe("CrystalMarket", function () {
 
   describe("CancelOrderByCloid Edge Cases", function () {
     it("Should cancel order using cloid", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12371,7 +12341,7 @@ describe("CrystalMarket", function () {
 
   describe("Additional Edge Case Coverage", function () {
     it("Should get reserves from market", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -12388,8 +12358,8 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle exact output sell order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
-      const scaleFactor = await market.scaleFactor();
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
+      await market.scaleFactor();
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -12414,7 +12384,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle limit order crossing with AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12440,7 +12410,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle limit order with post-only that would cross", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12470,7 +12440,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute multiple fills at same price level", async function () {
-      const { crystal, market, maker, taker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, user1, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12495,7 +12465,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle very small orders near minSize", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12507,7 +12477,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle limit order with very high price", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12525,7 +12495,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle large batch of orders", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12546,7 +12516,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle market sell into multiple bid levels", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12607,7 +12577,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle various prices on main market", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12622,7 +12592,7 @@ describe("CrystalMarket", function () {
 
   describe("Liquidity Internal Balance Options", function () {
     it("Should add liquidity using external transfer", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -12638,7 +12608,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should add more liquidity to existing pool", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -12665,7 +12635,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should remove liquidity and receive tokens", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -12691,7 +12661,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle addLiquidity with amountBaseOptimal path", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -12713,7 +12683,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle addLiquidity with amountQuoteOptimal path", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -12737,7 +12707,7 @@ describe("CrystalMarket", function () {
 
   describe("Settle Balances Edge Cases", function () {
     it("Should handle sell order generating positive quote debt", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12759,7 +12729,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle buy order generating positive base debt", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12781,7 +12751,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle market order with toInternalBalances flag for quote", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12804,7 +12774,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle market order with toInternalBalances flag for base", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12827,7 +12797,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute batch with toInternalBalances for outputs", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12853,7 +12823,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Fill Edge Cases", function () {
     it("Should handle partial fill leaving small remainder", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12875,7 +12845,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle order that exactly fills", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12897,7 +12867,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle market buy fills against ask", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12919,7 +12889,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle market sell fills against bid", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -12943,7 +12913,7 @@ describe("CrystalMarket", function () {
 
   describe("Exact Output Orders", function () {
     it("Should execute exact output buy order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -12968,7 +12938,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute exact output sell order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -12993,7 +12963,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute exact output buy against orderbook", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13017,7 +12987,7 @@ describe("CrystalMarket", function () {
 
   describe("Replace Order Scenarios", function () {
     it("Should place multiple buy orders via batch", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13039,7 +13009,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should place multiple sell orders via batch", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13063,7 +13033,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM Swap Edge Cases", function () {
     it("Should swap via AMM with price impact", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -13088,7 +13058,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle multiple small swaps", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -13117,7 +13087,7 @@ describe("CrystalMarket", function () {
 
   describe("Batch Operations", function () {
     it("Should execute batch with place and cancel in single tx", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13139,7 +13109,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute batch with multiple sells", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13163,7 +13133,7 @@ describe("CrystalMarket", function () {
 
   describe("Transfer and Approval Edge Cases", function () {
     it("Should handle LP token transfer", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -13185,7 +13155,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle LP token transferFrom with approval", async function () {
-      const { crystal, market, maker, taker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, user1 } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -13209,7 +13179,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Bitmap Traversal", function () {
     it("Should handle market order consuming multiple price levels", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13233,7 +13203,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle market sell consuming multiple bid levels", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13257,7 +13227,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle orders at widely spaced prices", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13283,7 +13253,7 @@ describe("CrystalMarket", function () {
 
   describe("Self-Trade Prevention Extended", function () {
     it("Should prevent self-trade on market buy", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13305,7 +13275,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should prevent self-trade on market sell", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13355,7 +13325,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle bid-ask spread on linear market", async function () {
-      const { crystal, linearMarket, maker, taker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker, quote, base } = await loadFixture(deployFixture);
       const scaleFactor = await linearMarket.scaleFactor();
       const priceFactor = scaleFactor / (10n ** 12n);
 
@@ -13373,7 +13343,7 @@ describe("CrystalMarket", function () {
 
   describe("Fee Handling", function () {
     it("Should apply taker fee on market buy", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13400,7 +13370,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should apply maker rebate on order fill", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13424,7 +13394,7 @@ describe("CrystalMarket", function () {
 
   describe("Launchpad Market Operations", function () {
     it("Should create and interact with launchpad token", async function () {
-      const { crystal, launchpadToken, weth, user1 } = await loadFixture(launchpadFixture);
+      const { crystal, launchpadToken, user1 } = await loadFixture(launchpadFixture);
 
       expect(launchpadToken.target).to.not.equal(ethers.ZeroAddress);
 
@@ -13473,7 +13443,7 @@ describe("CrystalMarket", function () {
 
   describe("Extended Order Matching", function () {
     it("Should handle order at exact tick boundary", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13495,7 +13465,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle very small order sizes", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13508,7 +13478,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle orders with deadline", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13534,10 +13504,9 @@ describe("CrystalMarket", function () {
 
   describe("AMM Integration", function () {
     it("Should execute swap through AMM when no orderbook liquidity", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
-      const scaleFactor = await market.scaleFactor();
-      const quoteDecimals = await quote.decimals();
-      const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
+      await market.scaleFactor();
+      await quote.decimals();
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -13562,10 +13531,9 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute swap combining orderbook and AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
-      const scaleFactor = await market.scaleFactor();
-      const quoteDecimals = await quote.decimals();
-      const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
+      await market.scaleFactor();
+      await quote.decimals();
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -13590,7 +13558,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle AMM sell", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -13617,7 +13585,7 @@ describe("CrystalMarket", function () {
 
   describe("Order State Queries", function () {
     it("Should place orders via batch and query market info", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13641,7 +13609,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should check market info", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, quote, weth } = await loadFixture(deployFixture);
 
       const marketInfo = await crystal.getMarket(market.target);
       expect(marketInfo.quoteAsset).to.equal(quote.target);
@@ -13649,16 +13617,16 @@ describe("CrystalMarket", function () {
     });
 
     it("Should get deposited balances", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, maker, quote } = await loadFixture(deployFixture);
 
-      const [total, available, locked] = await crystal.getDepositedBalance(maker.address, quote.target);
+      const [total, , ] = await crystal.getDepositedBalance(maker.address, quote.target);
       expect(total).to.be.greaterThan(0n);
     });
   });
 
   describe("Referrer Handling", function () {
     it("Should handle market order with referrer", async function () {
-      const { crystal, market, maker, taker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, user1, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13680,7 +13648,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle batch orders with referrer", async function () {
-      const { crystal, market, maker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, user1, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13703,7 +13671,7 @@ describe("CrystalMarket", function () {
 
   describe("LP Token Operations", function () {
     it("Should transfer LP tokens between accounts", async function () {
-      const { crystal, market, maker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, user1 } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -13725,7 +13693,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should approve and transferFrom LP tokens", async function () {
-      const { crystal, market, maker, user1, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, user1, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -13748,7 +13716,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle LP token permit", async function () {
-      const { crystal, market, maker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -13766,7 +13734,7 @@ describe("CrystalMarket", function () {
 
   describe("ETH Liquidity Operations", function () {
     it("Should add liquidity with ETH (internal balance mode)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -13849,7 +13817,7 @@ describe("CrystalMarket", function () {
 
   describe("Price Range Coverage", function () {
     it("Should handle prices in 100k-1M range", async function () {
-      const { crystal, linearMarket, maker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await linearMarket.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13859,7 +13827,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle prices near tick boundaries", async function () {
-      const { crystal, linearMarket, maker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await linearMarket.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13871,7 +13839,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Cancellation Edge Cases", function () {
     it("Should cancel order and update price level", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13889,7 +13857,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should cancel middle order in linked list", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13909,7 +13877,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should cancel last order in linked list", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13930,7 +13898,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Matching and Fills", function () {
     it("Should partially fill order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13952,7 +13920,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should fill multiple orders at different prices", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13977,7 +13945,7 @@ describe("CrystalMarket", function () {
 
   describe("Replace Order Operations", function () {
     it("Should replace buy order with new price", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -13994,7 +13962,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should replace sell order with new price", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14013,7 +13981,7 @@ describe("CrystalMarket", function () {
 
   describe("Exact Output Orders", function () {
     it("Should execute exact output market buy", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14035,7 +14003,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute exact output market sell", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14059,7 +14027,7 @@ describe("CrystalMarket", function () {
 
   describe("Bitmap Traversal", function () {
     it("Should traverse bitmap for best ask", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14082,7 +14050,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should traverse bitmap for best bid", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14107,7 +14075,7 @@ describe("CrystalMarket", function () {
 
   describe("Self-Trade Prevention", function () {
     it("Should allow order that would self-trade with STP enabled", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14115,9 +14083,8 @@ describe("CrystalMarket", function () {
 
       await crystal.connect(maker).limitOrder(market.target, true, 0, price, ethers.parseUnits("1000", 6), maker.address);
 
-      const cloidWithStp = 500n | (1n << 48n);
       const actions = [
-        { action: 3n, param1: price, param2: ethers.parseEther("1"), param3: cloidWithStp, isRequireSuccess: false }
+        { action: 3n, param1: price, param2: ethers.parseEther("1"), param3: 500n, isRequireSuccess: false }
       ];
       await crystal.connect(maker).batchOrders(market.target, actions, 0, MAX_UINT256, ethers.ZeroAddress, maker.address);
     });
@@ -14125,7 +14092,7 @@ describe("CrystalMarket", function () {
 
   describe("Market Swap via AMM", function () {
     it("Should swap exact input through AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -14150,7 +14117,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should swap exact output through AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -14175,7 +14142,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should sell exact input through AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -14200,7 +14167,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should sell exact output through AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -14227,7 +14194,7 @@ describe("CrystalMarket", function () {
 
   describe("Additional Edge Cases", function () {
     it("Should handle market order with zero slippage", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14249,7 +14216,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle multiple orders at same price being filled", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14273,10 +14240,9 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle empty orderbook market order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
-      const scaleFactor = await market.scaleFactor();
-      const quoteDecimals = await quote.decimals();
-      const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
+      await market.scaleFactor();
+      await quote.decimals();
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -14303,7 +14269,7 @@ describe("CrystalMarket", function () {
 
   describe("Market Operations Extended", function () {
     it("Should get market reserves", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -14320,7 +14286,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should query total supply of LP token", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -14381,7 +14347,7 @@ describe("CrystalMarket", function () {
 
   describe("First Liquidity Addition", function () {
     it("Should add first liquidity to new AMM market", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -14421,7 +14387,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Fill Scenarios", function () {
     it("Should completely fill multiple orders at same price", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14445,7 +14411,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should partially fill first order then completely fill second", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14469,7 +14435,7 @@ describe("CrystalMarket", function () {
 
   describe("Cancel After Partial Fill", function () {
     it("Should cancel partially filled order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14501,7 +14467,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM Large Swaps", function () {
     it("Should handle large buy through AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -14526,7 +14492,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle large sell through AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -14553,7 +14519,7 @@ describe("CrystalMarket", function () {
 
   describe("Hybrid Orderbook and AMM", function () {
     it("Should fill order then hit AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14586,7 +14552,7 @@ describe("CrystalMarket", function () {
 
   describe("Self-Trade Prevention (STP) Extended", function () {
     it("Should cancel resting order with STP mode 1 (cancel maker)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14613,7 +14579,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should cancel taker order with STP mode 2 (cancel taker)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14640,7 +14606,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should cancel both with STP mode 3", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14669,7 +14635,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM Exact Output Mode", function () {
     it("Should execute exact output buy through AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -14694,7 +14660,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute exact output sell through AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -14719,7 +14685,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should get quote for exact output buy", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -14743,7 +14709,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should get quote for exact output sell", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -14754,7 +14720,7 @@ describe("CrystalMarket", function () {
         0
       );
 
-      const [amountIn, amountOut] = await crystal.getQuote.staticCall(
+      const [amountIn, ] = await crystal.getQuote.staticCall(
         market.target,
         false,
         false,
@@ -14768,7 +14734,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Replacement Extended", function () {
     it("Should replace order using cloid", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14793,7 +14759,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should decrease order using cloid", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14812,7 +14778,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should decrease order using price and id", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14829,7 +14795,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle replace order that results in market order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14859,7 +14825,7 @@ describe("CrystalMarket", function () {
 
   describe("Batch Orders Extended", function () {
     it("Should handle batch with failed non-required action", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14873,7 +14839,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle batch limit order failure gracefully", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const actions = [
         { action: 2n, param1: 0n, param2: ethers.parseUnits("100", 6), param3: 0n, isRequireSuccess: false }
@@ -14883,7 +14849,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should register user in batchOrders if not registered", async function () {
-      const { crystal, market, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, user1, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14899,7 +14865,7 @@ describe("CrystalMarket", function () {
 
   describe("Internal Balance Mode Extended", function () {
     it("Should use internal balance for market order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14925,7 +14891,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should revert market order when internal balance insufficient", async function () {
-      const { crystal, market, maker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, user1, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14953,7 +14919,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should revert limit order when router balance insufficient", async function () {
-      const { crystal, market, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, user1, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14976,7 +14942,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should use internal balance mode for limit order", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -14999,7 +14965,7 @@ describe("CrystalMarket", function () {
 
   describe("Cancel Order Extended", function () {
     it("Should cancel order using cloid", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -15015,7 +14981,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle cancel with to-router-balance option", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -15031,7 +14997,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle cancel with to-internal-balance option", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -15049,7 +15015,7 @@ describe("CrystalMarket", function () {
 
   describe("Replace Order Extended", function () {
     it("Should register user in replaceOrder if not registered", async function () {
-      const { crystal, market, maker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, user1, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -15072,7 +15038,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle replace order with existing userId", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -15098,7 +15064,7 @@ describe("CrystalMarket", function () {
 
   describe("Price Level Views Extended", function () {
     it("Should get price levels from mid with bids", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -15115,28 +15081,28 @@ describe("CrystalMarket", function () {
     });
 
     it("Should get price for market with bids only", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
 
       await crystal.connect(maker).limitOrder(market.target, true, 0, 900n * priceFactor, ethers.parseUnits("100", 6), maker.address);
 
-      const [price, highestBid, lowestAsk] = await crystal.getPrice.staticCall(market.target);
+      const [price, highestBid, ] = await crystal.getPrice.staticCall(market.target);
       expect(highestBid).to.be.greaterThan(0n);
 
       expect(price).to.equal(highestBid);
     });
 
     it("Should get price for market with asks only", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
 
       await crystal.connect(maker).limitOrder(market.target, false, 0, 1100n * priceFactor, ethers.parseEther("1"), maker.address);
 
-      const [price, highestBid, lowestAsk] = await crystal.getPrice.staticCall(market.target);
+      const [price, , lowestAsk] = await crystal.getPrice.staticCall(market.target);
       expect(lowestAsk).to.be.greaterThan(0n);
 
       expect(price).to.equal(lowestAsk);
@@ -15145,7 +15111,7 @@ describe("CrystalMarket", function () {
 
   describe("Market Order with MTL Conversion", function () {
     it("Should handle MTL order that converts to limit", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -15168,7 +15134,7 @@ describe("CrystalMarket", function () {
 
   describe("Complete Fill Market Orders", function () {
     it("Should revert complete fill order on slippage", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -15193,7 +15159,7 @@ describe("CrystalMarket", function () {
 
   describe("Referrer Fees", function () {
     it("Should distribute fees to referrer", async function () {
-      const { crystal, market, maker, taker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, user1, quote } = await loadFixture(deployFixture);
       await crystal.connect(maker).addLiquidity(
         market.target,
         maker.address,
@@ -15222,7 +15188,7 @@ describe("CrystalMarket", function () {
 
   describe("Liquidity Edge Cases", function () {
     it("Should handle removing all liquidity", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -15249,7 +15215,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle adding liquidity with existing ratio", async function () {
-      const { crystal, market, maker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, user1 } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target,
@@ -15275,7 +15241,7 @@ describe("CrystalMarket", function () {
 
   describe("Market Order Settlement Delta", function () {
     it("Should handle settlement when using internal then external balance", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -15297,7 +15263,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle output to router balance", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -15325,7 +15291,7 @@ describe("CrystalMarket", function () {
 
   describe("Price Range Branch Coverage", function () {
     it("Should handle limit orders at various logarithmic price ranges", async function () {
-      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const size = ethers.parseEther("1");
 
       const pricesToTest = [
@@ -15343,8 +15309,7 @@ describe("CrystalMarket", function () {
 
       for (const price of pricesToTest) {
         try {
-
-          const orderId = await crystal.connect(maker).limitOrder.staticCall(
+          await crystal.connect(maker).limitOrder.staticCall(
             market.target, false, 0, price, size, maker.address
           );
 
@@ -15355,7 +15320,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle linear market price operations", async function () {
-      const { crystal, linearMarket, maker, base, quote } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
       const size = ethers.parseEther("1");
       const tickSize = await linearMarket.tickSize();
 
@@ -15400,7 +15365,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getPrice with AMM liquidity and adjust prices", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -15440,7 +15405,7 @@ describe("CrystalMarket", function () {
 
   describe("getQuote Edge Cases", function () {
     it("Should handle getQuote for exact output buy", async function () {
-      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -15463,7 +15428,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getQuote for exact output sell", async function () {
-      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -15508,7 +15473,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getQuote through AMM with exact output", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -15535,7 +15500,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getQuote sell through AMM with exact output", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -15584,7 +15549,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute market order using internal balance", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -15613,7 +15578,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle limit order from router balance", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -15654,7 +15619,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should remove liquidity to internal balance (option 1)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -15680,7 +15645,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle addLiquidity with quote optimal amount path", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -15709,7 +15674,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle addLiquidity with base optimal amount path", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("10000", 6);
       const amountBase = ethers.parseEther("10");
 
@@ -15738,10 +15703,9 @@ describe("CrystalMarket", function () {
     });
 
     it("Should check liquidity doesn't cross orderbook", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
-      const quoteDecimals = await quote.decimals();
-      const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
+      await quote.decimals();
 
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
@@ -15923,7 +15887,7 @@ describe("CrystalMarket", function () {
 
   describe("Order Type 2 (MTL) Edge Cases", function () {
     it("Should place limit order after partial fill with MTL", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -15948,7 +15912,7 @@ describe("CrystalMarket", function () {
 
   describe("Market Order Type 3 (Gas Check)", function () {
     it("Should handle order type 3 with gas check", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -16137,7 +16101,7 @@ describe("CrystalMarket", function () {
 
     it("Should handle getPriceLevels with empty orderbook", async function () {
       const { crystal, market } = await loadFixture(deployFixture);
-      const maxPrice = await market.maxPrice();
+      await market.maxPrice();
 
       const levels = await crystal.getPriceLevels.staticCall(market.target, true, 1000n, 100n, 1n, 10);
 
@@ -16147,7 +16111,7 @@ describe("CrystalMarket", function () {
 
   describe("Multiple Order Traversal", function () {
     it("Should fill across multiple orders at same price level", async function () {
-      const { crystal, market, maker, taker, user1, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, user1, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -16222,7 +16186,7 @@ describe("CrystalMarket", function () {
 
   describe("Linear Market Operations", function () {
     it("Should handle getPrice on linear market with bids only", async function () {
-      const { crystal, linearMarket, maker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
       const tickSize = await linearMarket.tickSize();
       const price = 500n * tickSize;
       const size = ethers.parseEther("1");
@@ -16234,7 +16198,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getPrice on linear market with asks only", async function () {
-      const { crystal, linearMarket, maker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
       const tickSize = await linearMarket.tickSize();
       const price = 1000n * tickSize;
       const size = ethers.parseEther("1");
@@ -16246,7 +16210,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getPrice on linear market with both bid and ask", async function () {
-      const { crystal, linearMarket, maker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
       const tickSize = await linearMarket.tickSize();
       const bidPrice = 900n * tickSize;
       const askPrice = 1100n * tickSize;
@@ -16261,7 +16225,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle market order on linear market", async function () {
-      const { crystal, linearMarket, maker, taker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker, taker } = await loadFixture(deployFixture);
       const tickSize = await linearMarket.tickSize();
       const price = 1000n * tickSize;
       const size = ethers.parseEther("1");
@@ -16282,7 +16246,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getQuote on linear market", async function () {
-      const { crystal, linearMarket, maker, taker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
       const tickSize = await linearMarket.tickSize();
       const price = 500n * tickSize;
       const size = ethers.parseEther("5");
@@ -16305,7 +16269,7 @@ describe("CrystalMarket", function () {
 
   describe("Replace Order with Balance Options", function () {
     it("Should replace order with output to router balance", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -16322,7 +16286,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should replace order with input from router balance", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -16340,7 +16304,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should replace sell order with balance options", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -16360,7 +16324,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM Swap Through Order Book", function () {
     it("Should swap through AMM when orderbook is empty", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -16389,7 +16353,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should swap through AMM for sell when orderbook is empty", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -16416,7 +16380,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should combine AMM and orderbook fills", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -16486,7 +16450,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle market sell exact output through AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -16501,7 +16465,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle market buy exact output through AMM", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -16582,7 +16546,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getQuote with complete fill through AMM", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const amountQuote = ethers.parseUnits("100000", 6);
       const amountBase = ethers.parseEther("100");
 
@@ -16602,7 +16566,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle logarithmic market at high prices", async function () {
-      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const maxPrice = await market.maxPrice();
       const size = ethers.parseEther("1");
 
@@ -16617,7 +16581,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle cancel with internal balance output", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -16637,7 +16601,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle sell order cancel with internal balance output", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -16657,7 +16621,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle market order on linear market with slippage", async function () {
-      const { crystal, linearMarket, maker, taker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker, taker } = await loadFixture(deployFixture);
       const tickSize = await linearMarket.tickSize();
       const price = 500n * tickSize;
       const size = ethers.parseEther("5");
@@ -16671,7 +16635,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle market sell on linear market", async function () {
-      const { crystal, linearMarket, maker, taker, quote, base } = await loadFixture(deployFixture);
+      const { crystal, linearMarket, maker, taker } = await loadFixture(deployFixture);
       const tickSize = await linearMarket.tickSize();
       const price = 500n * tickSize;
       const size = ethers.parseEther("5");
@@ -16685,7 +16649,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle getQuote on empty market", async function () {
-      const { crystal, market, quote } = await loadFixture(deployFixture);
+      const { crystal, market } = await loadFixture(deployFixture);
       const maxPrice = await market.maxPrice();
 
       try {
@@ -16700,7 +16664,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle market order with internal balance input and output", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -16750,7 +16714,7 @@ describe("CrystalMarket", function () {
     it("Should handle price in 1M-10M range (line 276)", async function () {
       const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
-      const quoteDecimals = await quote.decimals();
+      await quote.decimals();
 
       const price = 5_000_000_000n * scaleFactor / (10n ** 18n);
       const size = ethers.parseEther("0.01");
@@ -16763,7 +16727,7 @@ describe("CrystalMarket", function () {
     it("Should handle price in 10M-100M range (line 279)", async function () {
       const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
-      const quoteDecimals = await quote.decimals();
+      await quote.decimals();
 
       const price = 50_000_000_000n * scaleFactor / (10n ** 18n);
       const size = ethers.parseEther("0.001");
@@ -16776,7 +16740,7 @@ describe("CrystalMarket", function () {
     it("Should handle price in 100M-1B range (line 282)", async function () {
       const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
-      const quoteDecimals = await quote.decimals();
+      await quote.decimals();
 
       const price = 500_000_000_000n * scaleFactor / (10n ** 18n);
       const size = ethers.parseEther("0.0001");
@@ -16789,7 +16753,7 @@ describe("CrystalMarket", function () {
 
   describe("AMM getPrice Branch Coverage", function () {
     it("Should hit AMM highestBid update (line 751)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address,
@@ -16802,7 +16766,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit AMM lowestAsk update (line 756)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -16866,7 +16830,7 @@ describe("CrystalMarket", function () {
 
   describe("getQuote AMM Branch Coverage", function () {
     it("Should hit exactInputBuy through AMM (line 807)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address,
@@ -16881,7 +16845,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit exactOutputBuy through AMM (line 814)", async function () {
-      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address,
@@ -16896,7 +16860,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit exactInputSell through AMM (line 827)", async function () {
-      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address,
@@ -16911,7 +16875,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit exactOutputSell through AMM (line 834)", async function () {
-      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address,
@@ -16926,7 +16890,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit complete fill scenario (line 845)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -16989,7 +16953,6 @@ describe("CrystalMarket", function () {
       const size = ethers.parseEther("1");
 
       await crystal.connect(maker).limitOrder(market.target, true, 0, price, size, maker.address);
-      const id1 = 1n;
       await crystal.connect(maker).limitOrder(market.target, true, 0, price, size, maker.address);
       const id2 = 2n;
 
@@ -17002,7 +16965,7 @@ describe("CrystalMarket", function () {
 
   describe("Internal Balance Branch Coverage", function () {
     it("Should test internal balance with market order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -17020,7 +16983,7 @@ describe("CrystalMarket", function () {
 
   describe("Market Order Edge Cases", function () {
     it("Should handle market order with slippage limit (line 971)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -17041,7 +17004,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle exact output market buy (line 978)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -17058,7 +17021,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle exact output market sell (line 985)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -17151,7 +17114,7 @@ describe("CrystalMarket", function () {
 
   describe("Liquidity Options Branch Coverage", function () {
     it("Should handle addLiquidity with non-optimal ratio (line 184-188)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const quoteAmount = ethers.parseUnits("10000", 6);
       const baseAmount = ethers.parseEther("10");
@@ -17169,7 +17132,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle addLiquidity with base-limited ratio (line 186)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const quoteAmount = ethers.parseUnits("10000", 6);
       const baseAmount = ethers.parseEther("10");
@@ -17239,7 +17202,7 @@ describe("CrystalMarket", function () {
 
   describe("Batch Processing Branch Coverage", function () {
     it("Should handle batch with cancel returning partial size (line 2120-2122)", async function () {
-      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = 6n;
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -17257,7 +17220,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle settlement with large quote delta (line 1040-1044)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = 6n;
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -17273,7 +17236,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle AMM-only market order with reserves (line 1024-1027)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = 6n;
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -17298,7 +17261,7 @@ describe("CrystalMarket", function () {
 
   describe("Additional Branch Coverage", function () {
     it("Should test removeLiquidity with AMM check (line 239)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const quoteAmount = ethers.parseUnits("10000", 6);
       const baseAmount = ethers.parseEther("10");
@@ -17316,7 +17279,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should test addLiquidity initial mint with price check (line 178)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const quoteAmount = ethers.parseUnits("10000", 6);
       const baseAmount = ethers.parseEther("10");
@@ -17330,7 +17293,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should test liquidity calculation minimum path (line 190)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const quoteAmount = ethers.parseUnits("10000", 6);
       const baseAmount = ethers.parseEther("10");
@@ -17348,7 +17311,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should test sqrt function with small values (line 254-255)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       const quoteAmount = 100n;
       const baseAmount = 100n;
@@ -17364,7 +17327,7 @@ describe("CrystalMarket", function () {
 
     it("Should handle order at tick boundary (line 262-264)", async function () {
       const { crystal, market, maker } = await loadFixture(deployFixture);
-      const tickSize = await market.tickSize();
+      await market.tickSize();
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = 6n;
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -17377,9 +17340,7 @@ describe("CrystalMarket", function () {
 
     it("Should handle _toValidPrice roundUp=true (line 322)", async function () {
       const { crystal, market, maker, taker } = await loadFixture(deployFixture);
-      const scaleFactor = await market.scaleFactor();
-      const quoteDecimals = 6n;
-      const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
+      await market.scaleFactor();
 
       const quoteAmount = ethers.parseUnits("10000", 6);
       const baseAmount = ethers.parseEther("10");
@@ -17415,7 +17376,7 @@ describe("CrystalMarket", function () {
 
     it("Should test launchpad market exists", async function () {
 
-      const { crystal, launchpadToken } = await loadFixture(launchpadFixture);
+      const { launchpadToken } = await loadFixture(launchpadFixture);
 
       const name = await launchpadToken.name();
       expect(name).to.equal("Test Token");
@@ -17425,7 +17386,7 @@ describe("CrystalMarket", function () {
   describe("Branch Coverage: Additional Tests", function () {
     describe("AddLiquidity Edge Cases", function () {
       it("Should revert when amountQuoteOptimal exceeds amountQuoteDesired (line 449)", async function () {
-        const { crystal, market, quote, weth, maker } = await loadFixture(deployFixture);
+        const { crystal, market, maker } = await loadFixture(deployFixture);
 
         const quoteAmount = ethers.parseUnits("1000", 6);
         const baseAmount = ethers.parseEther("1");
@@ -17444,7 +17405,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should handle addLiquidity with internal balance mode", async function () {
-        const { crystal, market, quote, weth, maker } = await loadFixture(deployFixture);
+        const { crystal, market, quote, maker } = await loadFixture(deployFixture);
 
         await quote.connect(maker).approve(crystal.target, ethers.MaxUint256);
         await crystal.connect(maker).deposit(quote.target, ethers.parseUnits("10000", 6));
@@ -17460,7 +17421,7 @@ describe("CrystalMarket", function () {
 
     describe("RemoveLiquidity Edge Cases", function () {
       it("Should handle removeLiquidity with different options (lines 530-539)", async function () {
-        const { crystal, market, quote, weth, maker } = await loadFixture(deployFixture);
+        const { crystal, market, maker } = await loadFixture(deployFixture);
 
         const quoteAmount = ethers.parseUnits("1000", 6);
         const baseAmount = ethers.parseEther("1");
@@ -17479,7 +17440,7 @@ describe("CrystalMarket", function () {
 
     describe("Settlement Edge Cases", function () {
       it("Should handle settlement with insufficient router balance (line 993)", async function () {
-        const { crystal, market, quote, weth, maker, taker } = await loadFixture(deployFixture);
+        const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
         const quoteAmount = ethers.parseUnits("1000", 6);
         const baseAmount = ethers.parseEther("1");
@@ -17501,15 +17462,14 @@ describe("CrystalMarket", function () {
       });
 
       it("Should handle settlement with internal balance mode (lines 1059-1090)", async function () {
-        const { crystal, market, quote, weth, maker, taker } = await loadFixture(deployFixture);
+        const { crystal, market, quote, maker, taker } = await loadFixture(deployFixture);
 
         await crystal.connect(taker).deposit(quote.target, ethers.parseUnits("10000", 6));
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("1000", 6), ethers.parseEther("1"), 0, 0
         );
-
-        const scaleFactor = await market.scaleFactor();
+        await market.scaleFactor();
         const userId = await crystal.addressToUserId(taker.address);
         const options = userId | (1n << 68n);
         await crystal.connect(taker).marketOrder(
@@ -17521,13 +17481,12 @@ describe("CrystalMarket", function () {
 
     describe("Order Book Edge Cases", function () {
       it("Should handle order at boundary prices", async function () {
-        const { crystal, market, quote, weth, maker } = await loadFixture(deployFixture);
+        const { crystal, market, maker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
         );
-
-        const scaleFactor = await market.scaleFactor();
+        await market.scaleFactor();
         const tickSize = await market.tickSize();
 
         const minPrice = tickSize;
@@ -17537,7 +17496,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should handle cancel non-existent order", async function () {
-        const { crystal, market, quote, weth, maker } = await loadFixture(deployFixture);
+        const { crystal, market, maker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("1000", 6), ethers.parseEther("1"), 0, 0
@@ -17553,7 +17512,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should handle replace order operations", async function () {
-        const { crystal, market, quote, weth, maker } = await loadFixture(deployFixture);
+        const { crystal, market, maker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -17586,7 +17545,7 @@ describe("CrystalMarket", function () {
 
     describe("GetQuote Edge Cases", function () {
       it("Should handle getQuote for buy with exact output", async function () {
-        const { crystal, market, quote, weth, maker } = await loadFixture(deployFixture);
+        const { crystal, market, maker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -17598,14 +17557,13 @@ describe("CrystalMarket", function () {
         await crystal.connect(maker).limitOrder(
           market.target, false, 0, price, ethers.parseEther("1"), maker.address
         );
-
-        const quote_result = await crystal.getQuote.staticCall(
+        await crystal.getQuote.staticCall(
           market.target, true, false, false, ethers.parseEther("0.5"), 0
         );
       });
 
       it("Should handle getQuote for sell with exact output", async function () {
-        const { crystal, market, quote, weth, maker } = await loadFixture(deployFixture);
+        const { crystal, market, maker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -17617,20 +17575,18 @@ describe("CrystalMarket", function () {
         await crystal.connect(maker).limitOrder(
           market.target, true, 0, price, ethers.parseEther("1"), maker.address
         );
-
-        const quote_result = await crystal.getQuote.staticCall(
+        await crystal.getQuote.staticCall(
           market.target, false, false, false, ethers.parseUnits("500", 6), 0
         );
       });
 
       it("Should handle getQuote with internal balance flag", async function () {
-        const { crystal, market, quote, weth, maker } = await loadFixture(deployFixture);
+        const { crystal, market, maker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
         );
-
-        const quote_result = await crystal.getQuote.staticCall(
+        await crystal.getQuote.staticCall(
           market.target, true, true, true, ethers.parseUnits("100", 6), 0
         );
       });
@@ -17752,7 +17708,7 @@ describe("CrystalMarket", function () {
 
     describe("Order Matching Edge Cases", function () {
       it("Should handle full order fill", async function () {
-        const { crystal, market, quote, weth, maker, taker } = await loadFixture(deployFixture);
+        const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -17772,7 +17728,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should handle partial order fill", async function () {
-        const { crystal, market, quote, weth, maker, taker } = await loadFixture(deployFixture);
+        const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -17794,7 +17750,7 @@ describe("CrystalMarket", function () {
 
     describe("CLOID Operations", function () {
       it("Should handle CLOID slot operations", async function () {
-        const { crystal, market, quote, weth, maker } = await loadFixture(deployFixture);
+        const { crystal, market, maker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -17822,7 +17778,7 @@ describe("CrystalMarket", function () {
 
     describe("AMM Swap Edge Cases", function () {
       it("Should handle AMM swap with worstPrice check (lines 1669, 1684)", async function () {
-        const { crystal, market, quote, weth, maker, taker } = await loadFixture(deployFixture);
+        const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -17837,13 +17793,12 @@ describe("CrystalMarket", function () {
       });
 
       it("Should handle AMM swap with very low worst price - exercises price check", async function () {
-        const { crystal, market, quote, weth, maker, taker } = await loadFixture(deployFixture);
+        const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
         );
-
-        const scaleFactor = await market.scaleFactor();
+        await market.scaleFactor();
 
         try {
           await crystal.connect(taker).marketOrder(
@@ -17858,7 +17813,7 @@ describe("CrystalMarket", function () {
 
     describe("Fee Distribution", function () {
       it("Should handle fee distribution to referrer", async function () {
-        const { crystal, market, quote, weth, maker, taker, referrer } = await loadFixture(deployFixture);
+        const { crystal, market, maker, taker, referrer } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -17984,7 +17939,7 @@ describe("CrystalMarket", function () {
           market.target, false, 0, price, ethers.parseEther("1"), maker.address
         );
 
-        const [amountIn, amountOut] = await crystal.getQuote.staticCall(
+        const [amountIn, ] = await crystal.getQuote.staticCall(
           market.target, true, false, false, ethers.parseEther("0.1"), 0
         );
         expect(amountIn).to.be.gt(0);
@@ -18004,7 +17959,7 @@ describe("CrystalMarket", function () {
           market.target, true, 0, price, ethers.parseEther("1"), maker.address
         );
 
-        const [amountIn, amountOut] = await crystal.getQuote.staticCall(
+        const [amountIn, ] = await crystal.getQuote.staticCall(
           market.target, false, false, false, ethers.parseUnits("100", 6), 0
         );
         expect(amountIn).to.be.gt(0);
@@ -18274,7 +18229,7 @@ describe("CrystalMarket", function () {
         );
 
         const tickSize = await market.tickSize();
-        const scaleFactor = await market.scaleFactor();
+        await market.scaleFactor();
 
         const priceBase = 200000n * tickSize;
 
@@ -18423,8 +18378,7 @@ describe("CrystalMarket", function () {
 
       it("Should handle prices at max range (line 649-650)", async function () {
         const { crystal, market, maker } = await loadFixture(deployFixture);
-
-        const tickSize = await market.tickSize();
+        await market.tickSize();
         const maxPrice = await market.maxPrice();
 
         try {
@@ -18465,7 +18419,7 @@ describe("CrystalMarket", function () {
     describe("Settlement Balance Branches", function () {
 
       it("Should exercise settlement with internal balance mode - quoteAssetDebt path (line 993)", async function () {
-        const { crystal, market, quote, weth, maker, taker } = await loadFixture(deployFixture);
+        const { crystal, market, maker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -18557,7 +18511,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should exercise balanceModeOut != 0 branch (line 1029, 1038)", async function () {
-        const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+        const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -18712,8 +18666,7 @@ describe("CrystalMarket", function () {
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
         );
-
-        const scaleFactor = await market.scaleFactor();
+        await market.scaleFactor();
         const tickSize = await market.tickSize();
 
         for (let i = 1; i <= 10; i++) {
@@ -18782,7 +18735,7 @@ describe("CrystalMarket", function () {
     describe("Batch Actions Branches", function () {
 
       it("Should exercise batch limit buy action (line 4101-4129)", async function () {
-        const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+        const { crystal, market, maker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -18978,10 +18931,6 @@ describe("CrystalMarket", function () {
 
         }
       });
-    });
-
-    describe("Linear Market Specific Branches", function () {
-
     });
 
     describe("Order Fill Transfer Branches", function () {
@@ -19340,7 +19289,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should exercise fee distribution paths (lines 2374-2390)", async function () {
-        const { crystal, market, maker, taker, owner } = await loadFixture(deployFixture);
+        const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -19859,7 +19808,7 @@ describe("CrystalMarket", function () {
 
     describe("_priceToTick revert branches", function () {
       async function deployHarnessOnly() {
-        const [owner] = await ethers.getSigners();
+        const [] = await ethers.getSigners();
         const Token = await ethers.getContractFactory("TestToken");
         const quote = await Token.deploy("Quote", "QUOTE", 6);
         const base = await Token.deploy("Base", "BASE", 18);
@@ -19930,7 +19879,7 @@ describe("CrystalMarket", function () {
 
     describe("_toValidPrice branches", function () {
       async function deployHarnessOnly() {
-        const [owner] = await ethers.getSigners();
+        const [] = await ethers.getSigners();
         const Token = await ethers.getContractFactory("TestToken");
         const quote = await Token.deploy("Quote", "QUOTE", 6);
         const base = await Token.deploy("Base", "BASE", 18);
@@ -20120,11 +20069,11 @@ describe("CrystalMarket", function () {
         );
 
         await crystal.connect(taker).batchOrders(market.target, [
-          { action: 9n, param1: MAX_UINT256, param2: ethers.parseEther("0.1"), param3: 0n, isRequireSuccess: true }
+          { action: 9n, param1: 0n, param2: ethers.parseEther("0.1"), param3: 0n, isRequireSuccess: true }
         ], 0, MAX_UINT256, ethers.ZeroAddress, taker.address);
       });
 
-      it("Should hit batch decrease sell order (action 13)", async function () {
+      it("Should hit batch decrease sell order (action 12)", async function () {
         const { crystal, market, maker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
@@ -20137,7 +20086,7 @@ describe("CrystalMarket", function () {
         await crystal.connect(maker).limitOrder(market.target, false, 0, price, ethers.parseEther("1"), maker.address);
 
         await crystal.connect(maker).batchOrders(market.target, [
-          { action: 13n, param1: price, param2: ethers.parseEther("0.5"), param3: 1n, isRequireSuccess: false }
+          { action: 12n, param1: price, param2: ethers.parseEther("0.5"), param3: 1n, isRequireSuccess: false }
         ], 0, MAX_UINT256, ethers.ZeroAddress, maker.address);
       });
 
@@ -20198,7 +20147,7 @@ describe("CrystalMarket", function () {
 
     describe("Balance mode edge cases (lines 990-1100)", function () {
       it("Should use internal balance mode for input (balanceModeIn != 0)", async function () {
-        const { crystal, market, maker, quote, base } = await loadFixture(deployFixture);
+        const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -20242,7 +20191,7 @@ describe("CrystalMarket", function () {
 
     describe("Order fill with different balance modes", function () {
       it("Should hit order fill using internal balance", async function () {
-        const { crystal, market, maker, taker, quote, base } = await loadFixture(deployFixture);
+        const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -20397,42 +20346,6 @@ describe("CrystalMarket", function () {
     });
 
     describe("Batch actions - more coverage", function () {
-      it("Should hit batch replace order (action 6)", async function () {
-        const { crystal, market, maker } = await loadFixture(deployFixture);
-
-        await crystal.connect(maker).addLiquidity(
-          market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
-        );
-
-        const scaleFactor = await market.scaleFactor();
-        const price1 = 900n * scaleFactor / (10n ** 12n);
-        const price2 = 850n * scaleFactor / (10n ** 12n);
-
-        await crystal.connect(maker).limitOrder(market.target, true, 0, price1, ethers.parseEther("1"), maker.address);
-
-        await crystal.connect(maker).batchOrders(market.target, [
-          { action: 6n, param1: price1, param2: (ethers.parseEther("1") << 80n) | price2, param3: 1n, isRequireSuccess: true }
-        ], 0, MAX_UINT256, ethers.ZeroAddress, maker.address);
-      });
-
-      it("Should hit batch replace sell order (action 7)", async function () {
-        const { crystal, market, maker } = await loadFixture(deployFixture);
-
-        await crystal.connect(maker).addLiquidity(
-          market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
-        );
-
-        const scaleFactor = await market.scaleFactor();
-        const price1 = 1100n * scaleFactor / (10n ** 12n);
-        const price2 = 1150n * scaleFactor / (10n ** 12n);
-
-        await crystal.connect(maker).limitOrder(market.target, false, 0, price1, ethers.parseEther("1"), maker.address);
-
-        await crystal.connect(maker).batchOrders(market.target, [
-          { action: 7n, param1: price1, param2: (ethers.parseEther("1") << 80n) | price2, param3: 1n, isRequireSuccess: true }
-        ], 0, MAX_UINT256, ethers.ZeroAddress, maker.address);
-      });
-
       it("Should hit multiple batch actions", async function () {
         const { crystal, market, maker } = await loadFixture(deployFixture);
 
@@ -20828,23 +20741,6 @@ describe("CrystalMarket", function () {
         await crystal.connect(maker).batchOrders(market.target, [
           { action: 8n, param1: price, param2: 999n, param3: 0n, isRequireSuccess: false }
         ], 0, MAX_UINT256, ethers.ZeroAddress, maker.address);
-      });
-
-      it("Should handle batch with market order actions", async function () {
-        const { crystal, market, maker, taker } = await loadFixture(deployFixture);
-
-        await crystal.connect(maker).addLiquidity(
-          market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
-        );
-
-        const scaleFactor = await market.scaleFactor();
-        const askPrice = 1050n * scaleFactor / (10n ** 12n);
-
-        await crystal.connect(maker).limitOrder(market.target, false, 0, askPrice, ethers.parseEther("1"), maker.address);
-
-        await crystal.connect(taker).batchOrders(market.target, [
-          { action: 0n, param1: ethers.parseEther("0.5"), param2: 0n, param3: 0n, isRequireSuccess: true }
-        ], 0, MAX_UINT256, ethers.ZeroAddress, taker.address);
       });
 
       it("Should handle batch market sell (action 5)", async function () {
@@ -21389,7 +21285,7 @@ describe("CrystalMarket", function () {
 
     describe("Complex batch operations", function () {
       it("Should batch multiple limit orders and fills", async function () {
-        const { crystal, market, maker, taker } = await loadFixture(deployFixture);
+        const { crystal, market, maker } = await loadFixture(deployFixture);
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -21401,8 +21297,7 @@ describe("CrystalMarket", function () {
 
         await crystal.connect(maker).batchOrders(market.target, [
           { action: 2n, param1: buyPrice, param2: ethers.parseEther("0.5"), param3: 0n, isRequireSuccess: true },
-          { action: 3n, param1: sellPrice, param2: ethers.parseEther("0.5"), param3: 0n, isRequireSuccess: true },
-          { action: 0n, param1: ethers.parseEther("0.1"), param2: 0n, param3: 0n, isRequireSuccess: true }
+          { action: 3n, param1: sellPrice, param2: ethers.parseEther("0.5"), param3: 0n, isRequireSuccess: true }
         ], 0, MAX_UINT256, ethers.ZeroAddress, maker.address);
       });
 
@@ -21639,7 +21534,7 @@ describe("CrystalMarket", function () {
 
     describe("High price _priceToTick and _toValidPrice branches", function () {
       async function deployHarnessOnly() {
-        const [owner] = await ethers.getSigners();
+        const [] = await ethers.getSigners();
         const Token = await ethers.getContractFactory("TestToken");
         const quote = await Token.deploy("Quote", "QUOTE", 6);
         const base = await Token.deploy("Base", "BASE", 18);
@@ -21667,7 +21562,7 @@ describe("CrystalMarket", function () {
 
         const price = 500000000000000n;
         const validDown = await harness.exposed_toValidPrice(price, false);
-        const validUp = await harness.exposed_toValidPrice(price, true);
+        await harness.exposed_toValidPrice(price, true);
         expect(validDown).to.be.gt(0);
       });
 
@@ -21995,7 +21890,7 @@ describe("CrystalMarket", function () {
     describe("Cross-market CLOID validation", function () {
 
       async function deployTwoMarkets() {
-        const [owner, maker, taker] = await ethers.getSigners();
+        const [owner, maker, ] = await ethers.getSigners();
 
         const Token = await ethers.getContractFactory("TestToken");
         const quote = await Token.deploy("Quote", "QUOTE", 6);
@@ -22095,7 +21990,7 @@ describe("CrystalMarket", function () {
         );
 
         await crystal.connect(taker).batchOrders(market.target, [
-          { action: 5n, param1: ethers.parseEther("0.1"), param2: MAX_UINT256, param3: 0n, isRequireSuccess: true }
+          { action: 5n, param1: 0n, param2: ethers.parseEther("0.1"), param3: 0n, isRequireSuccess: true }
         ], 0, MAX_UINT256, ethers.ZeroAddress, taker.address);
       });
 
@@ -22387,7 +22282,7 @@ describe("CrystalMarket", function () {
       });
 
       it("getPrice uses AMM and midpoint rounding", async function () {
-        const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+        const { crystal, market, maker, taker } = await loadFixture(deployFixture);
         await crystal.connect(maker).addLiquidity(
           market.target,
           maker.address,
@@ -22426,7 +22321,7 @@ describe("CrystalMarket", function () {
       });
 
       it("getQuote traverses liquidity for buys and sells", async function () {
-        const { crystal, linearMarket, maker, taker } = await loadFixture(deployFixture);
+        const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
         const size = ethers.parseEther("1");
 
         await crystal.connect(maker).limitOrder(linearMarket.target, false, 0, 1000n, size, maker.address);
@@ -22752,7 +22647,7 @@ describe("CrystalMarket", function () {
         });
 
         it("handles transferFrom failure gracefully", async function () {
-          const { crystal, market, quote, base, maker, taker } = await deployFailingMarket();
+          const { crystal, market, quote, maker, taker } = await deployFailingMarket();
           const price = 100n;
           const size = ethers.parseEther("5");
           await crystal.connect(maker).limitOrder(
@@ -22923,8 +22818,8 @@ describe("CrystalMarket", function () {
 
       describe("Secondary bitmap traversal (lines 1888-1895)", function () {
         it("Should traverse to secondary bitmap when primary slot is empty on sell quote", async function () {
-          const { crystal, linearMarket, maker, taker } = await loadFixture(deployFixture);
-          const scaleFactor = await linearMarket.scaleFactor();
+          const { crystal, linearMarket, maker } = await loadFixture(deployFixture);
+          await linearMarket.scaleFactor();
 
           const lowPrice = 1000n;
           const highPrice = 300000n;
@@ -23022,7 +22917,7 @@ describe("CrystalMarket", function () {
         }
 
         it("Should handle transferFrom failure and credit internal balance (line 2540-2555)", async function () {
-          const { crystal, market, quote, base, maker, taker } = await deployFailingMarketForTransfers();
+          const { crystal, market, quote, maker, taker } = await deployFailingMarketForTransfers();
           const price = 1000n;
 
           await crystal.connect(maker).limitOrder(
@@ -23042,7 +22937,7 @@ describe("CrystalMarket", function () {
         });
 
         it("Should handle transfer failure to maker (lines 2605, 2815-2816)", async function () {
-          const { crystal, market, quote, base, maker, taker } = await deployFailingMarketForTransfers();
+          const { crystal, market, quote, maker, taker } = await deployFailingMarketForTransfers();
           const price = 1000n;
 
           await crystal.connect(maker).limitOrder(
@@ -23063,7 +22958,7 @@ describe("CrystalMarket", function () {
         });
 
         it("Should handle partial fill transfer failures (lines 2744-2760, 2789-2803)", async function () {
-          const { crystal, market, quote, base, maker, taker } = await deployFailingMarketForTransfers();
+          const { crystal, market, quote, maker, taker } = await deployFailingMarketForTransfers();
           const price1 = 1000n;
           const price2 = 1100n;
 
@@ -23646,8 +23541,7 @@ describe("CrystalMarket", function () {
 
           const scaleFactor = await market.scaleFactor();
           const price = 1100n * scaleFactor / (10n ** 12n);
-
-          const marketInfo = await crystal.getMarket(market.target);
+          await crystal.getMarket(market.target);
 
           const orderSize = ethers.parseEther("0.002");
 
@@ -23672,7 +23566,7 @@ describe("CrystalMarket", function () {
 
       describe("Line Coverage - Internal balance order operations", function () {
         it("Should cover internal balance order cancel (lines 3480, 3485)", async function () {
-          const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+          const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
           await quote.connect(maker).approve(crystal.target, ethers.MaxUint256);
           await crystal.connect(maker).deposit(quote.target, ethers.parseUnits("10000", 6));
@@ -23801,7 +23695,7 @@ describe("CrystalMarket", function () {
       }
 
       it("Line 2789: tempSettlementDelta init when taker uses internal balance", async function () {
-        const { crystal, market, failingBase, normalQuote, maker, taker } = await deployWithFailingBase();
+        const { crystal, market, normalQuote, maker, taker } = await deployWithFailingBase();
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -23821,7 +23715,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Line 2790: settlementDelta overflow check path", async function () {
-        const { crystal, market, failingBase, normalQuote, maker, taker } = await deployWithFailingBase();
+        const { crystal, market, normalQuote, maker, taker } = await deployWithFailingBase();
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -23841,7 +23735,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Line 2803: direct .call transfer to maker from taker internal balance", async function () {
-        const { crystal, market, failingBase, normalQuote, maker, taker, user1 } = await deployWithFailingBase();
+        const { crystal, market, normalQuote, maker, taker, user1 } = await deployWithFailingBase();
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -23861,7 +23755,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Line 2815: transfer fails check when maker is blacklisted", async function () {
-        const { crystal, market, failingBase, normalQuote, maker, taker, user1 } = await deployWithFailingBase();
+        const { crystal, market, failingBase, maker, taker, user1 } = await deployWithFailingBase();
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -23883,7 +23777,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Line 2816: credit maker internal balance when transfer fails", async function () {
-        const { crystal, market, failingBase, normalQuote, maker, taker, user1 } = await deployWithFailingBase();
+        const { crystal, market, failingBase, maker, taker, user1 } = await deployWithFailingBase();
 
         await crystal.connect(maker).addLiquidity(
           market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -23905,7 +23799,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Line 3449: CLOID wrong market return - odd id path", async function () {
-        const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+        const { crystal, market, maker } = await loadFixture(deployFixture);
 
         const Token = await ethers.getContractFactory("TestToken");
         const quote2 = await Token.deploy("Quote2", "Q2", 6);
@@ -23938,7 +23832,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Line 3456: CLOID wrong market return - even id path", async function () {
-        const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+        const { crystal, market, maker } = await loadFixture(deployFixture);
 
         const Token = await ethers.getContractFactory("TestToken");
         const quote2 = await Token.deploy("Quote2", "Q2", 6);
@@ -23971,7 +23865,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Line 3605: decrease order silent return when order doesnt exist", async function () {
-        const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+        const { crystal, market, maker } = await loadFixture(deployFixture);
 
         const scaleFactor = await market.scaleFactor();
         const price = 900n * scaleFactor / (10n ** 12n);
@@ -24110,7 +24004,7 @@ describe("CrystalMarket", function () {
 
   describe("Coverage: getPriceLevelsFromMid bucket matching (line 1436)", function () {
     it("Should aggregate price levels within bucket", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -24138,9 +24032,8 @@ describe("CrystalMarket", function () {
 
   describe("Coverage: Overflow protections", function () {
     it("Should cap settlementDelta when overflow would occur (line 2237)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
-
-      const marketSlot = ethers.keccak256(
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
+      ethers.keccak256(
         abiCoder.encode(["address", "uint256"], [market.target, 4])
       );
 
@@ -24159,7 +24052,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should handle settlementDelta capping on limit order fallback (line 2358)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -24183,7 +24076,7 @@ describe("CrystalMarket", function () {
 
   describe("Coverage: Bitmap persistence", function () {
     it("Should persist bitmap changes when size fully consumed (line 2262)", async function () {
-      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -24200,7 +24093,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should persist bitmap on slippage break (line 2285)", async function () {
-      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -24272,7 +24165,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should encode CLOID with userId in replaceOrder (line 3573)", async function () {
-      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -24285,8 +24178,6 @@ describe("CrystalMarket", function () {
       const userId = await crystal.addressToUserId(maker.address);
       const options = (cloid << 44n) | userId;
       await crystal.connect(maker).limitOrder(market.target, true, options, price, ethers.parseUnits("1000", 6), maker.address);
-
-      const decreaseOptions = (1n << 48n) | userId;
       await crystal.connect(maker).replaceOrder(
         market.target, 0, 0, cloid, price, ethers.parseUnits("500", 6), ethers.ZeroAddress, maker.address
       );
@@ -24295,7 +24186,7 @@ describe("CrystalMarket", function () {
 
   describe("Coverage: Misc uncovered lines", function () {
     it("Should return 0 when decreaseOrder results in no state change (line 3599)", async function () {
-      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -24310,8 +24201,6 @@ describe("CrystalMarket", function () {
       await crystal.connect(maker).limitOrder(market.target, true, options, price, ethers.parseUnits("1000", 6), maker.address);
 
       await crystal.connect(maker).cancelOrder(market.target, 0, 0, cloid, maker.address);
-
-      const decreaseOptions = (1n << 48n) | userId;
       try {
         await crystal.connect(maker).replaceOrder(
           market.target, 0, 0, cloid, price, ethers.parseUnits("500", 6), ethers.ZeroAddress, maker.address
@@ -24322,7 +24211,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should execute sell branch in replaceOrder market path (lines 3676-3677)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -24331,7 +24220,6 @@ describe("CrystalMarket", function () {
       const scaleFactor = await market.scaleFactor();
       const buyPrice = 950n * scaleFactor / (10n ** 12n);
       const sellPrice = 1050n * scaleFactor / (10n ** 12n);
-      const marketPrice = sellPrice + 10n;
 
       await crystal.connect(maker).limitOrder(market.target, false, 0, sellPrice, ethers.parseEther("1"), maker.address);
 
@@ -24347,7 +24235,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should auto-register user when userId is 0 (line 3738)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
       const [, , , newUser] = await ethers.getSigners();
 
       await quote.mint(newUser.address, ethers.parseUnits("100000", 6));
@@ -24370,7 +24258,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should use router pooled balance for input (line 3790)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -24397,7 +24285,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should revert on insufficient internal balance in limitOrder (line 3889)", async function () {
-      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -24561,7 +24449,7 @@ describe("CrystalMarket", function () {
 
   describe("Coverage: AMM size capping (lines 1705, 1719, 1745, 1760)", function () {
     it("Should cap buy exact input amount when AMM solve exceeds remaining size (line 1705)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -24589,7 +24477,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should cap buy exact output amount when AMM solve exceeds remaining size (line 1719)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -24615,7 +24503,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should cap sell exact input amount when AMM solve exceeds remaining size (line 1745)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -24643,7 +24531,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should cap sell exact output amount when AMM solve exceeds remaining size (line 1760)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const quoteDecimals = await quote.decimals();
       const priceFactor = scaleFactor / (10n ** (18n - quoteDecimals));
@@ -24699,7 +24587,7 @@ describe("CrystalMarket", function () {
     };
 
     it("Should trigger tokenBalances overflow protection on maker internal balance credit (line 2650)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -24759,7 +24647,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should trigger overflow protection when transferFrom fails (lines 2544-2548)", async function () {
-      const { crystal, market, quote, base, maker, taker } = await deployFailingMarketLocal();
+      const { crystal, market, quote, maker, taker } = await deployFailingMarketLocal();
 
       const price = 1000n;
       const size = ethers.parseEther("5");
@@ -24785,7 +24673,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should trigger overflow protection when transfer to maker fails (lines 2616-2621)", async function () {
-      const { crystal, market, quote, base, maker, taker } = await deployFailingMarketLocal();
+      const { crystal, market, quote, maker, taker } = await deployFailingMarketLocal();
 
       const price = 1000n;
       const size = ethers.parseEther("5");
@@ -24815,7 +24703,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should trigger overflow in batch cancel (lines 4319-4320)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -24834,7 +24722,7 @@ describe("CrystalMarket", function () {
 
   describe("Coverage: Additional uncovered branches", function () {
     it("Should hit line 491 - base-limited liquidity calculation", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("1000", 6), ethers.parseEther("1"), 0, 0
@@ -24846,7 +24734,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit line 884 - binary search high capping via large swap", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -24884,7 +24772,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit line 3476 - sell order internal balance release on CLOID cancel", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, weth } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -24905,7 +24793,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit line 3489 - sell order internal balance partial decrease", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, weth } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -24959,7 +24847,7 @@ describe("CrystalMarket", function () {
 
   describe("Coverage: Price clamping and edge cases", function () {
     it("Should hit price >= maxPrice clamping in AMM buy (lines 2088, 2106)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -24981,7 +24869,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit price <= tickSize clamping in AMM sell (lines 2190, 2207)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -25002,7 +24890,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit decreaseAmount > MASK_KEEP_0_112 check (line 3433)", async function () {
-      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -25024,7 +24912,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit reserve overflow protection (line 2070 revert)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -25121,7 +25009,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit limit order failure in batch (line 4349)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -25144,7 +25032,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit replaceOrder silent return paths (lines 3575, 3578)", async function () {
-      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -25158,8 +25046,6 @@ describe("CrystalMarket", function () {
       const options = (cloid << 44n) | userId;
 
       await crystal.connect(maker).limitOrder(market.target, true, options, price, ethers.parseUnits("100", 6), maker.address);
-
-      const replaceOptions = (1n << 48n) | userId;
       try {
         await crystal.connect(maker).replaceOrder(
           market.target, 0, 0, cloid, price, ethers.parseUnits("200", 6), ethers.ZeroAddress, maker.address
@@ -25195,7 +25081,7 @@ describe("CrystalMarket", function () {
 
   describe("Coverage: Batch action edge cases", function () {
     it("Should hit batch market order sell branch (lines 4395-4400)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, weth } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -25349,7 +25235,7 @@ describe("CrystalMarket", function () {
 
   describe("Coverage: Additional batch and decrease branches", function () {
     it("Should hit batch decrease sell order branch via fallback (lines 4433-4436)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -25469,7 +25355,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit limit sell order branch in batch fallback (line 4350)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, weth } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -25520,7 +25406,7 @@ describe("CrystalMarket", function () {
     };
 
     it("Should trigger transfer failure with internal balance fallback (lines 2785-2811)", async function () {
-      const { crystal, market, quote, base, maker, taker } = await deployFailingMarketForTest();
+      const { crystal, market, quote, maker, taker } = await deployFailingMarketForTest();
 
       const price = 1000n;
       const size = ethers.parseEther("5");
@@ -25545,7 +25431,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should trigger internal balance overflow on transfer failure (line 2811)", async function () {
-      const { crystal, market, quote, base, maker, taker } = await deployFailingMarketForTest();
+      const { crystal, market, quote, maker, taker } = await deployFailingMarketForTest();
 
       const price = 1000n;
       const size = ethers.parseEther("5");
@@ -25574,7 +25460,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should trigger settlementDelta overflow in internal balance path (line 2785)", async function () {
-      const { crystal, market, quote, base, maker, taker } = await deployFailingMarketForTest();
+      const { crystal, market, quote, maker, taker } = await deployFailingMarketForTest();
 
       const price = 1000n;
 
@@ -25592,7 +25478,7 @@ describe("CrystalMarket", function () {
 
   describe("Coverage: AMM disabled and edge cases", function () {
     it("Should test multiple addLiquidity with different ratios (line 491)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -25608,13 +25494,12 @@ describe("CrystalMarket", function () {
     });
 
     it("Should test exact fill scenario in AMM (line 2256)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
       );
-
-      const quoteResult = await crystal.getQuote.staticCall(
+      await crystal.getQuote.staticCall(
         market.target, true, true, false, ethers.parseUnits("100", 6), MAX_UINT256
       );
 
@@ -25624,7 +25509,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should test transferFrom failure in catch block (lines 2534-2548)", async function () {
-      const { crystal, maker, taker, weth } = await loadFixture(deployFixture);
+      const { crystal, maker, taker } = await loadFixture(deployFixture);
       const Failing = await ethers.getContractFactory("FailingToken");
       const quote = await Failing.deploy("FailQuote", "FQUOTE");
       const base = await Failing.deploy("FailBase", "FBASE");
@@ -25666,7 +25551,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should test settlementDelta overflow in catch block (lines 2536-2548)", async function () {
-      const { crystal, maker, taker, weth } = await loadFixture(deployFixture);
+      const { crystal, maker, taker } = await loadFixture(deployFixture);
       const Failing = await ethers.getContractFactory("FailingToken");
       const quote = await Failing.deploy("FailQuote", "FQUOTE");
       const base = await Failing.deploy("FailBase", "FBASE");
@@ -25714,7 +25599,7 @@ describe("CrystalMarket", function () {
 
   describe("Coverage: More batch fallback paths", function () {
     it("Should hit batch cancel with successful cancel (line 4318 true branch)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, quote } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -25738,7 +25623,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit batch limit order failure path (lines 4349, 4366-4368)", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -25759,7 +25644,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit batch decrease with param2 >> 128 != 0 (lines 4432, 4442-4451)", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker, quote } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -25939,7 +25824,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit line 275 - amountQuoteOptimal <= amountQuoteDesired require", async function () {
-        const { crystal, market, quote, base, owner, maker } = await deployMarketWithAMM();
+        const { crystal, market, maker } = await deployMarketWithAMM();
 
         const { reserveQuote, reserveBase } = await market.getReserves.staticCall();
 
@@ -25952,7 +25837,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should fail line 275 - amountQuoteOptimal <= amountQuoteDesired require", async function () {
-        const { crystal, market, quote, base, owner, maker } = await deployMarketWithAMM();
+        const { crystal, market, maker } = await deployMarketWithAMM();
 
         const { reserveQuote, reserveBase } = await market.getReserves.staticCall();
 
@@ -26040,7 +25925,7 @@ describe("CrystalMarket", function () {
 
     describe("_settleBalances overflow checks (lines 709, 725, 729, 741, 751, 762, 817)", function () {
       it("Should hit line 725 - balanceModeOut != 0 with negative quoteAssetDebt", async function () {
-        const { crystal, market, quote, base, owner, maker, taker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, maker, taker, scaleFactor } = await deployMarketWithAMM();
 
         const price = 1100n * scaleFactor / (10n ** 12n);
         await crystal.connect(maker).limitOrder(market.target, false, 0, price, ethers.parseEther("10"), maker.address);
@@ -26056,7 +25941,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit line 729 - balanceModeOut != 0 with negative baseAssetDebt", async function () {
-        const { crystal, market, quote, base, owner, maker, taker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, maker, taker, scaleFactor } = await deployMarketWithAMM();
 
         const price = 900n * scaleFactor / (10n ** 12n);
         await crystal.connect(maker).limitOrder(market.target, true, 0, price, ethers.parseUnits("10000", 6), maker.address);
@@ -26072,7 +25957,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit line 751 - balanceMode == 1 with negative quoteAssetDebt", async function () {
-        const { crystal, market, quote, base, owner, maker, taker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, maker, taker, scaleFactor } = await deployMarketWithAMM();
 
         const askPrice = 1100n * scaleFactor / (10n ** 12n);
         await crystal.connect(maker).limitOrder(market.target, false, 1, askPrice, ethers.parseEther("10"), maker.address);
@@ -26088,7 +25973,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit line 762 - balanceMode == 1 with negative baseAssetDebt", async function () {
-        const { crystal, market, quote, base, owner, maker, taker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, maker, taker, scaleFactor } = await deployMarketWithAMM();
 
         const bidPrice = 900n * scaleFactor / (10n ** 12n);
         await crystal.connect(maker).limitOrder(market.target, true, 1, bidPrice, ethers.parseUnits("10000", 6), maker.address);
@@ -26106,7 +25991,7 @@ describe("CrystalMarket", function () {
 
     describe("getPriceLevels bucket aggregation (lines 915, 924, 961, 970)", function () {
       it("Should hit line 924 - ask bucket break condition", async function () {
-        const { crystal, market, quote, base, owner, maker, scaleFactor, tickSize } = await deployMarketWithAMM();
+        const { crystal, market, maker, scaleFactor, tickSize } = await deployMarketWithAMM();
 
         const askPrice1 = 1100n * scaleFactor / (10n ** 12n);
         const askPrice2 = askPrice1 + tickSize;
@@ -26118,7 +26003,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit line 970 - bid bucket break condition", async function () {
-        const { crystal, market, quote, base, owner, maker, scaleFactor, tickSize } = await deployMarketWithAMM();
+        const { crystal, market, maker, scaleFactor, tickSize } = await deployMarketWithAMM();
 
         const bidPrice1 = 900n * scaleFactor / (10n ** 12n);
         const bidPrice2 = bidPrice1 - tickSize;
@@ -26132,14 +26017,14 @@ describe("CrystalMarket", function () {
 
     describe("getPrice AMM branch coverage (lines 1058, 1063)", function () {
       it("Should hit lines 1058 and 1063 - AMM price calculation for marketType 0", async function () {
-        const { crystal, market, owner, maker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market } = await deployMarketWithAMM();
 
         const result = await crystal.getPrice.staticCall(market.target);
         expect(result[0]).to.be.gt(0);
       });
 
       it("Should hit getPrice with no bids or asks", async function () {
-        const { crystal, market, owner } = await deployMarketWithAMM();
+        const { crystal, market } = await deployMarketWithAMM();
 
         const result = await crystal.getPrice.staticCall(market.target);
         expect(result[1]).to.be.gt(0);
@@ -26149,7 +26034,7 @@ describe("CrystalMarket", function () {
 
     describe("getQuote AMM edge cases (lines 1133, 1139, 1150, 1156)", function () {
       it("Should hit line 1133 - exactInput buy AMM sizeLeft < _amountIn", async function () {
-        const { crystal, market, owner, taker } = await deployMarketWithAMM();
+        const { crystal, market } = await deployMarketWithAMM();
 
         const result = await crystal.getQuote.staticCall(
           market.target, true, true, false, ethers.parseUnits("10000", 6), 0
@@ -26158,7 +26043,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit line 1139 - exactOutput buy AMM sizeLeft < _amountOut", async function () {
-        const { crystal, market, owner, taker } = await deployMarketWithAMM();
+        const { crystal, market } = await deployMarketWithAMM();
 
         const result = await crystal.getQuote.staticCall(
           market.target, true, false, false, ethers.parseEther("10"), 0
@@ -26167,7 +26052,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit line 1150 - exactInput sell AMM sizeLeft < _amountIn", async function () {
-        const { crystal, market, owner, taker } = await deployMarketWithAMM();
+        const { crystal, market } = await deployMarketWithAMM();
 
         const result = await crystal.getQuote.staticCall(
           market.target, false, true, false, ethers.parseEther("10"), 0
@@ -26176,7 +26061,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit line 1156 - exactOutput sell AMM sizeLeft < _amountOut", async function () {
-        const { crystal, market, owner, taker } = await deployMarketWithAMM();
+        const { crystal, market } = await deployMarketWithAMM();
 
         const result = await crystal.getQuote.staticCall(
           market.target, false, false, false, ethers.parseUnits("5000", 6), 0
@@ -26187,7 +26072,7 @@ describe("CrystalMarket", function () {
 
     describe("getQuote slot search (lines 1194, 1221)", function () {
       it("Should hit line 1194 - sizeLeft subtraction for buy with multiple price levels", async function () {
-        const { crystal, market, maker, taker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, maker, scaleFactor } = await deployMarketWithAMM();
 
         const askPrice1 = 1100n * scaleFactor / (10n ** 12n);
         const askPrice2 = 1200n * scaleFactor / (10n ** 12n);
@@ -26202,7 +26087,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit line 1221 - _slot == 0 for sell side search", async function () {
-        const { crystal, market, maker, taker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, maker, scaleFactor } = await deployMarketWithAMM();
 
         const bidPrice1 = 900n * scaleFactor / (10n ** 12n);
         const bidPrice2 = 800n * scaleFactor / (10n ** 12n);
@@ -26219,7 +26104,7 @@ describe("CrystalMarket", function () {
 
     describe("_marketOrder AMM price clamping (lines 1306-1364)", function () {
       it("Should hit lines 1306, 1312, 1319 - exactInput/exactOutput buy AMM execution", async function () {
-        const { crystal, market, owner, taker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, taker } = await deployMarketWithAMM();
 
         await crystal.connect(taker).marketOrder(
           market.target, true, true, 0, 0, ethers.parseUnits("5000", 6), 0, ethers.ZeroAddress, taker.address
@@ -26227,7 +26112,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit lines 1326, 1329 - buy endprice/startprice clamping", async function () {
-        const { crystal, market, owner, taker } = await deployMarketWithAMM();
+        const { crystal, market, taker } = await deployMarketWithAMM();
 
         await crystal.connect(taker).marketOrder(
           market.target, true, true, 0, 0, ethers.parseUnits("50000", 6), 0, ethers.ZeroAddress, taker.address
@@ -26235,7 +26120,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit lines 1341, 1347, 1354 - exactInput/exactOutput sell AMM execution", async function () {
-        const { crystal, market, owner, taker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, taker } = await deployMarketWithAMM();
 
         await crystal.connect(taker).marketOrder(
           market.target, false, true, 0, 0, ethers.parseEther("5"), 0, ethers.ZeroAddress, taker.address
@@ -26243,7 +26128,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit lines 1361, 1364 - sell endprice/startprice clamping", async function () {
-        const { crystal, market, owner, taker } = await deployMarketWithAMM();
+        const { crystal, market, taker } = await deployMarketWithAMM();
 
         await crystal.connect(taker).marketOrder(
           market.target, false, true, 0, 0, ethers.parseEther("50"), 0, ethers.ZeroAddress, taker.address
@@ -26251,7 +26136,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit price clamping at tickSize boundary", async function () {
-        const [owner, maker, taker] = await ethers.getSigners();
+        const [owner, , taker] = await ethers.getSigners();
         const TestToken = await ethers.getContractFactory("TestToken");
         const quote = await TestToken.deploy("Quote", "QUOTE", 6);
         const base = await TestToken.deploy("Base", "BASE", 18);
@@ -26296,7 +26181,7 @@ describe("CrystalMarket", function () {
 
     describe("_marketOrder settlement overflow (lines 1377-1455)", function () {
       it("Should hit line 1377 - settlementDelta overflow check for AMM", async function () {
-        const { crystal, market, owner, taker } = await deployMarketWithAMM();
+        const { crystal, market, taker } = await deployMarketWithAMM();
 
         await crystal.connect(taker).marketOrder(
           market.target, true, true, 0, 0, ethers.parseUnits("1000", 6), 0, ethers.ZeroAddress, taker.address
@@ -26330,7 +26215,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit line 1409 - reserve commit check", async function () {
-        const { crystal, market, maker, taker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, taker } = await deployMarketWithAMM();
 
         await crystal.connect(taker).marketOrder(
           market.target, true, true, 0, 0, ethers.parseUnits("10000", 6), 0, ethers.ZeroAddress, taker.address
@@ -26360,7 +26245,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit line 1455 - STP cancel settlementDelta overflow", async function () {
-        const { crystal, market, maker, taker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, maker, scaleFactor } = await deployMarketWithAMM();
 
         const bidPrice = 900n * scaleFactor / (10n ** 12n);
         await crystal.connect(maker).limitOrder(market.target, true, 1, bidPrice, ethers.parseUnits("1000", 6), maker.address);
@@ -26377,7 +26262,7 @@ describe("CrystalMarket", function () {
 
     describe("Transfer failure handling partial fills (lines 1494-1531)", function () {
       it("Should hit lines 1494, 1499 - transferFrom failure fallback to internal balance", async function () {
-        const { crystal, market, quote, base, owner, maker, taker } = await deployMarketWithFailingToken();
+        const { crystal, market, quote, owner, maker, taker } = await deployMarketWithFailingToken();
 
         await crystal.addLiquidity(
           market.target, owner.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -26401,7 +26286,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit lines 1508, 1516 - internal balance transfer failure fallback", async function () {
-        const { crystal, market, quote, base, owner, maker, taker } = await deployMarketWithFailingToken();
+        const { crystal, market, quote, owner, maker, taker } = await deployMarketWithFailingToken();
 
         await crystal.addLiquidity(
           market.target, owner.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -26434,7 +26319,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit lines 1526, 1531 - maker internal balance settlement", async function () {
-        const { crystal, market, quote, base, owner, maker, taker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, maker, taker, scaleFactor } = await deployMarketWithAMM();
 
         const askPrice = 1100n * scaleFactor / (10n ** 12n);
 
@@ -26449,7 +26334,7 @@ describe("CrystalMarket", function () {
 
     describe("Transfer failure handling full fills (lines 1562-1603)", function () {
       it("Should hit lines 1562, 1566, 1571 - full fill transferFrom failure", async function () {
-        const { crystal, market, quote, base, owner, maker, taker } = await deployMarketWithFailingToken();
+        const { crystal, market, quote, owner, maker, taker } = await deployMarketWithFailingToken();
 
         await crystal.addLiquidity(
           market.target, owner.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -26473,7 +26358,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit lines 1580, 1587, 1588 - full fill internal balance transfer failure", async function () {
-        const { crystal, market, quote, base, owner, maker, taker } = await deployMarketWithFailingToken();
+        const { crystal, market, quote, owner, maker, taker } = await deployMarketWithFailingToken();
 
         await crystal.addLiquidity(
           market.target, owner.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -26506,7 +26391,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit lines 1598, 1603 - maker receives to internal balance", async function () {
-        const { crystal, market, quote, base, owner, maker, taker } = await deployMarketWithAMM();
+        const { crystal, market, base, maker, taker } = await deployMarketWithAMM();
 
         await crystal.connect(maker).deposit(base.target, ethers.parseEther("10"));
 
@@ -26633,7 +26518,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit line 1944 - internal balance release on cancel", async function () {
-        const { crystal, market, quote, maker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, maker, scaleFactor } = await deployMarketWithAMM();
 
         const bidPrice = 900n * scaleFactor / (10n ** 12n);
         const limitOpts = (1n << 60n);
@@ -26678,7 +26563,7 @@ describe("CrystalMarket", function () {
 
     describe("replaceOrder output handling (lines 2160, 2165)", function () {
       it("Should hit line 2160 - output to internal balance overflow check", async function () {
-        const { crystal, market, quote, maker, taker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, maker, taker, scaleFactor } = await deployMarketWithAMM();
 
         const bidPrice = 900n * scaleFactor / (10n ** 12n);
         await crystal.connect(maker).limitOrder(market.target, true, 1, bidPrice, ethers.parseUnits("1000", 6), maker.address);
@@ -26692,7 +26577,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit line 2165 - output to router slot overflow check", async function () {
-        const { crystal, market, quote, maker, taker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, maker, taker, scaleFactor } = await deployMarketWithAMM();
 
         const bidPrice = 900n * scaleFactor / (10n ** 12n);
         await crystal.connect(maker).limitOrder(market.target, true, 1, bidPrice, ethers.parseUnits("1000", 6), maker.address);
@@ -26719,7 +26604,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit line 2268 - cancel to internal balance overflow check", async function () {
-        const { crystal, market, quote, maker, taker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, maker, taker, scaleFactor } = await deployMarketWithAMM();
 
         const bidPrice = 900n * scaleFactor / (10n ** 12n);
         await crystal.connect(maker).limitOrder(market.target, true, 1, bidPrice, ethers.parseUnits("500", 6), maker.address);
@@ -26868,7 +26753,7 @@ describe("CrystalMarket", function () {
       }
 
       it("Should hit _toValidPrice branches in geometric market", async function () {
-        const { crystal, market, maker, taker } = await deployGeometricMarket();
+        const { crystal, market, taker } = await deployGeometricMarket();
 
         await crystal.connect(taker).marketOrder(
           market.target, true, true, 0, 0, ethers.parseUnits("5000", 6), 0, ethers.ZeroAddress, taker.address
@@ -27144,7 +27029,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should hit line 275 false branch - amountQuoteOptimal > amountQuoteDesired", async function () {
-        const { crystal, market, owner, maker, scaleFactor } = await deployMarketWithAMM();
+        const { crystal, market, owner, maker } = await deployMarketWithAMM();
 
         const { reserveQuote, reserveBase } = await market.getReserves.staticCall();
 
@@ -27230,10 +27115,10 @@ describe("CrystalMarket", function () {
       it("Should hit line 1133 - exactInput buy sizeLeft < _amountIn", async function () {
         const { crystal, market } = await deployMarketWithAMM();
 
-        const { reserveQuote, reserveBase } = await market.getReserves.staticCall();
+        const { reserveQuote } = await market.getReserves.staticCall();
 
         const largeSize = reserveQuote * 2n;
-        const result = await crystal.getQuote.staticCall(
+        await crystal.getQuote.staticCall(
           market.target, true, true, false, largeSize, 0
         );
       });
@@ -27245,7 +27130,7 @@ describe("CrystalMarket", function () {
 
         const largeOutput = reserveBase * 2n;
         try {
-          const result = await crystal.getQuote.staticCall(
+          await crystal.getQuote.staticCall(
             market.target, true, false, false, largeOutput, 0
           );
         } catch (e) {
@@ -27259,7 +27144,7 @@ describe("CrystalMarket", function () {
         const { reserveBase } = await market.getReserves.staticCall();
 
         const largeSize = reserveBase * 2n;
-        const result = await crystal.getQuote.staticCall(
+        await crystal.getQuote.staticCall(
           market.target, false, true, false, largeSize, 0
         );
       });
@@ -27271,7 +27156,7 @@ describe("CrystalMarket", function () {
 
         const largeOutput = reserveQuote * 2n;
         try {
-          const result = await crystal.getQuote.staticCall(
+          await crystal.getQuote.staticCall(
             market.target, false, false, false, largeOutput, 0
           );
         } catch (e) {
@@ -27283,7 +27168,7 @@ describe("CrystalMarket", function () {
 
   describe("Final Coverage: Reverts & Edge Cases", function () {
     async function deployHarnessOnly() {
-      const [owner, maker, taker] = await ethers.getSigners();
+      const [, maker, taker] = await ethers.getSigners();
       const Token = await ethers.getContractFactory("TestToken");
       const quote = await Token.deploy("Quote", "QUOTE", 6);
       const base = await Token.deploy("Base", "BASE", 18);
@@ -27419,7 +27304,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should revert _settleBalances when internal balance is insufficient", async function () {
-      const { crystal, market, maker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
       const scaleFactor = await market.scaleFactor();
       const price = 1000n * scaleFactor;
 
@@ -27441,7 +27326,7 @@ describe("CrystalMarket", function () {
 
     it("Should revert batchOrders when action fails and requireSuccess is true", async function () {
       const { crystal, market, maker } = await loadFixture(deployFixture);
-      const userId = await crystal.addressToUserId(maker.address);
+      await crystal.addressToUserId(maker.address);
 
       const invalidCancelAction = {
         action: 1n,
@@ -27694,7 +27579,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit line 712 - router internal balance debit for base asset", async function () {
-      const { crystal, market, quote, weth, maker, taker } = await loadFixture(deployFixture);
+      const { crystal, market, weth, maker, taker } = await loadFixture(deployFixture);
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
       );
@@ -27973,7 +27858,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit lines 1529, 1534 - partial fill maker internal balance settlement", async function () {
-      const { crystal, market, quote, weth, maker, taker } = await loadFixture(deployFixture);
+      const { crystal, market, weth, maker, taker } = await loadFixture(deployFixture);
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
       );
@@ -28075,7 +27960,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit lines 1601, 1606 - full fill maker internal balance settlement", async function () {
-      const { crystal, market, quote, weth, maker, taker } = await loadFixture(deployFixture);
+      const { crystal, market, weth, maker, taker } = await loadFixture(deployFixture);
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
       );
@@ -28175,9 +28060,7 @@ describe("CrystalMarket", function () {
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
       );
-
-      const scaleFactor = await market.scaleFactor();
-      const price = 900n * scaleFactor / (10n ** 12n);
+      await market.scaleFactor();
       const nonExistentCloid = 99999n;
       const userId = await crystal.addressToUserId(maker.address);
       const action = 12n;
@@ -28237,7 +28120,7 @@ describe("CrystalMarket", function () {
 
   describe("Branch Coverage - Remaining Testable Branches", function () {
     it("Should hit line 275 - addLiquidity with base-limited ratio (amountBaseOptimal > amountBaseDesired)", async function () {
-      const { crystal, market, quote, weth, maker } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0
@@ -28249,7 +28132,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit line 279 branch 0 - liquidity where quote-based calculation is smaller", async function () {
-      const { crystal, market, quote, weth, maker } = await loadFixture(deployFixture);
+      const { crystal, market, maker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("10000", 6), ethers.parseEther("3"), 0, 0
@@ -28394,7 +28277,7 @@ describe("CrystalMarket", function () {
       const userId = await crystal.addressToUserId(maker.address);
       const action = 12n;
       const nonExistentId = 99999n;
-      const decreaseAmount = ethers.parseUnits("100", 6);
+      ethers.parseUnits("100", 6);
       const actionWord = (action << 252n) | (price << 112n) | nonExistentId;
       const calldata = ethers.solidityPacked(["uint256", "uint256"], [userId, actionWord]);
 
@@ -28415,7 +28298,7 @@ describe("CrystalMarket", function () {
 
       const takerUserId = await crystal.addressToUserId(taker.address);
       const action = 12n;
-      const decreaseAmount = ethers.parseUnits("100", 6);
+      ethers.parseUnits("100", 6);
       const actionWord = (action << 252n) | (bidPrice << 112n) | 1n;
       const calldata = ethers.solidityPacked(["uint256", "uint256"], [takerUserId, actionWord]);
 
@@ -28734,7 +28617,7 @@ describe("CrystalMarket", function () {
 
   describe("Router Balance Paths (lines 2122, 2184)", function () {
     it("Should hit line 2122 - router balance debit for swap input", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -28775,7 +28658,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit line 2184 - router balance debit for limit order", async function () {
-      const { crystal, market, maker, taker, quote, weth } = await loadFixture(deployFixture);
+      const { crystal, market, maker, taker } = await loadFixture(deployFixture);
 
       await crystal.connect(maker).addLiquidity(
         market.target, maker.address, ethers.parseUnits("100000", 6), ethers.parseEther("100"), 0, 0
@@ -28959,7 +28842,7 @@ describe("CrystalMarket", function () {
     }
 
     it("Should hit catch block line 1468 - transferFrom to maker fails (buy side, partial fill)", async function () {
-      const { crystal, market, quote, base, maker, taker } = await loadFixture(deployWithFailingTokenForCatch);
+      const { crystal, market, quote, maker, taker } = await loadFixture(deployWithFailingTokenForCatch);
 
       const scaleFactor = await market.scaleFactor();
       const askPrice = 1100n * scaleFactor / (10n ** 12n);
@@ -28985,7 +28868,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit catch block line 1540 - transferFrom to maker fails (buy side, full fill)", async function () {
-      const { crystal, market, quote, base, maker, taker } = await loadFixture(deployWithFailingTokenForCatch);
+      const { crystal, market, quote, maker, taker } = await loadFixture(deployWithFailingTokenForCatch);
 
       const scaleFactor = await market.scaleFactor();
       const askPrice = 1100n * scaleFactor / (10n ** 12n);
@@ -29011,7 +28894,7 @@ describe("CrystalMarket", function () {
     });
 
     it("Should hit internal balance fallback line 1491 - transfer call fails (taker from internal)", async function () {
-      const { crystal, market, quote, base, maker, taker } = await loadFixture(deployWithFailingTokenForCatch);
+      const { crystal, market, quote, maker, taker } = await loadFixture(deployWithFailingTokenForCatch);
 
       await crystal.connect(taker).deposit(quote.target, ethers.parseUnits("100000", 6));
 
@@ -29145,7 +29028,7 @@ describe("CrystalMarket", function () {
 
     describe("Storage Manipulation Verification", function () {
       it("Should verify storage slot calculation works", async function () {
-        const { crystal, market, quote, maker } = await deployWithFailingToken();
+        const { crystal, quote, maker } = await deployWithFailingToken();
 
         await crystal.connect(maker).deposit(quote.target, ethers.parseUnits("1000", 6));
 
@@ -29163,7 +29046,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Should set storage to near-max value", async function () {
-        const { crystal, market, quote, maker } = await deployWithFailingToken();
+        const { crystal, quote, maker } = await deployWithFailingToken();
 
         await crystal.connect(maker).deposit(quote.target, ethers.parseUnits("100", 6));
         const makerUserId = await crystal.addressToUserId(maker.address);
@@ -29178,7 +29061,7 @@ describe("CrystalMarket", function () {
 
     describe("Partial Fill - tokenBalances Overflow (lines 1473-1510)", function () {
       it("Line 1478 - catch block overflow, taker external, maker external, buy side", async function () {
-        const { crystal, market, quote, base, maker, taker } = await deployWithFailingTokenNoAMM();
+        const { crystal, market, quote, maker, taker } = await deployWithFailingTokenNoAMM();
 
         const scaleFactor = await market.scaleFactor();
         const askPrice = 1100n * scaleFactor / (10n ** 12n);
@@ -29201,7 +29084,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Line 1495 - internal balance transfer fail overflow, taker internal, maker external, buy side", async function () {
-        const { crystal, market, quote, base, maker, taker } = await deployWithFailingTokenNoAMM();
+        const { crystal, market, quote, maker, taker } = await deployWithFailingTokenNoAMM();
 
         await crystal.connect(taker).deposit(quote.target, ethers.parseUnits("100000", 6));
 
@@ -29255,7 +29138,7 @@ describe("CrystalMarket", function () {
 
     describe("Bitmap Persistence (lines 1366, 1379)", function () {
       it("Line 1366 - bitmap dirty after orderbook fill, then AMM exact fill on next iteration", async function () {
-        const { crystal, market, quote, base, maker, taker } = await deployWithFailingToken();
+        const { crystal, market, maker, taker } = await deployWithFailingToken();
 
         const scaleFactor = await market.scaleFactor();
         const priceFactor = scaleFactor / (10n ** 12n);
@@ -29281,7 +29164,7 @@ describe("CrystalMarket", function () {
       });
 
       it("Line 1379 - bitmap dirty after orderbook fill, then slippage exceeded", async function () {
-        const { crystal, market, quote, base, maker, taker } = await deployWithFailingToken();
+        const { crystal, market, maker, taker } = await deployWithFailingToken();
 
         const scaleFactor = await market.scaleFactor();
         const priceFactor = scaleFactor / (10n ** 12n);
@@ -29367,7 +29250,7 @@ describe("CrystalMarket", function () {
 
     describe("Line 424 - _priceToTick revert for extreme price", function () {
       it("Should revert when price exceeds maximum allowed", async function () {
-        const { crystal, market, quote, weth, owner } = await loadFixture(deployFixture);
+        const { crystal, market, owner } = await loadFixture(deployFixture);
 
         await crystal.addLiquidity(market.target, owner.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0);
 
@@ -29381,7 +29264,7 @@ describe("CrystalMarket", function () {
 
     describe("Lines 1541-1550 - Full fill catch block for transfer failure", function () {
       it("Should hit catch block on full fill when external transfer fails", async function () {
-        const { crystal, market, quote, base, maker, taker } = await deployWithFailingTokenLocal();
+        const { crystal, market, quote, maker, taker } = await deployWithFailingTokenLocal();
 
         const scaleFactor = await market.scaleFactor();
         const askPrice = 1100n * scaleFactor / (10n ** 12n);
@@ -29406,7 +29289,7 @@ describe("CrystalMarket", function () {
 
     describe("Lines 1563-1567 - Full fill, taker internal, maker external, transfer fails", function () {
       it("Line 1567 - tokenBalance overflow when taker uses internal balance and transfer to maker fails", async function () {
-        const { crystal, market, quote, base, maker, taker } = await deployWithFailingTokenLocal();
+        const { crystal, market, quote, maker, taker } = await deployWithFailingTokenLocal();
 
         await crystal.connect(taker).deposit(quote.target, ethers.parseUnits("100000", 6));
 
@@ -29462,7 +29345,7 @@ describe("CrystalMarket", function () {
 
     describe("Lines 1846, 1851 - _cancelOrder cloid wrong market", function () {
       it("Should return early when cancelling cloid from different market", async function () {
-        const [owner, maker] = await ethers.getSigners();
+        const [owner, ] = await ethers.getSigners();
 
         const Token = await ethers.getContractFactory("TestToken");
         const quote = await Token.deploy("Quote", "QUOTE", 6);
@@ -29506,14 +29389,13 @@ describe("CrystalMarket", function () {
         const cloid = 1n;
         const options = (cloid << 44n);
         await crystal.limitOrder(market1.target, true, options, bidPrice, ethers.parseUnits("100", 6), owner.address);
-
-        const result = await crystal.cancelOrder(market2.target, 0, 0, cloid, owner.address);
+        await crystal.cancelOrder(market2.target, 0, 0, cloid, owner.address);
       });
     });
 
     describe("Lines 1967, 1972 - _replaceOrder cloid wrong market", function () {
       it("Should return early when replacing cloid from different market", async function () {
-        const [owner, maker] = await ethers.getSigners();
+        const [owner, ] = await ethers.getSigners();
 
         const Token = await ethers.getContractFactory("TestToken");
         const quote = await Token.deploy("Quote", "QUOTE", 6);
@@ -29581,7 +29463,7 @@ describe("CrystalMarket", function () {
           true, quote.target, weth.target, 2, 21, 1, 2_000_000_000_000n, 1_000_000, 99970, 99990
         );
         await crystal.deploy(true, quote.target, weth.target, 2, 21, 1, 2_000_000_000_000n, 1_000_000, 99970, 99990);
-        const market = await ethers.getContractAt("CrystalMarket", marketAddr);
+        await ethers.getContractAt("CrystalMarket", marketAddr);
 
         await crystal.addLiquidity(marketAddr, owner.address, ethers.parseUnits("10000", 6), ethers.parseEther("10"), 0, 0);
 
@@ -29630,7 +29512,7 @@ describe("CrystalMarket", function () {
         await crystal.addLiquidity(marketAddr, owner.address, ethers.parseEther("1"), ethers.parseEther("10"), 0, 0);
 
         await crystal.connect(maker).registerUser(maker.address);
-        const makerUserId = await crystal.addressToUserId(maker.address);
+        await crystal.addressToUserId(maker.address);
 
         const bidPrice = 10n ** 13n;
 
@@ -29689,7 +29571,7 @@ describe("CrystalMarket", function () {
         await crystal.limitOrder(market1Addr, true, options, bidPrice, ethers.parseUnits("100", 6), owner.address);
 
         const tx = await crystal.cancelOrder(market2Addr, 0, 0, cloid, owner.address);
-        const receipt = await tx.wait();
+        await tx.wait();
       });
 
       it("Should return early for even cloid from different market (line 1851)", async function () {
@@ -29737,7 +29619,7 @@ describe("CrystalMarket", function () {
         await crystal.limitOrder(market1Addr, true, options, bidPrice, ethers.parseUnits("100", 6), owner.address);
 
         const tx = await crystal.cancelOrder(market2Addr, 0, 0, cloid, owner.address);
-        const receipt = await tx.wait();
+        await tx.wait();
       });
     });
 

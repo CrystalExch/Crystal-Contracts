@@ -4,6 +4,14 @@
   "main": "index.js",
   "scripts": {
     "test": "hardhat test",
+    "test:foundry": "forge test",
+    "fuzz:tools": "powershell -ExecutionPolicy Bypass -File test/fuzz/check-tools.ps1",
+    "fuzz:medusa": "powershell -ExecutionPolicy Bypass -File test/medusa/run-medusa.ps1",
+    "fuzz:medusa:bg": "powershell -ExecutionPolicy Bypass -File test/medusa/run-medusa.ps1 -Background",
+    "fuzz:echidna": "powershell -ExecutionPolicy Bypass -File test/echidna/run-echidna.ps1",
+    "fuzz:echidna:bg": "powershell -ExecutionPolicy Bypass -File test/echidna/run-echidna.ps1 -Background",
+    "fuzz:stop": "powershell -ExecutionPolicy Bypass -File test/fuzz/stop-fuzz.ps1",
+    "fuzz:report": "powershell -ExecutionPolicy Bypass -File test/fuzz/summarize-failures.ps1",
     "coverage": "set NODE_OPTIONS=--max-old-space-size=8192 && hardhat coverage",
     "coverage:market": "set NODE_OPTIONS=--max-old-space-size=8192 && hardhat coverage --testfiles test/CrystalMarket.test.js",
     "coverage:harness": "set NODE_OPTIONS=--max-old-space-size=16384 && hardhat coverage --testfiles test/CrystalMarket.test.js --solcoverjs .solcover.harness.js"

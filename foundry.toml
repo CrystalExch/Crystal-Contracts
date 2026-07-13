@@ -1,0 +1,22 @@
+[profile.default]
+# Compiler settings mirror hardhat.config.js.
+src = "contracts"
+test = "test/foundry"
+script = "test/foundry/scripts"
+out = "out"
+libs = ["lib", "node_modules"]
+cache_path = "cache_forge"
+solc_version = "0.8.28"
+evm_version = "prague"
+optimizer = true
+optimizer_runs = 8000
+via_ir = false
+
+[fmt]
+line_length = 120
+tab_width = 4
+bracket_spacing = true
+ignore = ["contracts/**/*.sol"]
+
+[invariant]
+fail_on_revert = false

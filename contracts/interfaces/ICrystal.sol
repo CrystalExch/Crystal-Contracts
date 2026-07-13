@@ -181,6 +181,8 @@ interface ICrystal {
 
     function feeClaimDuration() external view returns (uint256);
 
+    function pendingExpiredFeeClaims(address user) external view returns (uint256 deadline);
+
     function pendingClosedMarkets(address user) external view returns (uint256);
 
     function isCanonicalDeployer(address) external view returns (bool);
@@ -271,6 +273,10 @@ interface ICrystal {
 
     function clearCloidSlots(uint256 userId, uint256[] calldata ids) external;
 
+    function writeCloidSlots(uint256 userId, uint256[] calldata ids) external;
+
+    function writeSlots(address market, uint256[] calldata slotIndexes, uint256[] calldata groupIndexes) external;
+
     function getReserves(address market) external returns (uint112, uint112);
 
     function addLiquidity(address market, address to, uint256 amountQuoteDesired, uint256 amountBaseDesired, uint256 amountQuoteMin, uint256 amountBaseMin) external payable returns (uint256);
@@ -289,7 +295,7 @@ interface ICrystal {
 
     function batchOrders(address market, Action[] calldata actions, uint256 options, uint256 deadline, address referrer, address user) external payable;
 
-    function getAmountsOut(uint256 amountIn, address[] memory path) external returns (uint256[] memory);
+    function getAmountsOut(uint256 amountIn, address[] memory path) external returns (uint256[] memory, bool);
 
     function getAmountsIn(uint256 amountOut, address[] memory path) external returns (uint256[] memory);
 
