@@ -1,9 +1,44 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {IERC20} from '../interfaces/IERC20.sol';
+import {IERC20} from "../interfaces/IERC20.sol";
 import {ICrystal} from "../interfaces/ICrystal.sol";
+import {ICrystalVault} from "../interfaces/ICrystalVault.sol";
 import {ICrystalVaultFactory} from "../interfaces/ICrystalVaultFactory.sol";
+
+contract BadOwner {
+    function approveToken(address token, address spender, uint256 amount) external {
+        IERC20(token).approve(spender, amount);
+    }
+
+    function deployVault(
+        address factory,
+        address quoteAsset,
+        address baseAsset,
+        uint256 amountQuote,
+        uint256 amountBase
+    ) external payable returns (address) {
+        ICrystalVault.VaultMetaData memory metadata = ICrystalVault.VaultMetaData("Test", "Test", "", "", "");
+        return ICrystalVaultFactory(factory).deploy{value: msg.value}(
+            quoteAsset,
+            baseAsset,
+            amountQuote,
+            amountBase,
+            0,
+            0,
+            true,
+            metadata
+        );
+    }
+
+    function callSweep(address vault) external {
+        ICrystalVault(vault).sweep();
+    }
+
+    receive() external payable {
+        revert();
+    }
+}
 
 /// @notice Contract that rejects ETH transfers - used for testing ETH transfer failure branches.
 contract ETHRejecter {
@@ -31,18 +66,15 @@ contract ETHRejecter {
         address baseAsset,
         uint256 shares
     ) external {
-        // Transfer shares to this contract first if needed
         ICrystalVaultFactory(factory).withdraw(vault, quoteAsset, baseAsset, shares, 0, 0);
     }
 
-    // Crystal functions for testing TransferFailed branches
     function addLiquidityCrystal(
         address crystal,
         address market,
         uint256 amountQuote,
         uint256 amountBase
     ) external payable {
-        // Note: This will revert if there's excess ETH to refund, which is what we want to test
         ICrystal(crystal).addLiquidity{value: msg.value}(market, address(this), amountQuote, amountBase, 0, 0);
     }
 
@@ -52,15 +84,10 @@ contract ETHRejecter {
         uint256 amountQuote,
         uint256 amountBase
     ) external payable {
-        // Used to test addLiquidity ETH refund failure (line 696)
         ICrystal(crystal).addLiquidity{value: msg.value}(market, address(this), amountQuote, amountBase, 0, 0);
     }
 
-    function removeLiquidityETHCrystal(
-        address crystal,
-        address market,
-        uint256 liquidity
-    ) external {
+    function removeLiquidityETHCrystal(address crystal, address market, uint256 liquidity) external {
         ICrystal(crystal).removeLiquidityETH(market, address(this), liquidity, 0, 0);
     }
 
@@ -93,42 +120,26 @@ contract ETHRejecter {
         ICrystal(crystal).batchOrders{value: msg.value}(market, actions, options, deadline, address(0), address(this));
     }
 
-    function multiBatchOrdersCrystal(
-        address crystal,
-        ICrystal.Batch[] calldata batches,
-        uint256 deadline
-    ) external payable {
+    function multiBatchOrdersCrystal(address crystal, ICrystal.Batch[] calldata batches, uint256 deadline)
+        external
+        payable
+    {
         ICrystal(crystal).multiBatchOrders{value: msg.value}(batches, deadline, address(0));
     }
 
-    function depositCrystal(
-        address crystal,
-        address token,
-        uint256 amount
-    ) external payable {
+    function depositCrystal(address crystal, address token, uint256 amount) external payable {
         ICrystal(crystal).deposit{value: msg.value}(token, amount);
     }
 
-    function withdrawCrystal(
-        address crystal,
-        address token,
-        uint256 amount
-    ) external {
+    function withdrawCrystal(address crystal, address token, uint256 amount) external {
         ICrystal(crystal).withdraw(address(this), token, amount);
     }
 
-    function claimFeesCrystal(
-        address crystal,
-        address[] calldata tokens
-    ) external {
+    function claimFeesCrystal(address crystal, address[] calldata tokens) external {
         ICrystal(crystal).claimFees(address(this), tokens);
     }
 
-    function routerWithdrawCrystal(
-        address crystal,
-        address token,
-        uint256 amount
-    ) external {
+    function routerWithdrawCrystal(address crystal, address token, uint256 amount) external {
         ICrystal(crystal).routerWithdraw(address(this), token, amount);
     }
 
@@ -143,30 +154,23 @@ contract ETHRejecter {
         uint256 deadline,
         address referrer
     ) external payable {
-        ICrystal(crystal).swap{value: msg.value}(isExactInput, tokenIn, tokenOut, orderType, size, worstPrice, deadline, referrer);
+        ICrystal(crystal).swap{value: msg.value}(
+            isExactInput, tokenIn, tokenOut, orderType, size, worstPrice, deadline, referrer
+        );
     }
 
-    function sellCrystal(
-        address crystal,
-        bool isExactInput,
-        address token,
-        uint256 amountIn,
-        uint256 amountOut
-    ) external {
+    function sellCrystal(address crystal, bool isExactInput, address token, uint256 amountIn, uint256 amountOut)
+        external
+    {
         ICrystal(crystal).sell(isExactInput, token, amountIn, amountOut);
     }
 
-    function buyCrystal(
-        address crystal,
-        bool isExactInput,
-        address token,
-        uint256 amountIn,
-        uint256 amountOut
-    ) external payable {
+    function buyCrystal(address crystal, bool isExactInput, address token, uint256 amountIn, uint256 amountOut)
+        external
+        payable
+    {
         ICrystal(crystal).buy{value: msg.value}(isExactInput, token, amountIn, amountOut);
     }
-
-    // No receive() or fallback() - will reject ETH transfers
 }
 
 /// @notice Contract that can toggle ETH rejection - accepts ETH during deposit, rejects during withdraw.
@@ -217,7 +221,7 @@ contract ReentrancyAttacker {
     address public baseAsset;
     bool public attacked;
     bool public reenterSucceeded;
-    uint8 public reenterAction; // 1 = deposit, 2 = withdraw
+    uint8 public reenterAction;
     uint256 public reenterAmountQuote;
     uint256 public reenterAmountBase;
     uint256 public reenterShares;
@@ -258,22 +262,18 @@ contract ReentrancyAttacker {
         if (!attacked) {
             attacked = true;
             if (reenterAction == 1) {
-                // Try to reenter deposit during ETH refund callback
                 try ICrystalVaultFactory(factory).deposit{value: msg.value}(
                     vault, quoteAsset, baseAsset, reenterAmountQuote, reenterAmountBase, 0, 0
                 ) {
                     reenterSucceeded = true;
                 } catch {}
             } else if (reenterAction == 2) {
-                // Try to reenter withdraw during ETH transfer callback
                 uint256 shares = reenterShares;
                 if (shares == 0) {
                     shares = IERC20(vault).balanceOf(address(this));
                 }
                 if (shares != 0) {
-                    try ICrystalVaultFactory(factory).withdraw(
-                        vault, quoteAsset, baseAsset, shares, 0, 0
-                    ) {
+                    try ICrystalVaultFactory(factory).withdraw(vault, quoteAsset, baseAsset, shares, 0, 0) {
                         reenterSucceeded = true;
                     } catch {}
                 }
@@ -288,7 +288,7 @@ contract CrystalReentrancyAttacker {
     address public token;
     bool public attacked;
     bool public reenterSucceeded;
-    uint8 public reenterAction; // 1 = withdraw, 2 = routerWithdraw
+    uint8 public reenterAction;
     uint256 public reenterAmount;
     bytes[] private reenterCalldata;
 
@@ -333,21 +333,19 @@ contract CrystalReentrancyAttacker {
             attacked = true;
             if (reenterCalldata.length != 0) {
                 for (uint256 i = 0; i < reenterCalldata.length; ++i) {
-                    (bool success, ) = crystal.call(reenterCalldata[i]);
+                    (bool success,) = crystal.call(reenterCalldata[i]);
                     if (success) {
                         reenterSucceeded = true;
                     }
                 }
-            } else {
-                if (reenterAction == 1) {
-                    try ICrystal(crystal).withdraw(address(this), token, reenterAmount) {
-                        reenterSucceeded = true;
-                    } catch {}
-                } else if (reenterAction == 2) {
-                    try ICrystal(crystal).routerWithdraw(address(this), token, reenterAmount) {
-                        reenterSucceeded = true;
-                    } catch {}
-                }
+            } else if (reenterAction == 1) {
+                try ICrystal(crystal).withdraw(address(this), token, reenterAmount) {
+                    reenterSucceeded = true;
+                } catch {}
+            } else if (reenterAction == 2) {
+                try ICrystal(crystal).routerWithdraw(address(this), token, reenterAmount) {
+                    reenterSucceeded = true;
+                } catch {}
             }
         }
     }

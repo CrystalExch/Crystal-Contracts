@@ -9,7 +9,7 @@ module.exports = {
       viaIR: false,
       optimizer: {
         enabled: true,
-        runs: 8000,
+        runs: 1700,
       }
     }
   },

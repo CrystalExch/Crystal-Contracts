@@ -12,7 +12,7 @@ const CHAIN_ID = BigInt(envOrDefault("CHAIN_ID", "143"))
 const GAS_PRICE = BigInt(envOrDefault("GAS_PRICE", "150000000000")) // 150 gwei
 
 const USDC = envOrDefault("USDC", "0x754704Bc059F8C67012fEd69BC8A327a5aafb603") // Canonical Stablecoin
-const WETH = envOrDefault("WETH", "0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A") // Wrapped Native Token
+const WETH = envOrDefault("WETH", "0x3bd359C1119dA7Da1D913D1C4D2B7c461115433A") // Wrapped Native Token (WMON)
 
 const MARKETS = [ // [Canonical, Quote Asset, Base Asset, Market Type, Scale Factor, Tick Size, Max Price, Min Size, Taker Fee, Maker Rebate]
   [
@@ -20,23 +20,45 @@ const MARKETS = [ // [Canonical, Quote Asset, Base Asset, Market Type, Scale Fac
     USDC,
     WETH,
     2, // Dynamic Price Ticks, AMM Enabled
-    21, // USDC is 6 Decimals, WETH is 18, 21 - 18 + 6 = 9, Minimum Price Tick of 0.000000001
-    1,
-    1_000_000_000_000_000n, // 1,000,000 USDC per WETH
+    21, // USDC is 6 Decimals, WMON is 18, 21 - 18 + 6 = 9, Minimum Price Tick of 0.000000001
+    1, // Tick size of 1
+    1_000_000_000_000_000n, // 1,000,000 USDC per WMON
     1_000_000n, // 1 USDC
     99970n, // 0.03%
     99995n // 0.005%
   ],
-  [false, USDC, WETH, 0, 17, 1, 1_000_000n, 1_000_000n, 99970n, 99995n], // Duplicate WETH/USDC market, non-canonical
-  [true, USDC, "0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a", 0, 4, 1, 100_000n, 1_000_000n, 99990n, 100000n],
-  [
+  [ // Duplicate WMON/USDC market, non-canonical
+    false,
+    USDC,
+    WETH,
+    0, // Static Price Ticks, AMM Disabled
+    17, // USDC is 6 Decimals, WMON is 18, 17 - 18 + 6 = 5, Minimum Price Tick of 0.00001
+    1, // Tick size of 1
+    1_000_000n, // 10 USDC per WMON
+    1_000_000n, // 1 USDC
+    99970n, // 0.03%
+    99995n // 0.005%
+  ],
+  [ // AUSD/USDC market, canonical
+    true,
+    USDC,
+    "0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a",
+    0, // Static Price Ticks, AMM Disabled
+    4, // USDC is 6 Decimals, AUSD is 6, 4 - 6 + 6 = 4, Minimum Price Tick of 0.0001
+    1, // Tick size of 1
+    100_000n, // 10 USDC per AUSD
+    1_000_000n, // 1 USDC
+    99990n, // 0.01%
+    100000n // 0.00%
+  ],
+  [ // XAUt0/USDC market, canonical
     true,
     USDC,
     '0x01bFF41798a0BcF287b996046Ca68b395DbC1071',
     2, // Dynamic Price Ticks, AMM Enabled
-    9, // USDC is 6 Decimals, WETH is 18, 21 - 18 + 6 = 9, Minimum Price Tick of 0.000000001
-    1,
-    1_000_000_000_000_000n, // 1,000,000 USDC per WETH
+    9, // USDC is 6 Decimals, XAUt0 is 6, 9 - 6 + 6 = 9, Minimum Price Tick of 0.000000001
+    1, // Tick size of 1
+    1_000_000_000_000_000n, // 1,000,000 USDC per XAUt0
     1_000_000n, // 1 USDC
     99970n, // 0.03%
     99995n // 0.005%
