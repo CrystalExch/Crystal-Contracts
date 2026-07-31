@@ -284,8 +284,10 @@ contract Crystal is ICrystal {
             if totalBid {
                 pop(call(gas(), coinbase(), totalBid, 0, 0, 0, 0))
             }
-            if and(callvalue(), selfbalance()) {
-                pop(call(gas(), caller(), selfbalance(), 0, 0, 0, 0))
+            if callvalue() {
+                if selfbalance() {
+                    pop(call(gas(), caller(), selfbalance(), 0, 0, 0, 0))
+                }
             }
         }
     }
@@ -2240,7 +2242,7 @@ contract Crystal is ICrystal {
             delete pendingClosedMarkets[token];
         } else {
             require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
-            delete pendingClosedMarkets[token];
+            delete pendingClosedMarkets[market];
         }
     }
 
