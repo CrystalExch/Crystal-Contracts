@@ -186,9 +186,9 @@ describe("Crystal Core Protocol Tests", function () {
         await crystal.waitForDeployment();
       });
 
-      it("deploys with graduatedMakerRebate = 90000 (minimum)", async function () {
+      it("deploys with graduatedMakerRebate = 99800 (minimum)", async function () {
         const Crystal = await ethers.getContractFactory("Crystal");
-        const params = { ...validLaunchpadParams, graduatedMakerRebate: 90000 };
+        const params = { ...validLaunchpadParams, graduatedMakerRebate: 99800 };
         const crystal = await Crystal.deploy(
           weth.target,
           owner.address,
@@ -1134,13 +1134,13 @@ describe("Crystal Core Protocol Tests", function () {
       it("reverts with invalid market type (4)", async function () {
         await expect(
           crystal.deploy(false, quote.target, base.target, 4, 15, 1, 100000, 1000000, 99970, 99990)
-        ).to.be.revertedWithCustomError(crystal, "ActionFailed");
+        ).to.be.revertedWithCustomError(crystal, "InvalidParams");
       });
 
       it("reverts with invalid market type (100)", async function () {
         await expect(
           crystal.deploy(false, quote.target, base.target, 100, 15, 1, 100000, 1000000, 99970, 99990)
-        ).to.be.revertedWithCustomError(crystal, "ActionFailed");
+        ).to.be.revertedWithCustomError(crystal, "InvalidParams");
       });
     });
 
@@ -3952,7 +3952,7 @@ describe("Crystal Core Protocol Tests", function () {
     it("reverts with invalid market type (type 4)", async function () {
       await expect(
         crystal.deploy(true, quote.target, base.target, 4, 15, 1, 100000, 1000000, 99970, 99990)
-      ).to.be.revertedWithCustomError(crystal, "ActionFailed");
+      ).to.be.revertedWithCustomError(crystal, "InvalidParams");
     });
   });
 
@@ -20304,7 +20304,7 @@ describe("Crystal Core Protocol Tests", function () {
       const tokenAddress = harness.interface.parseLog(event).args.token;
       const marketAddress = await harness.getMarketByTokens(weth.target, tokenAddress);
       await harness.clearLaunchpadMarket(tokenAddress);
-      await harness.connect(owner).changeMarketParams(marketAddress, 1, 95000, 95000, true, true);
+      await harness.connect(owner).changeMarketParams(marketAddress, 1, 95000, 99900, true, true);
     });
 
     it("changeMarketCreatorFee as gov (not canonical deployer) - branch 1068:cond-expr:1", async function () {
@@ -21305,7 +21305,7 @@ describe("Crystal Core Protocol Tests", function () {
         market,
         1000,
         90000,
-        90000,
+        99800,
         true,
         true
       );

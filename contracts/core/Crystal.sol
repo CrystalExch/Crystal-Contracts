@@ -167,6 +167,9 @@ contract Crystal is ICrystal {
     /// @notice Maximum protocol taker fee (equivalent to 10%).
     uint256 internal constant MAX_FEE = 90000;
 
+    /// @notice Maximum maker rebate when the AMM is enabled (equivalent to 0.2%).
+    uint256 internal constant MAX_AMM_MAKER_REBATE = 99800;
+
     /// @notice Initial launchpad token reserve.
     uint256 internal constant INITIAL_TOKEN_SUPPLY = 1000000000000000000000000000;
 
@@ -232,7 +235,7 @@ contract Crystal is ICrystal {
             ++minSizeZeroes;
         }
         require(_feeCommission <= 50 && _feeClaimDuration >= 86400 && minSize > 0 && minSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20 && _launchpadParams.launchpadInitialNativeSupply > 1e18 && _launchpadParams.launchpadInitialNativeSupply <= (MASK_KEEP_0_112 / 5) && MAX_FEE <= _launchpadParams.launchpadFee && _launchpadParams.launchpadFee <= 100000 && MAX_FEE <= _launchpadParams.graduatedTakerFee, ICrystal.InvalidParams());
-        require(_launchpadParams.graduatedTakerFee <= 100000 && MAX_FEE <= _launchpadParams.graduatedMakerRebate && _launchpadParams.graduatedMakerRebate <= 100000 && _launchpadParams.graduatedCreatorFeeSplit <= 50 && _launchpadParams.launchpadCreatorFeeSplit <= 50, ICrystal.InvalidParams());
+        require(_launchpadParams.graduatedTakerFee <= 100000 && MAX_AMM_MAKER_REBATE <= _launchpadParams.graduatedMakerRebate && _launchpadParams.graduatedMakerRebate <= 100000 && _launchpadParams.graduatedCreatorFeeSplit <= 50 && _launchpadParams.launchpadCreatorFeeSplit <= 50, ICrystal.InvalidParams());
         launchpadParams = _launchpadParams;
     }
 
@@ -973,7 +976,7 @@ contract Crystal is ICrystal {
      * @param isCanonical Whether the market is canonical.
      */
     function changeMarketParams(address market, uint256 newMinSize, uint24 newTakerFee, uint24 newMakerRebate, bool isAMMEnabled, bool isCanonical) external {
-        require((isCanonicalDeployer[msg.sender] || msg.sender == gov) && MAX_FEE <= newTakerFee && newTakerFee <= 100000 && MAX_FEE <= newMakerRebate && newMakerRebate <= 100000, ICrystal.InvalidParams());
+        require((isCanonicalDeployer[msg.sender] || msg.sender == gov) && MAX_FEE <= newTakerFee && newTakerFee <= 100000 && (isAMMEnabled ? MAX_AMM_MAKER_REBATE <= newMakerRebate : MAX_FEE <= newMakerRebate) && newMakerRebate <= 100000, ICrystal.InvalidParams());
         ICrystal.Market storage m = _getMarket[market];
         require(msg.sender == gov || msg.sender == m.creator, ICrystal.Unauthorized(msg.sender));
         uint256 minSizeZeroes;
@@ -1337,13 +1340,12 @@ contract Crystal is ICrystal {
         } else if (baseAsset == eth) {
             baseAsset = weth;
         }
-        require(MAX_FEE <= takerFee && takerFee <= 100000 && MAX_FEE <= makerRebate && makerRebate <= 100000 && maxPrice % tickSize == 0, ICrystal.InvalidParams());
+        require(marketType <= 3 && MAX_FEE <= takerFee && takerFee <= 100000 && (marketType > 1 ? MAX_AMM_MAKER_REBATE <= makerRebate : MAX_FEE <= makerRebate) && makerRebate <= 100000 && maxPrice % tickSize == 0, ICrystal.InvalidParams());
         uint256 marketId = allMarkets.length + 1;
         {
             parameters = ICrystal.Parameters(quoteAsset, baseAsset, marketId, marketType, scaleFactor, tickSize, maxPrice);
             uint256 maxTick;
             market = address(new CrystalMarket{salt: keccak256(abi.encode(marketId))}());
-            require(marketType <= 3, ICrystal.ActionFailed());
             if (marketType == 0) {
                 maxTick = maxPrice / tickSize;
             } else {
