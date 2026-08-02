@@ -244,7 +244,7 @@ contract Crystal is ICrystal {
     /**
      * @notice Processes batch actions with support for multiple markets supplied via calldata.
      *
-     * @dev For each market, the first 32-byte word is encoded as: (balanceMode << 252 | actionCount << 160 | market) with subsequent words being actions.
+     * @dev For each market, the first 32-byte word is encoded as: (balanceMode << 252 | bid << 172 | actionCount << 160 | market) with subsequent words being actions.
      * @dev An optional transfer to block.coinbase can be attached to each batch as a conditional priority bid.
      */
     fallback() external payable nonReentrant {
@@ -1315,7 +1315,7 @@ contract Crystal is ICrystal {
     /**
      * @notice Deploys a new Crystal market.
      *
-     * @dev Total fee is equal to takerFee + makerRebate.
+     * @dev Total taker fee when filling the orderbook is equal to takerFee + makerRebate, if filling the AMM makerRebate is not applied.
      *
      * @param isCanonical Whether the market should be canonical for the token pair.
      * @param quoteAsset Quote asset address.
@@ -1442,10 +1442,9 @@ contract Crystal is ICrystal {
             address asset1 = path[i] == eth ? weth : path[i];
             address market = getMarketByTokens[asset0][asset1];
             require(market != address(0) && market != placeholder, ICrystal.InvalidMarket(asset0, asset1));
-            uint256 outputAmount;
             (bool result, bytes memory ret) = market.delegatecall(abi.encodeWithSelector(CrystalMarket.getQuote.selector, _getMarket[market].quoteAsset == asset0, false, true, amounts[i], _getMarket[market].quoteAsset == asset0 ? MASK_KEEP_0_80 : 1));
             require(result, ICrystal.SlippageExceeded());
-            (amounts[i - 1], outputAmount) = abi.decode(ret, (uint256, uint256));
+            (amounts[i - 1], ) = abi.decode(ret, (uint256, uint256));
         }
     }
 
@@ -1652,6 +1651,7 @@ contract Crystal is ICrystal {
         IWETH(weth).deposit{value: msg.value}();
         tokenBalances[0][weth] += msg.value;
         exactOutputSwap(amounts, path, to, referrer);
+        require(amounts[0] <= msg.value, ICrystal.SlippageExceeded()); // Input amount may be very slightly different in execution compared to getAmountsIn
         if (to != msg.sender) {
             address token = path[path.length - 1];
             uint256 balance = tokenBalances[0][token];
@@ -1688,7 +1688,7 @@ contract Crystal is ICrystal {
         amounts = getAmountsIn(amountOut, path);
         require(amounts[0] <= amountInMax, ICrystal.SlippageExceeded());
         exactOutputSwap(amounts, path, to, referrer);
-        require(amounts[0] <= amountInMax, ICrystal.SlippageExceeded());
+        require(amounts[0] <= amountInMax, ICrystal.SlippageExceeded()); // Input amount may be very slightly different in execution compared to getAmountsIn
         uint256 balance = tokenBalances[0][weth];
         require(uint128(balance) >= amountOut, ICrystal.ActionFailed());
         tokenBalances[0][weth] = balance - amountOut;
@@ -1715,7 +1715,7 @@ contract Crystal is ICrystal {
         amounts = getAmountsIn(amountOut, path);
         require(amounts[0] <= amountInMax, ICrystal.SlippageExceeded());
         exactOutputSwap(amounts, path, to, referrer);
-        require(amounts[0] <= amountInMax, ICrystal.SlippageExceeded());
+        require(amounts[0] <= amountInMax, ICrystal.SlippageExceeded()); // Input amount may be very slightly different in execution compared to getAmountsIn
         if (to != msg.sender) {
             address token = path[path.length - 1];
             uint256 balance = tokenBalances[0][token];
@@ -2216,15 +2216,14 @@ contract Crystal is ICrystal {
      * @param token Launchpad token address.
      */
     function queueCloseInactiveMarket(address token) external {
+        require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
         address market = getMarketByTokens[weth][token];
         if (market == address(0) || market == placeholder) {
             ICrystal.LaunchpadMarket storage l = launchpadTokenToMarket[token];
-            require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
             require(l.createTimestamp != 0 && block.timestamp > (l.createTimestamp + (86400 * 365)), ICrystal.InvalidCloseWindow());
             pendingClosedMarkets[token] = block.timestamp;
         } else {
             ICrystal.Market storage m = _getMarket[market];
-            require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
             require(m.createTimestamp != 0 && block.timestamp > (m.createTimestamp + (86400 * 365)), ICrystal.InvalidCloseWindow());
             pendingClosedMarkets[market] = block.timestamp;
         }
@@ -2236,12 +2235,11 @@ contract Crystal is ICrystal {
      * @param token Launchpad token address.
      */
     function unqueueCloseInactiveMarket(address token) external {
+        require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
         address market = getMarketByTokens[weth][token];
         if (market == address(0) || market == placeholder) {
-            require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
             delete pendingClosedMarkets[token];
         } else {
-            require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
             delete pendingClosedMarkets[market];
         }
     }
@@ -2255,10 +2253,10 @@ contract Crystal is ICrystal {
      * @return amountBase Base asset recovered to governance.
      */
     function executeCloseInactiveMarket(address token) external nonReentrant returns (uint256 amountQuote, uint256 amountBase) {
+        require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
         address market = getMarketByTokens[weth][token];
         if (market == address(0) || market == placeholder) {
             ICrystal.LaunchpadMarket storage l = launchpadTokenToMarket[token];
-            require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
             require(l.createTimestamp != 0 && pendingClosedMarkets[token] != 0 && block.timestamp > (pendingClosedMarkets[token] + (86400 * 7)) && block.timestamp < (pendingClosedMarkets[token] + (86400 * 30)), ICrystal.InvalidCloseWindow());
             IERC20(token).transfer(address(0), l.virtualTokenReserve);
             uint256 initialNativeReserve = l.k / INITIAL_TOKEN_SUPPLY;
@@ -2267,7 +2265,6 @@ contract Crystal is ICrystal {
             }
             delete launchpadTokenToMarket[token];
         } else {
-            require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
             require(pendingClosedMarkets[market] != 0 && block.timestamp > (pendingClosedMarkets[market] + (86400 * 7)) && block.timestamp < (pendingClosedMarkets[market] + (86400 * 30)), ICrystal.InvalidCloseWindow());
             ICrystal.Market storage m = _getMarket[market];
             m.createTimestamp = 0;

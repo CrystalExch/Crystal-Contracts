@@ -29,7 +29,7 @@ import {CrystalMath} from "../libraries/CrystalMath.sol";
  * - A vault can be in three states: open, locked, and closed.
  */
 contract CrystalVault is ERC20 {
-    /// @notice Timestamp of the user's last deposit, used to enforce lockup.
+    /// @notice Timestamp after which a user may withdraw their deposit.
     mapping(address => uint256) public unlockTimestamp;
 
     /// @notice Maximum total shares allowed (0 = uncapped).
