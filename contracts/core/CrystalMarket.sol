@@ -2213,8 +2213,8 @@ contract CrystalMarket is ERC20 {
         if (totalSupply == 0) {
             amountQuote = amountQuoteDesired;
             amountBase = amountBaseDesired;
-            liquidity = CM._sqrt(amountQuote * (amountBase)) - 100000;
-            IERC20(market).mint(address(0), 100000);
+            liquidity = CM._sqrt(amountQuote * (amountBase)) - 1000;
+            IERC20(market).mint(address(0), 1000);
         } else {
             uint256 amountBaseOptimal = (amountQuoteDesired * reserveBase) / reserveQuote;
             if (amountBaseOptimal <= amountBaseDesired) {
