@@ -390,7 +390,7 @@ A non-exhaustive list of protocol invariants that should be satisfied at all tim
 
 - Initial AMM liquidity must mint `sqrt(amountQuote * amountBase)` LP shares and set reserves to the deposited amounts.
 - Exact-input AMM swaps must preserve the reserve product lower bound, with `reserveQuoteAfter * reserveBaseAfter >= reserveQuoteBefore * reserveBaseBefore`, while moving reserves in the expected direction.
-- Removing LP liquidity must burn exactly the requested liquidity and return quote/base amounts pro-rata to reserves and total supply.
+- Removing LP liquidity must burn exactly the requested liquidity and return quote/base amounts greater than the specified minimums.
 - When both book and AMM liquidity are available, execution should use the lower effective marginal price source, subject to slippage and maker rebate rules.
 - Add-liquidity-only orders that cross AMM-implied executable liquidity must revert or leave reserves unchanged according to the documented mode.
 
