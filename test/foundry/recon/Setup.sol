@@ -623,7 +623,7 @@ abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils, Deploy 
         return _price(200 + (seed % 1_001));
     }
 
-    function _nonCrossingBid(uint256 seed) internal returns (uint256 price, bool ok) {
+    function _nonCrossingBid(uint256 seed) internal view returns (uint256 price, bool ok) {
         price = _priceFromSeed(seed);
         ICrystal.MarketInfo memory info = crystal.getMarket(address(market));
         if (info.lowestAsk != 0 && price >= info.lowestAsk) {
@@ -632,7 +632,7 @@ abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils, Deploy 
         return (price, true);
     }
 
-    function _nonCrossingAsk(uint256 seed) internal returns (uint256 price, bool ok) {
+    function _nonCrossingAsk(uint256 seed) internal view returns (uint256 price, bool ok) {
         price = _priceFromSeed(seed);
         ICrystal.MarketInfo memory info = crystal.getMarket(address(market));
         if (info.highestBid != 0 && price <= info.highestBid) {

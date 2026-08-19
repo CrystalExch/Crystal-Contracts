@@ -2144,7 +2144,7 @@ contract Crystal is ICrystal {
                 outputAmount += ammAmountOut;
             }
         }
-        if (isExactInput ? inputAmount < amountIn : outputAmount < amountOut) { // Token is graduated, swap through orderbook
+        if (!graduated && (isExactInput ? inputAmount < amountIn : outputAmount < amountOut)) { // Token is graduated, swap through orderbook
             uint256 newInputAmount = isExactInput ? (amountIn - inputAmount) : (amountOut - outputAmount);
             bytes memory ret = abi.encodeWithSelector(CrystalMarket.getQuote.selector, true, isExactInput, true, newInputAmount, 0);
             bool result;

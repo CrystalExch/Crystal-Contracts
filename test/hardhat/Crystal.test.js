@@ -24231,7 +24231,7 @@ describe("Crystal Core Protocol Tests", function () {
   const FEE_DENOMINATOR = 100_000n;
   const AMM_FEE_NUMERATOR = 9_975n;
   const AMM_FEE_DENOMINATOR = 10_000n;
-  const MINIMUM_LIQUIDITY = 100_000n;
+  const MINIMUM_LIQUIDITY = 1000n;
   
   const launchpadParams = [
     ethers.parseEther("1000"),

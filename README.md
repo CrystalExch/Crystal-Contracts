@@ -380,12 +380,6 @@ A non-exhaustive list of protocol invariants that should be satisfied at all tim
 - Closing a vault must return all previewed assets to the owner, burn all shares, set `closed == true`, and leave no factory total shares.
 - Vault actions must use the same exchange interface, fees, constraints, and order semantics as any other account.
 
-### Fees and Rewards
-
-- Taker fees, maker rebates, referral commission, creator commission, and protocol rewards must not exceed the taker notional fee budget unless explicitly funded.
-- Fee and rebate parameter updates must respect protocol bounds and must not mutate existing orders or user balances by configuration change alone.
-- Claiming fees must transfer exactly claimable amounts, clear claimed rewards, and keep claimable liabilities backed by assets held by `Crystal`. Expired-fee execution must only succeed after its deadline.
-
 ### AMM and Liquidity
 
 - Initial AMM liquidity must mint `sqrt(amountQuote * amountBase)` LP shares and set reserves to the deposited amounts.

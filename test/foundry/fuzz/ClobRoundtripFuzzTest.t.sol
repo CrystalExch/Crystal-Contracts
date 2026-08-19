@@ -430,7 +430,7 @@ contract ClobRoundtripFuzzTest is BaseFuzzTest {
         crystal.clearCloidSlots(userId, ids);
     }
 
-    function _assertEncodedLevelMatchesView(bytes memory encodedLevels, uint256 expectedPrice) private {
+    function _assertEncodedLevelMatchesView(bytes memory encodedLevels, uint256 expectedPrice) private view {
         (, uint256 encodedSize, bool found) = _findEncodedLevel(encodedLevels, expectedPrice);
         ICrystal.PriceLevel memory level = crystal.getPriceLevel(address(market), expectedPrice);
 

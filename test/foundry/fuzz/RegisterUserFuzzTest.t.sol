@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import { BaseFuzzTest } from "../BaseFuzzTest.t.sol";
 
 contract RegisterUserFuzzTest is BaseFuzzTest {
-    event UserRegistered(bool indexed isMargin, address indexed user, uint256 indexed userId);
+    event UserRegistered(address indexed user, uint256 indexed userId);
 
     function testFuzzRegisterUserAssignsNextUserIdToCaller(uint256 userSeed) public {
         address user = _boundFreshUser(userSeed);
@@ -26,7 +26,7 @@ contract RegisterUserFuzzTest is BaseFuzzTest {
         uint256 expectedUserId = crystal.latestUserId() + 1;
 
         vm.expectEmit(true, true, true, true, address(crystal));
-        emit UserRegistered(false, user, expectedUserId);
+        emit UserRegistered(user, expectedUserId);
 
         vm.prank(user);
         crystal.registerUser(user);
