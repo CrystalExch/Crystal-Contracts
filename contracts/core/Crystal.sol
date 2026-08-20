@@ -2234,13 +2234,12 @@ contract Crystal is ICrystal {
      * @param token Launchpad token address.
      */
     function unqueueCloseInactiveMarket(address token) external {
+        require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
         address market = getMarketByTokens[weth][token];
         if (market == address(0) || market == placeholder) {
-            require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
             delete pendingClosedMarkets[token];
         } else {
-            require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
-            delete pendingClosedMarkets[token];
+            delete pendingClosedMarkets[market];
         }
     }
 
