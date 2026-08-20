@@ -1360,7 +1360,7 @@ contract Crystal is ICrystal {
             (key, offset) = CS._getActivated((marketId << 128), maxTick / 255);
             CS._writeMapping(key, offset, CS.PRICELEVELS_KEY, (1 << (maxTick % 255)) | ((maxTick / 255) == 0 ? 1 : 0));
             (key, offset) = CS._getGroups((marketId << 128), (maxTick / 255) / 255);
-            CS._writeMapping(key, offset, CS.GROUPS_KEY, (1 << ((maxTick / 255) % 255)) | ((maxTick / 255) == 0 ? 1 : 0));
+            CS._writeMapping(key, offset, CS.GROUPS_KEY, (1 << ((maxTick / 255) % 255)) | (((maxTick / 255) / 255) == 0 ? 1 : 0));
             uint256 minSizeZeroes;
             uint256 _minSize = minSize;
             while (_minSize != 0 && _minSize % 10 == 0) {
@@ -1954,7 +1954,7 @@ contract Crystal is ICrystal {
         (key, offset) = CS._getActivated((marketId << 128), maxTick / 255);
         CS._writeMapping(key, offset, CS.PRICELEVELS_KEY, (1 << (maxTick % 255)) | ((maxTick / 255) == 0 ? 1 : 0));
         (key, offset) = CS._getGroups((marketId << 128), (maxTick / 255) / 255);
-        CS._writeMapping(key, offset, CS.GROUPS_KEY, (1 << ((maxTick / 255) % 255)) | ((maxTick / 255) == 0 ? 1 : 0));
+        CS._writeMapping(key, offset, CS.GROUPS_KEY, (1 << ((maxTick / 255) % 255)) | (((maxTick / 255) / 255) == 0 ? 1 : 0));
         allMarkets.push(market);
         marketIdToMarket[marketId] = market;
         getMarketByTokens[weth][token] = placeholder;
