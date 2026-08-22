@@ -1137,14 +1137,14 @@ contract CrystalMarket is ERC20 {
                                     feeAmount = (feeAmount + uint256(m.takerFee) - 1) / uint256(m.takerFee);
                                     limitSize -= feeAmount;
                                 } else {
-                                    limitSize = (((limitSize - amountOut) * limitPrice) / scaleFactor);
+                                    limitSize = ((((limitSize - _amountOut) * limitPrice) / scaleFactor) * uint256(m.makerRebate) + 99999) / 100000;
                                 }
                             } else {
                                 if (isExactInput) {
                                     limitSize -= amountIn;
                                 } else {
                                     uint256 _amountOut = amountOut; // Avoid stack too deep
-                                    limitSize = (((limitSize - _amountOut) * scaleFactor) / limitPrice) * uint256(m.takerFee) / 100000;
+                                    limitSize = ((((limitSize - _amountOut) * scaleFactor) / limitPrice) * uint256(m.makerRebate) + 99999) / 100000;
                                 }
                             }
                             uint256 _orderInfo = orderInfo; // Avoid stack too deep
