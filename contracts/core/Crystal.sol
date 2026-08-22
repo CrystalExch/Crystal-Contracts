@@ -2140,6 +2140,7 @@ contract Crystal is ICrystal {
             }
         }
         if (isExactInput ? inputAmount < amountIn : outputAmount < amountOut) { // Token is graduated, swap through orderbook
+            require(!graduated, ICrystal.SlippageExceeded());
             uint256 newInputAmount = isExactInput ? (amountIn - inputAmount) : (amountOut - outputAmount);
             bytes memory ret = abi.encodeWithSelector(CrystalMarket.getQuote.selector, true, isExactInput, true, newInputAmount, 0);
             bool result;
