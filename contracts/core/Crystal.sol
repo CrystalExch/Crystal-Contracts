@@ -2279,6 +2279,10 @@ contract Crystal is ICrystal {
             claimableRewards[m.quoteAsset][gov] += amountQuote;
             claimableRewards[m.baseAsset][gov] += amountBase;
             _getMarket[market].isAMMEnabled = true;
+            if (getMarketByTokens[weth][token] == market) {
+                getMarketByTokens[weth][token] = address(0);
+                getMarketByTokens[token][weth] = address(0);
+            }
         }
     }
 
