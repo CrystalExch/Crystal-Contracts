@@ -1937,7 +1937,7 @@ contract Crystal is ICrystal {
         allTokens.push(address(token));
         emit ICrystal.TokenCreated(address(token), msg.sender, name, symbol, metadataCID, description, social1, social2, social3, social4);
         uint256 marketId = allMarkets.length + 1;
-        require(marketId < MASK_KEEP_0_48, ICrystal.InvalidParams());
+        require(marketId < MASK_KEEP_0_48 && bytes(name).length != 0 && bytes(symbol).length != 0, ICrystal.InvalidParams());
         parameters = ICrystal.Parameters(weth, token, marketId, 3, 9, 1, GRADUATED_MAX_PRICE);
         uint256 maxTick;
         address market;
