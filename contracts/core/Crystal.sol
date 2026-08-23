@@ -523,7 +523,11 @@ contract Crystal is ICrystal {
      * @return lockedBalance Locked balance.
      */
     function getDepositedBalance(address user, address asset) external view returns (uint256 totalBalance, uint256 availableBalance, uint256 lockedBalance) {
-        uint256 tokenBalance = tokenBalances[addressToUserId[user]][asset];
+        uint256 userId = addressToUserId[user];
+        if (user != address(0) && userId == 0) {
+            return (0, 0, 0);
+        }
+        uint256 tokenBalance = tokenBalances[userId][asset];
         availableBalance = tokenBalance & MASK_KEEP_0_128;
         lockedBalance = tokenBalance >> 128;
         return (availableBalance + lockedBalance, availableBalance, lockedBalance);
