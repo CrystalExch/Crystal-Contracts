@@ -731,7 +731,7 @@ contract Crystal is ICrystal {
         if (options != 0) {
             _delegateToMarket(market, CrystalMarket.addLiquidity.selector, 160, address(uint160(options)));
         } else {
-            _delegateToMarket(market, CrystalMarket.addLiquidity.selector, 192, address(0));
+            _delegateToMarket(market, CrystalMarket.addLiquidity.selector, 160, address(0));
         }
         assembly {
             liquidity := mload(0x80)
@@ -760,7 +760,7 @@ contract Crystal is ICrystal {
      * @return amountBase Base asset returned.
      */
     function removeLiquidity(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin) external nonReentrant returns (uint256 amountQuote, uint256 amountBase) {
-        _delegateToMarket(market, CrystalMarket.removeLiquidity.selector, 160, address(0));
+        _delegateToMarket(market, CrystalMarket.removeLiquidity.selector, 128, address(0));
         assembly {
             amountQuote := mload(0x80)
             amountBase := mload(0xa0)
