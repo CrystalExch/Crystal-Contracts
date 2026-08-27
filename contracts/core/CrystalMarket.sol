@@ -1199,6 +1199,7 @@ contract CrystalMarket is ERC20 {
                             if (((_orderInfo >> 240) & 0xF) == 1) {
                                 continue;
                             } else { // Cancel taker order (STP mode 2 or 3)
+                                require((_orderInfo >> 252) != 1, ICrystal.SlippageExceeded());
                                 sizeLeft = 0;
                                 break;
                             }
@@ -2378,7 +2379,17 @@ contract CrystalMarket is ERC20 {
                         require(!isBuy, ICrystal.ActionFailed());
                     }
                 } else if (action > 3 && action < 12) { // Action codes: 4=MTL buy, 5=MTL sell, 6=partial buy, 7=partial sell, 8=partial buy (gas-aware), 9=partial sell (gas-aware), 10=complete buy, 11=complete sell
-                    uint256 settlementDelta = (uint256((action < 6) ? 2 : (action < 8) ? 0 : (action < 10) ? 3 : 1) << 252) | (((action & 1) != 0) ? (1 << 244) : 0); // Avoid stack too deep
+                    uint256 settlementDelta;
+                    {
+                        uint256 stp;
+                        assembly {
+                            stp := and(0x3, shr(248, calldataload(offset))) // Extract STP mode from bits 7-8
+                        }
+                        if (stp == 0) {
+                            stp = 1; // STP mode of 0 is invalid in the fallback, default to 1
+                        }
+                        settlementDelta = (uint256((action < 6) ? 2 : (action < 8) ? 0 : (action < 10) ? 3 : 1) << 252) | (((action & 1) != 0) ? (1 << 244) : 0) | (stp << 240) | (balanceMode << 236); // Avoid stack too deep
+                    }
                     (, param1, , settlementDelta) = _marketOrder(param2, param1, settlementDelta | (1 << 240) | (balanceMode << 236) | (cloid << 208) | (userId << 160) | uint160(msg.sender));
                     if (action & 1 != 0) { // Sell order settlement
                         baseAssetDebt += int256(settlementDelta >> 128);
