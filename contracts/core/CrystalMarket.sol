@@ -1484,7 +1484,7 @@ contract CrystalMarket is ERC20 {
                         return (0, 0);
                     }
                     if (m.isAMMEnabled && m.reserveQuote != 0) {
-                        uint256 adjustedAMMPrice = ((uint256(m.reserveQuote) * scaleFactor * 10000 * uint256(m.makerRebate) + (uint256(m.reserveBase) * 9975 * 100000 - 1)) / (uint256(m.reserveBase) * 9975 * 100000));
+                        uint256 adjustedAMMPrice = ((uint256(m.reserveQuote) * scaleFactor * 10000 * 100000 + (uint256(m.reserveBase) * 9975 * uint256(m.makerRebate) - 1)) / (uint256(m.reserveBase) * 9975 * uint256(m.makerRebate)));
                         if (price > adjustedAMMPrice) {
                             return (0, 0);
                         }
@@ -1502,7 +1502,7 @@ contract CrystalMarket is ERC20 {
                         return (0, 0);
                     }
                     if (m.isAMMEnabled && m.reserveQuote != 0) {
-                        uint256 adjustedAMMPrice = ((uint256(m.reserveQuote) * scaleFactor * 9975 * 100000) / (uint256(m.reserveBase) * 10000 * uint256(m.makerRebate)));
+                        uint256 adjustedAMMPrice = ((uint256(m.reserveQuote) * scaleFactor * 9975 * uint256(m.makerRebate)) / (uint256(m.reserveBase) * 10000 * 100000));
                         if (price < adjustedAMMPrice) {
                             return (0, 0);
                         }
@@ -2210,15 +2210,10 @@ contract CrystalMarket is ERC20 {
         (uint256 reserveQuote, uint256 reserveBase) = (m.reserveQuote, m.reserveBase);
         uint256 amountQuote;
         uint256 amountBase;
-        uint256 _totalSupply = IERC20(market).totalSupply();
-        if (_totalSupply == 0) {
+        uint256 totalSupply = IERC20(market).totalSupply();
+        if (totalSupply == 0) {
             amountQuote = amountQuoteDesired;
             amountBase = amountBaseDesired;
-            liquidity = CM._sqrt(amountQuote * (amountBase)) - 100000;
-            IERC20(market).mint(address(0), 100000);
-            uint256 ammAsk = ((amountQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (amountBase * 9975 * 100000 - 1)) / (amountBase * 9975 * 100000));
-            uint256 ammBid = ((amountQuote * scaleFactor * 9975 * 100000) / (amountBase * 10000 * uint256(m.makerRebate)));
-            require(m.highestBid <= ammAsk && m.lowestAsk >= ammBid, ICrystal.SlippageExceeded());
         } else {
             uint256 amountBaseOptimal = (amountQuoteDesired * reserveBase) / reserveQuote;
             if (amountBaseOptimal <= amountBaseDesired) {
@@ -2229,13 +2224,38 @@ contract CrystalMarket is ERC20 {
                 amountQuote = amountQuoteOptimal;
                 amountBase = amountBaseDesired;
             }
-            uint256 liquidityIfQuote = (amountQuote * _totalSupply) / reserveQuote;
-            uint256 liquidityIfBase = (amountBase * _totalSupply) / reserveBase;
-            liquidity = CM._min(liquidityIfQuote, liquidityIfBase);
         }
         reserveQuote += amountQuote;
         reserveBase += amountBase;
-        require(liquidity != 0 && amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && reserveQuote <= MASK_KEEP_0_112 && reserveBase <= MASK_KEEP_0_112 && m.isAMMEnabled == true, ICrystal.SlippageExceeded());
+        require(reserveQuote != 0 && reserveBase != 0 && m.isAMMEnabled == true, ICrystal.SlippageExceeded());
+        {
+            uint256 ammAsk = ((reserveQuote * scaleFactor * 10000 * 100000 + (reserveBase * 9975 * uint256(m.makerRebate) - 1)) / (reserveBase * 9975 * uint256(m.makerRebate)));
+            uint256 ammBid = ((reserveQuote * scaleFactor * 9975 * uint256(m.makerRebate)) / (reserveBase * 10000 * 100000));
+            if (m.highestBid > ammAsk) {
+                uint256 newReserveBase = (reserveQuote * scaleFactor * 10000 * 100000 - 1) / ((uint256(m.highestBid) - 1) * 9975 * uint256(m.makerRebate));
+                ammBid = ((reserveQuote * scaleFactor * 9975 * uint256(m.makerRebate)) / (newReserveBase * 10000 * 100000));
+                require(reserveBase - newReserveBase <= amountBase && m.lowestAsk >= ammBid, ICrystal.SlippageExceeded());
+                amountBase -= (reserveBase - newReserveBase);
+                reserveBase = newReserveBase;
+            } else if (m.lowestAsk < ammBid) {
+                uint256 newReserveQuote = ((uint256(m.lowestAsk) + 1) * reserveBase * 10000 * 100000 - 1) / (scaleFactor * 9975 * uint256(m.makerRebate));
+                ammAsk = ((newReserveQuote * scaleFactor * 10000 * 100000 + (reserveBase * 9975 * uint256(m.makerRebate) - 1)) / (reserveBase * 9975 * uint256(m.makerRebate)));
+                require(reserveQuote - newReserveQuote <= amountQuote && m.highestBid <= ammAsk, ICrystal.SlippageExceeded());
+                amountQuote -= (reserveQuote - newReserveQuote);
+                reserveQuote = newReserveQuote;
+            }
+        }
+        if (totalSupply == 0) {
+            liquidity = CM._sqrt(amountQuote * (amountBase)) - 1000;
+            IERC20(market).mint(address(0), 1000);
+        } else {
+            uint256 liquidityIfQuote = (amountQuote * totalSupply) / (reserveQuote - amountQuote);
+            uint256 liquidityIfBase = (amountBase * totalSupply) / (reserveBase - amountBase);
+            liquidity = CM._min(liquidityIfQuote, liquidityIfBase);
+        }
+        require(liquidity != 0 && amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && reserveQuote <= MASK_KEEP_0_112 && reserveBase <= MASK_KEEP_0_112, ICrystal.SlippageExceeded());
+        (m.reserveQuote, m.reserveBase) = (uint112(reserveQuote), uint112(reserveBase));
+        IERC20(market).mint(to, liquidity);
         if ((options & 1) == 0) {
             IERC20(quoteAsset).transferFrom(msg.sender, address(this), amountQuote);
         } else {
@@ -2246,8 +2266,6 @@ contract CrystalMarket is ERC20 {
         } else {
             tokenBalances[0][baseAsset] -= amountBase;
         }
-        IERC20(market).mint(to, liquidity);
-        (m.reserveQuote, m.reserveBase) = (uint112(reserveQuote), uint112(reserveBase));
         emit ICrystal.Sync(market, uint112(reserveQuote), uint112(reserveBase));
         emit ICrystal.Mint(market, msg.sender, amountQuote, amountBase);
     }
@@ -2268,26 +2286,26 @@ contract CrystalMarket is ERC20 {
      */
     function removeLiquidity(address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin, uint256 options) external payable returns (uint256 amountQuote, uint256 amountBase) {
         ICrystal.Market storage m = _getMarket[market];
-        uint256 _totalSupply = IERC20(market).totalSupply();
+        uint256 totalSupply = IERC20(market).totalSupply();
         (uint256 reserveQuote, uint256 reserveBase) = (m.reserveQuote, m.reserveBase);
         IERC20(market).transferFrom(msg.sender, address(this), liquidity);
         IERC20(market).burn(address(this), liquidity);
-        amountQuote = (liquidity * reserveQuote) / _totalSupply;
-        amountBase = (liquidity * reserveBase) / _totalSupply;
+        amountQuote = (liquidity * reserveQuote) / totalSupply;
+        amountBase = (liquidity * reserveBase) / totalSupply;
         reserveQuote -= uint112(amountQuote);
         reserveBase -= uint112(amountBase);
         if (m.isAMMEnabled) {
-            uint256 ammAsk = ((reserveQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000));
-            uint256 ammBid = ((reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * uint256(m.makerRebate)));
+            uint256 ammAsk = ((reserveQuote * scaleFactor * 10000 * 100000 + (reserveBase * 9975 * uint256(m.makerRebate) - 1)) / (reserveBase * 9975 * uint256(m.makerRebate)));
+            uint256 ammBid = ((reserveQuote * scaleFactor * 9975 * uint256(m.makerRebate)) / (reserveBase * 10000 * 100000));
             if (m.highestBid > ammAsk) {
-                uint256 newReserveQuote = (((uint256(m.highestBid) - 1) * reserveBase * 9975 * 100000) / (scaleFactor * 10000 * uint256(m.makerRebate))) + 1;
-                ammBid = ((newReserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * uint256(m.makerRebate)));
+                uint256 newReserveQuote = (((uint256(m.highestBid) - 1) * reserveBase * 9975 * uint256(m.makerRebate)) / (scaleFactor * 10000 * 100000)) + 1;
+                ammBid = ((newReserveQuote * scaleFactor * 9975 * uint256(m.makerRebate)) / (reserveBase * 10000 * 100000));
                 require(newReserveQuote - reserveQuote <= amountQuote && m.lowestAsk >= ammBid, ICrystal.SlippageExceeded());
                 amountQuote -= (newReserveQuote - reserveQuote);
                 reserveQuote = newReserveQuote;
             } else if (m.lowestAsk < ammBid) {
-                uint256 newReserveBase = ((reserveQuote * scaleFactor * 9975 * 100000) / ((uint256(m.lowestAsk) + 1) * 10000 * uint256(m.makerRebate))) + 1;
-                ammAsk = ((reserveQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (newReserveBase * 9975 * 100000 - 1)) / (newReserveBase * 9975 * 100000));
+                uint256 newReserveBase = ((reserveQuote * scaleFactor * 9975 * uint256(m.makerRebate)) / ((uint256(m.lowestAsk) + 1) * 10000 * 100000)) + 1;
+                ammAsk = ((reserveQuote * scaleFactor * 10000 * 100000 + (newReserveBase * 9975 * uint256(m.makerRebate) - 1)) / (newReserveBase * 9975 * uint256(m.makerRebate)));
                 require(newReserveBase - reserveBase <= amountBase && m.highestBid <= ammAsk, ICrystal.SlippageExceeded());
                 amountBase -= (newReserveBase - reserveBase);
                 reserveBase = newReserveBase;
