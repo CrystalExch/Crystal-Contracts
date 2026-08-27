@@ -1818,7 +1818,8 @@ contract CrystalMarket is ERC20 {
                     }
                 } else { // Place market-to-limit order
                     bool useExternalBalances = ((options >> 60) & 1) == 0; // Reuse variable: true indicates external balance mode
-                    uint256 orderInfo = (2 << 252) | (isBuy ? 0 : (1 << 244)) | (1 << 240) | (useExternalBalances ? 0 : (1 << 236)) | (id << 208) | (userId << 160) | (options >> 96);
+                    bool fromInternal = ((options >> 56) & 1) == 0;
+                    uint256 orderInfo = (2 << 252) | (isBuy ? 0 : (1 << 244)) | (1 << 240) | (useExternalBalances ? 0 : (1 << 236)) | (fromInternal ? 0 : (1 << 232)) | (id << 208) | (userId << 160) | (options >> 96);
                     uint256 settlementDelta;
                     (, prevSize, newId, settlementDelta) = _marketOrder(newSize, newPrice, orderInfo);
                     if (isBuy) {
@@ -2124,8 +2125,8 @@ contract CrystalMarket is ERC20 {
                         require(!actions[offset].isRequireSuccess, ICrystal.ActionFailed());
                     }
                 } else if (action > 3 && action < 12) { // Action codes: 4=MTL buy, 5=MTL sell, 6=partial buy, 7=partial sell, 8=partial buy (gas-aware), 9=partial sell (gas-aware), 10=complete buy, 11=complete sell
-                    uint256 settlementDelta = (uint256((action < 6) ? 2 : (action < 8) ? 0 : (action < 10) ? 3 : 1) << 252) | ((action & 1 != 0) ? (1 << 244) : 0); // Encode order type and direction flags
-                    (, param1, , settlementDelta) = _marketOrder(param2, param1, settlementDelta | (1 << 240) | (balanceMode << 236) | (cloid << 208) | (userId << 160) | uint160(user));
+                    uint256 settlementDelta = (uint256((action < 6) ? 2 : (action < 8) ? 0 : (action < 10) ? 3 : 1) << 252) | ((action & 1 != 0) ? (1 << 244) : 0) | (1 << 240) | (balanceMode << 236) | (((options >> 48) & 1) << 232); // Avoid stack too deep
+                    (, param1, , settlementDelta) = _marketOrder(param2, param1, settlementDelta | (cloid << 208) | (userId << 160) | uint160(user)); // Market orders through the batch order endpoint are always exact input
                     if (action & 1 != 0) {
                         baseAssetDebt += int256(settlementDelta >> 128);
                         quoteAssetDebt -= int256(param1 + (settlementDelta & MASK_KEEP_0_128)); // Safe: value bounded by uint128 intrinsic limit
