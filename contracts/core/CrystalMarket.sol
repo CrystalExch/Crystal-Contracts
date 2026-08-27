@@ -710,12 +710,12 @@ contract CrystalMarket is ERC20 {
             (uint256 reserveQuote, uint256 reserveBase) = m.isAMMEnabled ? (m.reserveQuote, m.reserveBase) : (0, 0);
             if (reserveQuote != 0) {
                 uint256 ammPrice = ((reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * uint256(m.makerRebate)));
-                ammPrice = marketType == 0 ? ((ammPrice + tickSize - 1) / tickSize) * tickSize : CM._toValidPrice(ammPrice, true); // Compute adjusted AMM bid price
+                ammPrice = marketType == 0 ? ((ammPrice + tickSize - 1) / tickSize) * tickSize : CM._toValidPrice(ammPrice, tickSize, true); // Compute adjusted AMM bid price
                 if (highestBid < ammPrice) {
                     highestBid = ammPrice;
                 }
                 ammPrice = ((reserveQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000));
-                ammPrice = marketType == 0 ? (ammPrice - (ammPrice % tickSize)) : CM._toValidPrice(ammPrice, false); // Compute adjusted AMM ask price
+                ammPrice = marketType == 0 ? (ammPrice - (ammPrice % tickSize)) : CM._toValidPrice(ammPrice, tickSize, false); // Compute adjusted AMM ask price
                 if (lowestAsk > ammPrice) {
                     lowestAsk = ammPrice;
                 }
@@ -730,7 +730,7 @@ contract CrystalMarket is ERC20 {
             }
             if (count == 2) {
                 uint256 mid = (price + 1) >> 1;
-                price = marketType == 0 ? (mid - (mid % tickSize)) : CM._toValidPrice(mid, false);
+                price = marketType == 0 ? (mid - (mid % tickSize)) : CM._toValidPrice(mid, tickSize, false);
             }
         }
     }
@@ -1015,7 +1015,7 @@ contract CrystalMarket is ERC20 {
                                     } else if (endPrice <= tickSize) {
                                         endPrice = tickSize;
                                     } else {
-                                        endPrice = marketType == 0 ? (endPrice - (endPrice % tickSize)) : CM._toValidPrice(endPrice, false); // Round down to valid price
+                                        endPrice = marketType == 0 ? (endPrice - (endPrice % tickSize)) : CM._toValidPrice(endPrice, tickSize, false); // Round down to valid price
                                     }
                                     if (eventPrice == 0) {
                                         uint256 startPrice = (((reserveQuote - ammAmountIn) * scaleFactor * 10000 * makerRebate + ((reserveBase + ammAmountOut) * 9975 * 100000 - 1)) / ((reserveBase + ammAmountOut) * 9975 * 100000));
@@ -1024,7 +1024,7 @@ contract CrystalMarket is ERC20 {
                                         } else if (startPrice <= tickSize) {
                                             startPrice = tickSize;
                                         } else {
-                                            startPrice = marketType == 0 ? (startPrice - (startPrice % tickSize)) : CM._toValidPrice(startPrice, false); // Round down to valid price
+                                            startPrice = marketType == 0 ? (startPrice - (startPrice % tickSize)) : CM._toValidPrice(startPrice, tickSize, false); // Round down to valid price
                                         }
                                         eventPrice = (startPrice << 128) | endPrice; // Initialize start price using pre-swap reserves
                                     } else {
@@ -1059,7 +1059,7 @@ contract CrystalMarket is ERC20 {
                                     } else if (endPrice <= tickSize) {
                                         endPrice = tickSize;
                                     } else {
-                                        endPrice = marketType == 0 ? ((endPrice + tickSize - 1) / tickSize) * tickSize : CM._toValidPrice(endPrice, true); // Round up to valid price
+                                        endPrice = marketType == 0 ? ((endPrice + tickSize - 1) / tickSize) * tickSize : CM._toValidPrice(endPrice, tickSize, true); // Round up to valid price
                                     }
                                     if (eventPrice == 0) {
                                         uint256 startPrice = ((reserveQuote + ammAmountOut) * scaleFactor * 9975 * 100000) / ((reserveBase - ammAmountIn) * 10000 * makerRebate);
@@ -1068,7 +1068,7 @@ contract CrystalMarket is ERC20 {
                                         } else if (startPrice <= tickSize) {
                                             startPrice = tickSize;
                                         } else {
-                                            startPrice = marketType == 0 ? ((startPrice + tickSize - 1) / tickSize) * tickSize : CM._toValidPrice(startPrice, true); // Round up to valid price
+                                            startPrice = marketType == 0 ? ((startPrice + tickSize - 1) / tickSize) * tickSize : CM._toValidPrice(startPrice, tickSize, true); // Round up to valid price
                                         }
                                         eventPrice = (startPrice << 128) | endPrice;
                                     } else {

@@ -112,14 +112,16 @@ library CrystalMath {
      * @notice Snaps a price to the nearest valid price on the grid.
      *
      * @param p Raw price.
+     * @param tickSize THe market's tick size.
      * @param roundUp Whether to round up or down.
      *
      * @return The price adjusted to fit the valid grid.
      */
-    function _toValidPrice(uint256 p, bool roundUp) internal pure returns (uint256) {
+    function _toValidPrice(uint256 p, uint256 tickSize, bool roundUp) internal pure returns (uint256) {
         unchecked {
+            p = roundUp ? (p + tickSize - 1) / tickSize : p / tickSize;
             uint256 d;
-            if (p <= 100_000) return p;
+            if (p <= 100_000) return p * tickSize;
             else if (p < 1_000_000) d = 10;
             else if (p < 10_000_000) d = 100;
             else if (p < 100_000_000) d = 1_000;
@@ -131,7 +133,7 @@ library CrystalMath {
             else if (p < 100_000_000_000_000) d = 1_000_000_000;
             else if (p <= 1_000_000_000_000_000) d = 10_000_000_000;
             else revert();
-            return roundUp ? ((p + d - 1) / d) * d : (p / d) * d;
+            return (roundUp ? (p + d - 1) / d : p / d) * d * tickSize;
         }
     }
 
