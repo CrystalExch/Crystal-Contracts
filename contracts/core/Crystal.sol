@@ -1277,8 +1277,9 @@ contract Crystal is ICrystal {
         for (uint256 i = 0; i < tokens.length; ++i) {
             address token = tokens[i];
             assembly {
-                mstore(0x00, token)
-                let slot := keccak256(0x00, 0x20)
+                mstore(0x00, user)
+                mstore(0x20, token)
+                let slot := keccak256(0x00, 0x40)
                 if tload(slot) { revert(0,0) }
                 tstore(slot, 1)
             }
