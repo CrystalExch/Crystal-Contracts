@@ -161,6 +161,7 @@ contract CrystalVaultFactory {
      * @param newLockup New maximum lockup duration.
      */
     function changeMaxLockup(uint40 newLockup) external onlyOwner {
+        require(newLockup <= 86400 * 30, ICrystal.InvalidParams());
         maxLockup = newLockup;
     }
 

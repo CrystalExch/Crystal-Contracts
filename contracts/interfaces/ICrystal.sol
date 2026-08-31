@@ -133,10 +133,11 @@ interface ICrystal {
         uint256[] amounts;
     }
 
-    event MarketCreated(bool indexed isCanonical, address indexed quoteAsset, address indexed baseAsset, address market, ICrystal.TokenMetadata quoteInfo, ICrystal.TokenMetadata baseInfo, ICrystal.MarketDetails marketInfo);
-    event MarketParamsChanged(address indexed market, uint256 minSize, uint24 takerFee, uint24 makerRebate, bool isAMMEnabled);
+    event MarketCreated(bool indexed isCanonical, address indexed quoteAsset, address indexed baseAsset, address market, address creator, ICrystal.TokenMetadata quoteInfo, ICrystal.TokenMetadata baseInfo, ICrystal.MarketDetails marketInfo);
+    event MarketParamsChanged(address indexed market, address creator, uint256 minSize, uint24 takerFee, uint24 makerRebate, uint8 creatorFee, bool isAMMEnabled, bool isCanonical);
+    event LaunchpadParamsChanged(uint112 launchpadInitialNativeSupply, uint256 launchpadFee, uint256 launchpadCreatorFeeSplit, uint256 graduatedMinSize, uint256 graduatedTakerFee, uint256 graduatedMakerRebate, uint256 graduatedCreatorFeeSplit);
     event GovChanged(address prev, address gov);
-    event UserRegistered(bool indexed isMargin, address indexed user, uint256 indexed userId);
+    event UserRegistered(address indexed user, uint256 indexed userId);
     event Deposit(address indexed user, uint256 indexed userId, address indexed token, uint256 amount);
     event Withdraw(address indexed user, uint256 indexed userId, address indexed token, uint256 amount);
     event RewardsClaimed(address indexed user, address[] tokens, uint256[] amounts);
@@ -144,7 +145,6 @@ interface ICrystal {
     event OrdersUpdated(address indexed market, address indexed user, bytes orderData);
     event Fill(address indexed market, address indexed user, uint256 fillInfo, uint256 fillAmount);
     event TokenCreated(address indexed token, address indexed creator, string name, string symbol, string metadataCID, string description, string social1, string social2, string social3, string social4);
-    event Migrated(address indexed token);
     event LaunchpadTrade(address indexed token, address indexed user, bool isBuy, uint256 amountIn, uint256 amountOut, uint256 virtualNativeReserve, uint256 virtualTokenReserve);
     event Mint(address indexed market, address indexed sender, uint amountQuote, uint amountBase);
     event Burn(address indexed market, address indexed sender, uint amountQuote, uint amountBase, address indexed to);

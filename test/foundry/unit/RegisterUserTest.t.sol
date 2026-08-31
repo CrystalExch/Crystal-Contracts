@@ -4,7 +4,7 @@ pragma solidity ^0.8.28;
 import { BaseTest } from "../BaseTest.t.sol";
 
 contract RegisterUserTest is BaseTest {
-    event UserRegistered(bool indexed isMargin, address indexed user, uint256 indexed userId);
+    event UserRegistered(address indexed user, uint256 indexed userId);
 
     function testRegisterUserAssignsNextUserIdToCaller() public {
         uint256 previousLatestUserId = crystal.latestUserId();
@@ -22,7 +22,7 @@ contract RegisterUserTest is BaseTest {
         uint256 expectedUserId = crystal.latestUserId() + 1;
 
         vm.expectEmit(true, true, true, true, address(crystal));
-        emit UserRegistered(false, carol, expectedUserId);
+        emit UserRegistered(carol, expectedUserId);
 
         vm.prank(carol);
         crystal.registerUser(carol);

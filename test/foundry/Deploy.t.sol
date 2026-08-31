@@ -5,7 +5,7 @@ import { Crystal } from "../../contracts/core/Crystal.sol";
 import { CrystalMarket } from "../../contracts/core/CrystalMarket.sol";
 import { ICrystal } from "../../contracts/interfaces/ICrystal.sol";
 import { TestToken } from "../../contracts/mocks/TestToken.sol";
-import { WETH } from "../../contracts/mocks/WETH.sol";
+import { WETH } from "../../contracts/mocks/TestToken.sol";
 import { CrystalDeploymentConfig } from "./scripts/CrystalDeploymentConfig.sol";
 import { DeployCrystalScript } from "./scripts/DeployCrystal.s.sol";
 import { DeployTestTokenScript } from "./scripts/DeployTestToken.s.sol";

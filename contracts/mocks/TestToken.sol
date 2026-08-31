@@ -1,109 +1,165 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.28;
 
-contract TestToken {
-    string private _name;
-    string private _symbol;
+import {ERC20} from "../libraries/ERC20.sol";
+
+contract TestToken is ERC20 {
     uint8 private immutable _decimals;
-    uint  public totalSupply;
-    mapping(address => uint) public balanceOf;
-    mapping(address => mapping(address => uint)) public allowance;
 
-    bytes32 public DOMAIN_SEPARATOR;
-    // keccak256("Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)");
-    bytes32 public constant PERMIT_TYPEHASH = 0x6e71edae12b1b97f4d1f60370fef10105fa2faae0126114a169c64845d6126c9;
-    mapping(address => uint) public nonces;
-
-    event Approval(address indexed owner, address indexed spender, uint value);
-    event Transfer(address indexed from, address indexed to, uint value);
-
-    constructor(string memory name_, string memory symbol_, uint8 decimals_) {
-        _name = name_;
-        _symbol = symbol_;
+    constructor(string memory name_, string memory symbol_, uint8 decimals_) ERC20(name_, symbol_) {
         _decimals = decimals_;
-        uint chainId;
-        assembly {
-            chainId := chainid()
-        }
-        DOMAIN_SEPARATOR = keccak256(
-            abi.encode(
-                keccak256('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)'),
-                keccak256(bytes(name_)),
-                keccak256(bytes('1')),
-                chainId,
-                address(this)
-            )
-        );
     }
 
-    function name() public view virtual returns (string memory) {
-        return _name;
-    }
-
-    function symbol() public view virtual returns (string memory) {
-        return _symbol;
-    }
-
-    function decimals() public view virtual returns (uint8) {
+    function decimals() public view override returns (uint8) {
         return _decimals;
-    }
-
-    function _mint(address to, uint value) internal {
-        totalSupply += value;
-        balanceOf[to] += value;
-        emit Transfer(address(0), to, value);
-    }
-
-    function _burn(address from, uint value) internal {
-        balanceOf[from] -= value;
-        totalSupply -= value;
-        emit Transfer(from, address(0), value);
-    }
-
-    function _approve(address owner, address spender, uint value) private {
-        allowance[owner][spender] = value;
-        emit Approval(owner, spender, value);
-    }
-
-    function _transfer(address from, address to, uint value) private {
-        balanceOf[from] -= value;
-        balanceOf[to] += value;
-        emit Transfer(from, to, value);
-    }
-
-    function approve(address spender, uint value) external returns (bool) {
-        _approve(msg.sender, spender, value);
-        return true;
-    }
-
-    function transfer(address to, uint value) external returns (bool) {
-        _transfer(msg.sender, to, value);
-        return true;
-    }
-
-    function transferFrom(address from, address to, uint value) external returns (bool) {
-        if (allowance[from][msg.sender] != type(uint256).max) {
-            allowance[from][msg.sender] -= value;
-        }
-        _transfer(from, to, value);
-        return true;
-    }
-
-    function permit(address owner, address spender, uint value, uint deadline, uint8 v, bytes32 r, bytes32 s) external {
-        require(deadline >= block.timestamp, 'UniswapV2: EXPIRED');
-        bytes32 digest = keccak256(
-            abi.encodePacked(
-                '\x19\x01',
-                DOMAIN_SEPARATOR,
-                keccak256(abi.encode(PERMIT_TYPEHASH, owner, spender, value, nonces[owner]++, deadline))
-            )
-        );
-        address recoveredAddress = ecrecover(digest, v, r, s);
-        require(recoveredAddress != address(0) && recoveredAddress == owner, 'UniswapV2: INVALID_SIGNATURE');
-        _approve(owner, spender, value);
     }
 
     function mint(address to, uint256 amount) external {
         _mint(to, amount);
+    }
+}
+
+contract WETH is ERC20 {
+    event Deposit(address indexed dst, uint256 wad);
+    event Withdrawal(address indexed src, uint256 wad);
+
+    constructor() ERC20("Wrapped Ethereum", "WETH") {}
+
+    fallback() external payable {
+        deposit();
+    }
+
+    receive() external payable {
+        deposit();
+    }
+
+    function deposit() public payable {
+        _mint(msg.sender, msg.value);
+        emit Deposit(msg.sender, msg.value);
+    }
+
+    function withdraw(uint256 wad) public {
+        _burn(msg.sender, wad);
+        payable(msg.sender).transfer(wad);
+        emit Withdrawal(msg.sender, wad);
+    }
+}
+
+/// @notice Mock ERC20 token that can be configured to fail transfers.
+/// @dev Used for testing transfer failure handling paths in CrystalMarket.
+contract FailingToken is ERC20 {
+    bool public failAllTransfers;
+    bool public failAllTransferFroms;
+    mapping(address => bool) public blacklisted;
+    mapping(address => bool) public failTransferTo;
+    mapping(address => bool) public failTransferFromAddr;
+
+    bool public revertAllTransfers;
+    bool public revertAllTransferFroms;
+    mapping(address => bool) public revertTransferTo;
+    mapping(address => bool) public revertTransferFromAddr;
+
+    constructor(string memory _name, string memory _symbol) ERC20(_name, _symbol) {}
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
+
+    function burn(address from, uint256 amount) external {
+        _burn(from, amount);
+    }
+
+    function setFailAllTransfers(bool fail) external {
+        failAllTransfers = fail;
+    }
+
+    function setFailAllTransferFroms(bool fail) external {
+        failAllTransferFroms = fail;
+    }
+
+    function setBlacklisted(address account, bool status) external {
+        blacklisted[account] = status;
+    }
+
+    function setFailTransferTo(address account, bool fail) external {
+        failTransferTo[account] = fail;
+    }
+
+    function setFailTransferFromAddr(address account, bool fail) external {
+        failTransferFromAddr[account] = fail;
+    }
+
+    function setRevertAllTransfers(bool fail) external {
+        revertAllTransfers = fail;
+    }
+
+    function setRevertAllTransferFroms(bool fail) external {
+        revertAllTransferFroms = fail;
+    }
+
+    function setRevertTransferTo(address account, bool fail) external {
+        revertTransferTo[account] = fail;
+    }
+
+    function setRevertTransferFromAddr(address account, bool fail) external {
+        revertTransferFromAddr[account] = fail;
+    }
+
+    function transfer(address to, uint256 amount) external override returns (bool) {
+        if (revertAllTransfers) {
+            revert("FailingToken: transfer reverted");
+        }
+        if (revertTransferTo[to]) {
+            revert("FailingToken: transfer to reverted");
+        }
+        if (revertTransferFromAddr[msg.sender]) {
+            revert("FailingToken: transfer from reverted");
+        }
+
+        if (failAllTransfers) {
+            return false;
+        }
+        if (blacklisted[msg.sender] || blacklisted[to]) {
+            return false;
+        }
+        if (failTransferTo[to]) {
+            return false;
+        }
+        if (failTransferFromAddr[msg.sender]) {
+            return false;
+        }
+
+        _transfer(msg.sender, to, amount);
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external override returns (bool) {
+        if (revertAllTransferFroms) {
+            revert("FailingToken: transferFrom reverted");
+        }
+        if (revertTransferTo[to]) {
+            revert("FailingToken: transferFrom to reverted");
+        }
+        if (revertTransferFromAddr[from]) {
+            revert("FailingToken: transferFrom from reverted");
+        }
+
+        if (failAllTransferFroms) {
+            return false;
+        }
+        if (blacklisted[from] || blacklisted[to]) {
+            return false;
+        }
+        if (failTransferTo[to]) {
+            return false;
+        }
+        if (failTransferFromAddr[from]) {
+            return false;
+        }
+        if (allowance[from][msg.sender] != type(uint256).max) {
+            allowance[from][msg.sender] -= amount;
+        }
+        _transfer(from, to, amount);
+        return true;
     }
 }

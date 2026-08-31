@@ -29,7 +29,7 @@ import {CrystalMath} from "../libraries/CrystalMath.sol";
  * - A vault can be in three states: open, locked, and closed.
  */
 contract CrystalVault is ERC20 {
-    /// @notice Timestamp of the user's last deposit, used to enforce lockup.
+    /// @notice Timestamp after which a user may withdraw their deposit.
     mapping(address => uint256) public unlockTimestamp;
 
     /// @notice Maximum total shares allowed (0 = uncapped).
@@ -357,21 +357,21 @@ contract CrystalVault is ERC20 {
                 require(balanceOf[owner] * 20 > totalSupply, ICrystalVault.InvalidOwnerShare());
             }
         }
-        if (decrease) { // Round with cumulative ceiling rounding
+        if (decrease) {
             (uint256[] memory cloids, ICrystal.Order[] memory orders) = ICrystal(crystal).getAllOrdersByCloid(address(this), orderCap);
             bytes32[] memory data = new bytes32[](cloids.length + 1);
-            data[0] = bytes32((1 << 252) | (cloids.length << 160) | uint160(market));
             uint256 quote;
             uint256 base;
-            for (uint256 i; i < cloids.length; ++i) {
+            for (uint256 i; i < cloids.length; ++i) { // Round decrease amount with cumulative ceiling rounding
                 if (orders[i].isBuy) {
-                    data[i + 1] = bytes32((uint256(12) << 252) | ((cloids[i] & 0x3FF) << 192) | ((((quote + orders[i].size) * amountQuote + quoteBalance - 1) / quoteBalance) - ((quote * amountQuote + quoteBalance - 1) / quoteBalance) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
+                    data[i + 1] = bytes32((uint256(12) << 252) | ((cloids[i] & 0x3FF) << 192) | ((((quote + orders[i].size) * amountQuote + quoteBalance - 1) / quoteBalance) - ((quote * amountQuote + quoteBalance - 1) / quoteBalance)));
                     quote += orders[i].size;
                 } else {
-                    data[i + 1] = bytes32((uint256(12) << 252) | ((cloids[i] & 0x3FF) << 192) | ((((base + orders[i].size) * amountBase + baseBalance - 1) / baseBalance) - ((base * amountBase + baseBalance - 1) / baseBalance) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
+                    data[i + 1] = bytes32((uint256(12) << 252) | ((cloids[i] & 0x3FF) << 192) | ((((base + orders[i].size) * amountBase + baseBalance - 1) / baseBalance) - ((base * amountBase + baseBalance - 1) / baseBalance)));
                     base += orders[i].size;
                 }
             }
+            data[0] = bytes32((1 << 252) | (cloids.length << 160) | uint160(market));
             (bool success, bytes memory returnData) = crystal.call(abi.encodePacked(data));
             if (!success) {
                 assembly {
@@ -381,20 +381,20 @@ contract CrystalVault is ERC20 {
         } else if (amountQuote > availableQuote || amountBase > availableBase) {
             (uint256[] memory cloids, ICrystal.Order[] memory orders) = ICrystal(crystal).getAllOrdersByCloid(address(this), orderCap);
             bytes32[] memory data = new bytes32[](cloids.length + 1);
-            ICrystal.Order memory order;
-            uint256 cloid;
             uint256 excessQuote = amountQuote > availableQuote ? (amountQuote - availableQuote) : 0;
             uint256 excessBase = amountBase > availableBase ? (amountBase - availableBase) : 0;
             uint256 lockedQuote = quoteBalance - availableQuote;
             uint256 lockedBase = baseBalance - availableBase;
             uint256 idx;
-            for (uint256 i; i < cloids.length; ++i) {
-                order = orders[i];
-                cloid = cloids[i];
-                if (order.isBuy && excessQuote != 0) {
-                    data[++idx] = bytes32((12 << 252) | ((cloid & 0x3FF) << 192) | (((order.size * excessQuote + lockedQuote - 1) / lockedQuote) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
-                } else if (!order.isBuy && excessBase != 0) {
-                    data[++idx] = bytes32((12 << 252) | ((cloid & 0x3FF) << 192) | (((order.size * excessBase + lockedBase - 1) / lockedBase) & 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
+            uint256 quote;
+            uint256 base;
+            for (uint256 i; i < cloids.length; ++i) { // Round decrease amount with cumulative ceiling rounding
+                if (orders[i].isBuy && excessQuote != 0) {
+                    data[++idx] = bytes32((12 << 252) | ((cloids[i] & 0x3FF) << 192) | ((((quote + orders[i].size) * excessQuote + lockedQuote - 1) / lockedQuote) - ((quote * excessQuote + lockedQuote - 1) / lockedQuote)));
+                    quote += orders[i].size;
+                } else if (!orders[i].isBuy && excessBase != 0) {
+                    data[++idx] = bytes32((12 << 252) | ((cloids[i] & 0x3FF) << 192) | ((((base + orders[i].size) * excessBase + lockedBase - 1) / lockedBase) - ((base * excessBase + lockedBase - 1) / lockedBase)));
+                    base += orders[i].size;
                 }
             }
             data[0] = bytes32((1 << 252) | (idx << 160) | uint160(market));

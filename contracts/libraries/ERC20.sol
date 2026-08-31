@@ -8,9 +8,6 @@ contract ERC20 {
     /// @notice Token symbol.
     string public symbol;
 
-    /// @notice ERC20 decimals.
-    uint8 public constant decimals = 18;
-
     /// @notice ERC20 total supply.
     uint256 public totalSupply;
 
@@ -46,6 +43,15 @@ contract ERC20 {
             chainId := chainid()
         }
         DOMAIN_SEPARATOR = keccak256(abi.encode(keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"), keccak256(bytes(_name)), keccak256(bytes("1")), chainId, address(this)));
+    }
+
+    /**
+     * @notice ERC20 decimals.
+     *
+     * @return tokenDecimals Token decimals.
+     */
+    function decimals() public view virtual returns (uint8 tokenDecimals) {
+        return 18;
     }
 
     /**
