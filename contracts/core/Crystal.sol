@@ -244,7 +244,7 @@ contract Crystal is ICrystal {
     /**
      * @notice Processes batch actions with support for multiple markets supplied via calldata.
      *
-     * @dev For each market, the first 32-byte word is encoded as: (balanceMode << 252 | actionCount << 160 | market) with subsequent words being actions.
+     * @dev For each market, the first 32-byte word is encoded as: (balanceMode << 252 | bid << 172 | actionCount << 160 | market) with subsequent words being actions.
      * @dev An optional transfer to block.coinbase can be attached to each batch as a conditional priority bid.
      */
     fallback() external payable nonReentrant {
@@ -284,8 +284,10 @@ contract Crystal is ICrystal {
             if totalBid {
                 pop(call(gas(), coinbase(), totalBid, 0, 0, 0, 0))
             }
-            if and(callvalue(), selfbalance()) {
-                pop(call(gas(), caller(), selfbalance(), 0, 0, 0, 0))
+            if callvalue() {
+                if selfbalance() {
+                    pop(call(gas(), caller(), selfbalance(), 0, 0, 0, 0))
+                }
             }
         }
     }
