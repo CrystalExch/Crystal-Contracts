@@ -23,8 +23,8 @@ contract CrystalMarketHarness is CrystalMarket {
     }
 
     /// @notice Expose _toValidPrice for direct testing.
-    function exposed_toValidPrice(uint256 p, bool roundUp) external pure returns (uint256) {
-        return CM._toValidPrice(p, roundUp);
+    function exposed_toValidPrice(uint256 p, bool roundUp) external view returns (uint256) {
+        return CM._toValidPrice(p, tickSize, roundUp);
     }
 
     /// @notice Expose _tickToPrice for direct testing.

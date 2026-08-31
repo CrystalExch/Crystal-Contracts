@@ -29,8 +29,8 @@ const ACTIONS = {
   CANCEL: 1,
   BUY_LIMIT: 2,
   SELL_LIMIT: 3,
-  REPLACE_BUY: 4,
-  REPLACE_SELL: 5,
+  MTL_BUY: 4,
+  MTL_SELL: 5,
   MARKET_BUY: 6,
   MARKET_SELL: 7,
 };

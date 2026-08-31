@@ -107,7 +107,7 @@ contract LaunchpadProperties is BaseFuzzTest {
     }
 
     function _snapshot(address token, address account) private view returns (LaunchpadSnapshot memory snapshot) {
-        (uint112 virtualNativeReserve, uint112 virtualTokenReserve, uint256 k,,,) =
+        (uint112 virtualNativeReserve, uint112 virtualTokenReserve, uint256 k,,) =
             crystal.launchpadTokenToMarket(token);
         snapshot.virtualNativeReserve = uint256(virtualNativeReserve);
         snapshot.virtualTokenReserve = uint256(virtualTokenReserve);

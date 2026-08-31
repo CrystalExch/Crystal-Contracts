@@ -53,7 +53,7 @@ abstract contract BaseFuzzTest is BaseTest {
     }
 
     function _boundPrice(uint256 quotePerBase) internal view returns (uint256) {
-        return CrystalMath._toValidPrice(_price(_boundQuotePerBase(quotePerBase)), false);
+        return CrystalMath._toValidPrice(_price(_boundQuotePerBase(quotePerBase)), MARKET_TICK_SIZE, false);
     }
 
     function _boundDifferentPrices(uint256 oldQuotePerBase, uint256 newQuotePerBase)
@@ -66,7 +66,7 @@ abstract contract BaseFuzzTest is BaseTest {
         if (newPrice == price) {
             uint256 oldBound = _boundQuotePerBase(oldQuotePerBase);
             uint256 newBound = oldBound + 100 <= MAX_QUOTE_PER_BASE ? oldBound + 100 : oldBound - 100;
-            newPrice = CrystalMath._toValidPrice(_price(newBound), false);
+            newPrice = CrystalMath._toValidPrice(_price(newBound), MARKET_TICK_SIZE, false);
         }
     }
 
@@ -77,10 +77,10 @@ abstract contract BaseFuzzTest is BaseTest {
     {
         uint256 lowQuotePerBase = bound(lowQuotePerBaseSeed, MIN_QUOTE_PER_BASE, MAX_QUOTE_PER_BASE - 100);
         uint256 highQuotePerBase = bound(highQuotePerBaseSeed, lowQuotePerBase + 100, MAX_QUOTE_PER_BASE);
-        lowPrice = CrystalMath._toValidPrice(_price(lowQuotePerBase), false);
-        highPrice = CrystalMath._toValidPrice(_price(highQuotePerBase), false);
+        lowPrice = CrystalMath._toValidPrice(_price(lowQuotePerBase), MARKET_TICK_SIZE, false);
+        highPrice = CrystalMath._toValidPrice(_price(highQuotePerBase), MARKET_TICK_SIZE, false);
         if (highPrice <= lowPrice) {
-            highPrice = CrystalMath._toValidPrice(_price(lowQuotePerBase + 100), false);
+            highPrice = CrystalMath._toValidPrice(_price(lowQuotePerBase + 100), MARKET_TICK_SIZE, false);
         }
     }
 

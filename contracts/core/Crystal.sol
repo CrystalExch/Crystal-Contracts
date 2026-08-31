@@ -55,7 +55,7 @@ contract Crystal is ICrystal {
     /// @notice Address receiving trading fees.
     address public feeRecipient;
 
-    /// @notice Percentage of fees that go to referrals.
+    /// @notice Percentage of trading fees that go to referrals.
     uint8 public feeCommission;
 
     /**
@@ -105,12 +105,8 @@ contract Crystal is ICrystal {
      */
     mapping(address => ICrystal.PendingExpiredFeeClaim) public pendingExpiredFeeClaims;
 
-    /**
-     * @notice Pending closed market ids by user.
-     *
-     * @dev Encoded as a bitmap.
-     */
-    mapping(address => uint256) public pendingClosedMarkets;
+    /// @notice Cumulative claimed locked native token reserve for graduated launchpad markest.
+    mapping(address => uint256) public claimedLockedReserve;
 
     /**
      * @notice Whether an address is authorized to deploy canonical markets.
@@ -152,6 +148,9 @@ contract Crystal is ICrystal {
      */
     mapping(address => ICrystal.LaunchpadMarket) public launchpadTokenToMarket;
 
+    /// @notice Whether a market was created by graduating from the launchpad.
+    mapping(address => bool) public wasLaunchpad;
+
     /// @notice Array of all launchpad tokens that have been created.
     address[] public allTokens;
 
@@ -170,12 +169,27 @@ contract Crystal is ICrystal {
     /// @notice Maximum maker rebate when the AMM is enabled (equivalent to 0.2%).
     uint256 internal constant MAX_AMM_MAKER_REBATE = 99800;
 
+    /// @notice AMM spread for type 0 1 2 and 3 markets.
+    uint256 internal constant DEFAULT_AMM_FEE = 9975;
+
+    /// @notice AMM spread for type 4 markets.
+    uint256 internal constant FOUR_AMM_FEE = 9900;
+
     /// @notice Initial launchpad token reserve.
     uint256 internal constant INITIAL_TOKEN_SUPPLY = 1000000000000000000000000000;
 
     /// @notice Launchpad token reserve to be migrated to graduated market.
     uint256 internal constant GRADUATED_TOKEN_SUPPLY = 200000000000000000000000000;
-    
+
+    /// @notice Initial launchpad virtual token reserve.
+    uint256 internal constant VIRTUAL_TOKEN_SUPPLY = (GRADUATED_TOKEN_SUPPLY * GRADUATED_TOKEN_SUPPLY + (INITIAL_TOKEN_SUPPLY - 2 * GRADUATED_TOKEN_SUPPLY) - 1) / (INITIAL_TOKEN_SUPPLY - 2 * GRADUATED_TOKEN_SUPPLY);
+
+    /// @notice Initial launchpad virtual token reserve.
+    uint256 internal constant INITIAL_CURVE_TOKEN_SUPPLY = INITIAL_TOKEN_SUPPLY + VIRTUAL_TOKEN_SUPPLY;
+
+    /// @notice Initial launchpad virtual token reserve.
+    uint256 internal constant GRADUATED_CURVE_TOKEN_SUPPLY = GRADUATED_TOKEN_SUPPLY + VIRTUAL_TOKEN_SUPPLY;
+
     /// @notice Graduated launchpad market default max price.
     uint256 internal constant GRADUATED_MAX_PRICE = 1000000000000000;
 
@@ -217,9 +231,9 @@ contract Crystal is ICrystal {
      * @param _weth Address of the wrapped ETH token.
      * @param _gov Who has governance/admin control.
      * @param _feeRecipient Where protocol fees go.
-     * @param _feeCommission What percentage referrers get.
+     * @param _feeCommission What percentage of taker fees referrers get.
      * @param _feeClaimDuration How long before fee claims expire and can be processed.
-     * @param _launchpadParams All the launchpad settings.
+     * @param _launchpadParams All the launchpad parameters.
      */
     constructor(address _weth, address _gov, address _feeRecipient, uint8 _feeCommission, uint256 _feeClaimDuration, ICrystal.LaunchpadParams memory _launchpadParams) {
         weth = _weth;
@@ -390,8 +404,8 @@ contract Crystal is ICrystal {
         if (launchpadMarket.virtualTokenReserve != 0) {
             if (isExactInput) {
                 inputAmount = amountIn;
-                if (launchpadMarket.virtualNativeReserve + ((inputAmount * launchpadParams.launchpadFee) / 100000) > (launchpadMarket.k / GRADUATED_TOKEN_SUPPLY)) {
-                    inputAmount = ((((launchpadMarket.k + GRADUATED_TOKEN_SUPPLY - 1) / GRADUATED_TOKEN_SUPPLY) - launchpadMarket.virtualNativeReserve) * 100000 + launchpadParams.launchpadFee - 1) / launchpadParams.launchpadFee;
+                if (launchpadMarket.virtualNativeReserve + ((inputAmount * launchpadParams.launchpadFee) / 100000) > (launchpadMarket.k / GRADUATED_CURVE_TOKEN_SUPPLY)) {
+                    inputAmount = ((((launchpadMarket.k + GRADUATED_CURVE_TOKEN_SUPPLY - 1) / GRADUATED_CURVE_TOKEN_SUPPLY) - launchpadMarket.virtualNativeReserve) * 100000 + launchpadParams.launchpadFee - 1) / launchpadParams.launchpadFee;
                 }
                 IWETH(weth).deposit{value: inputAmount}();
                 uint256 amountAfterFee = (inputAmount * launchpadParams.launchpadFee) / 100000;
@@ -408,14 +422,14 @@ contract Crystal is ICrystal {
                 uint256 newToken = launchpadMarket.virtualTokenReserve - amountOut;
                 uint256 newNative = (uint256(launchpadMarket.k) + newToken - 1) / newToken;
                 uint256 preFeeIn = newNative - launchpadMarket.virtualNativeReserve;
-                if (launchpadMarket.virtualNativeReserve + preFeeIn > (launchpadMarket.k / GRADUATED_TOKEN_SUPPLY)) {
-                    inputAmount = ((((launchpadMarket.k + GRADUATED_TOKEN_SUPPLY - 1) / GRADUATED_TOKEN_SUPPLY) - launchpadMarket.virtualNativeReserve) * 100000 + launchpadParams.launchpadFee - 1) / launchpadParams.launchpadFee;
+                if (launchpadMarket.virtualNativeReserve + preFeeIn > (launchpadMarket.k / GRADUATED_CURVE_TOKEN_SUPPLY)) {
+                    inputAmount = ((((launchpadMarket.k + GRADUATED_CURVE_TOKEN_SUPPLY - 1) / GRADUATED_CURVE_TOKEN_SUPPLY) - launchpadMarket.virtualNativeReserve) * 100000 + launchpadParams.launchpadFee - 1) / launchpadParams.launchpadFee;
                     IWETH(weth).deposit{value: inputAmount}();
                     uint256 collectedFee = inputAmount - ((inputAmount * launchpadParams.launchpadFee) / 100000);
                     uint256 creatorFee = (collectedFee * launchpadParams.launchpadCreatorFeeSplit) / 100;
                     claimableRewards[weth][launchpadMarket.creator] += creatorFee;
                     claimableRewards[weth][gov] += (collectedFee - creatorFee);
-                    launchpadMarket.virtualNativeReserve = uint112(launchpadMarket.k / GRADUATED_TOKEN_SUPPLY);
+                    launchpadMarket.virtualNativeReserve = uint112((launchpadMarket.k + GRADUATED_CURVE_TOKEN_SUPPLY - 1) / GRADUATED_CURVE_TOKEN_SUPPLY);
                     uint256 oldTokenReserve = launchpadMarket.virtualTokenReserve;
                     launchpadMarket.virtualTokenReserve = uint112((launchpadMarket.k + launchpadMarket.virtualNativeReserve - 1) / launchpadMarket.virtualNativeReserve);
                     outputAmount = oldTokenReserve - launchpadMarket.virtualTokenReserve;
@@ -438,10 +452,10 @@ contract Crystal is ICrystal {
             if (inputAmount != 0 && outputAmount != 0) {
                 emit ICrystal.LaunchpadTrade(token, msg.sender, true, inputAmount, outputAmount, launchpadMarket.virtualNativeReserve, launchpadMarket.virtualTokenReserve);
             }
-            if (launchpadMarket.virtualNativeReserve >= ((launchpadMarket.k / GRADUATED_TOKEN_SUPPLY))) { // Graduate token from bonding curve to orderbook
+            if (launchpadMarket.virtualNativeReserve >= ((launchpadMarket.k + GRADUATED_CURVE_TOKEN_SUPPLY - 1) / GRADUATED_CURVE_TOKEN_SUPPLY)) { // Graduate token from bonding curve to orderbook
                 address market = launchpadMarket.market;
-                delete pendingClosedMarkets[token];
                 delete launchpadTokenToMarket[token];
+                wasLaunchpad[market] = true;
                 getMarketByTokens[weth][token] = market;
                 getMarketByTokens[token][weth] = market;
                 ICrystal.Market storage m = _getMarket[market];
@@ -452,11 +466,11 @@ contract Crystal is ICrystal {
                         _minSize /= 10;
                         ++minSizeZeroes;
                     }
-                    (m.lowestAsk, m.minSize, m.takerFee, m.makerRebate, m.createTimestamp) = (uint80(GRADUATED_MAX_PRICE), uint40((_minSize << 20) | minSizeZeroes), uint24(launchpadParams.graduatedTakerFee), uint24(launchpadParams.graduatedMakerRebate), uint88(block.timestamp));
+                    (m.lowestAsk, m.minSize, m.takerFee, m.makerRebate) = (uint80(GRADUATED_MAX_PRICE), uint40((_minSize << 20) | minSizeZeroes), uint24(launchpadParams.graduatedTakerFee), uint24(launchpadParams.graduatedMakerRebate));
                 }
                 ICrystal.TokenMetadata memory quoteMeta = ICrystal.TokenMetadata(weth, IERC20(weth).decimals(), IERC20(weth).symbol(), IERC20(weth).name());
                 ICrystal.TokenMetadata memory baseMeta = ICrystal.TokenMetadata(token, IERC20(token).decimals(), IERC20(token).symbol(), IERC20(token).name());
-                ICrystal.MarketDetails memory details = ICrystal.MarketDetails(m.marketId, 3, 9, 1, GRADUATED_MAX_PRICE, launchpadParams.graduatedMinSize, uint24(launchpadParams.graduatedTakerFee), uint24(launchpadParams.graduatedMakerRebate));
+                ICrystal.MarketDetails memory details = ICrystal.MarketDetails(m.marketId, 4, 9, 1, GRADUATED_MAX_PRICE, launchpadParams.graduatedMinSize, uint24(launchpadParams.graduatedTakerFee), uint24(launchpadParams.graduatedMakerRebate));
                 emit ICrystal.MarketCreated(true, weth, token, market, m.creator, quoteMeta, baseMeta, details);
                 emit ICrystal.Sync(market, m.reserveQuote, m.reserveBase);
                 emit ICrystal.Mint(market, address(this), m.reserveQuote, m.reserveBase);
@@ -1346,10 +1360,10 @@ contract Crystal is ICrystal {
         } else if (baseAsset == eth) {
             baseAsset = weth;
         }
-        require(marketType <= 3 && MAX_FEE <= takerFee && takerFee <= 100000 && (marketType > 1 ? MAX_AMM_MAKER_REBATE <= makerRebate : MAX_FEE <= makerRebate) && makerRebate <= 100000 && maxPrice % tickSize == 0, ICrystal.InvalidParams());
+        require(marketType < 5 && MAX_FEE <= takerFee && takerFee <= 100000 && (marketType > 1 ? MAX_AMM_MAKER_REBATE <= makerRebate : MAX_FEE <= makerRebate) && makerRebate <= 100000 && maxPrice % tickSize == 0, ICrystal.InvalidParams());
         uint256 marketId = allMarkets.length + 1;
         {
-            parameters = ICrystal.Parameters(quoteAsset, baseAsset, marketId, marketType, scaleFactor, tickSize, maxPrice);
+            parameters = ICrystal.Parameters(quoteAsset, baseAsset, marketId, marketType, scaleFactor, tickSize, maxPrice, marketType == 4 ? FOUR_AMM_FEE : DEFAULT_AMM_FEE);
             uint256 maxTick;
             market = address(new CrystalMarket{salt: keccak256(abi.encode(marketId))}());
             if (marketType == 0) {
@@ -1948,7 +1962,7 @@ contract Crystal is ICrystal {
         emit ICrystal.TokenCreated(address(token), msg.sender, name, symbol, metadataCID, description, social1, social2, social3, social4);
         uint256 marketId = allMarkets.length + 1;
         require(marketId < MASK_KEEP_0_48 && bytes(name).length != 0 && bytes(symbol).length != 0, ICrystal.InvalidParams());
-        parameters = ICrystal.Parameters(weth, token, marketId, 3, 9, 1, GRADUATED_MAX_PRICE);
+        parameters = ICrystal.Parameters(weth, token, marketId, 4, 9, 1, GRADUATED_MAX_PRICE, FOUR_AMM_FEE);
         uint256 maxTick;
         address market;
         market = address(new CrystalMarket{salt: keccak256(abi.encode(marketId))}()); // Market is disabled until market is initialized
@@ -1956,7 +1970,7 @@ contract Crystal is ICrystal {
         delete parameters;
         ICrystal.Market storage m = _getMarket[market];
         (m.quoteAsset, m.baseAsset, m.marketId, m.scaleFactor, m.tickSize) = (weth, token, marketId, 9, 1);
-        (m.maxPrice, m.marketType, m.creator, m.creatorFeeSplit, m.isAMMEnabled) = (GRADUATED_MAX_PRICE, 3, msg.sender, uint8(launchpadParams.graduatedCreatorFeeSplit), true);
+        (m.maxPrice, m.marketType, m.creator, m.creatorFeeSplit, m.isAMMEnabled) = (GRADUATED_MAX_PRICE, 4, msg.sender, uint8(launchpadParams.graduatedCreatorFeeSplit), true);
         (uint256 key, uint256 offset) = CS._getActivated((marketId << 128), 0); // Preset index 0 and maxPrice of activated bitmap
         CS._writeMapping(key, offset, CS.PRICELEVELS_KEY, 1);
         (key, offset) = CS._getGroups((marketId << 128), 0);
@@ -1969,9 +1983,9 @@ contract Crystal is ICrystal {
         marketIdToMarket[marketId] = market;
         getMarketByTokens[weth][token] = placeholder;
         getMarketByTokens[token][weth] = placeholder;
-        launchpadTokenToMarket[address(token)] = ICrystal.LaunchpadMarket(launchpadParams.launchpadInitialNativeSupply, uint112(INITIAL_TOKEN_SUPPLY), uint256(launchpadParams.launchpadInitialNativeSupply) * INITIAL_TOKEN_SUPPLY, msg.sender, market, uint88(block.timestamp));
+        launchpadTokenToMarket[address(token)] = ICrystal.LaunchpadMarket(launchpadParams.launchpadInitialNativeSupply, uint112(INITIAL_CURVE_TOKEN_SUPPLY), uint256(launchpadParams.launchpadInitialNativeSupply) * (INITIAL_CURVE_TOKEN_SUPPLY), msg.sender, market);
         (bool result, bytes memory ret) = market.delegatecall(
-            abi.encodeWithSelector(CrystalMarket.premint.selector, address(this), (INITIAL_TOKEN_SUPPLY * uint256(launchpadParams.launchpadInitialNativeSupply) / GRADUATED_TOKEN_SUPPLY) - uint256(launchpadParams.launchpadInitialNativeSupply), GRADUATED_TOKEN_SUPPLY) // Pre-mint initial AMM liquidity
+            abi.encodeWithSelector(CrystalMarket.premint.selector, address(this), ((INITIAL_CURVE_TOKEN_SUPPLY) * uint256(launchpadParams.launchpadInitialNativeSupply) / (GRADUATED_CURVE_TOKEN_SUPPLY)) - uint256(launchpadParams.launchpadInitialNativeSupply), GRADUATED_TOKEN_SUPPLY) // Pre-mint initial AMM liquidity
         );
         require(result, ICrystal.ActionFailed());
         uint256 liquidity = abi.decode(ret, (uint256));
@@ -2093,8 +2107,8 @@ contract Crystal is ICrystal {
             uint256 virtualTokenReserve;
             if (isExactInput) {
                 inputAmount = amountIn;
-                if (launchpadMarket.virtualNativeReserve + ((inputAmount * launchpadParams.launchpadFee) / 100000) > (launchpadMarket.k / GRADUATED_TOKEN_SUPPLY)) {
-                    inputAmount = ((((launchpadMarket.k + GRADUATED_TOKEN_SUPPLY - 1) / GRADUATED_TOKEN_SUPPLY) - launchpadMarket.virtualNativeReserve) * 100000 + launchpadParams.launchpadFee - 1) / launchpadParams.launchpadFee;
+                if (launchpadMarket.virtualNativeReserve + ((inputAmount * launchpadParams.launchpadFee) / 100000) > (launchpadMarket.k / GRADUATED_CURVE_TOKEN_SUPPLY)) {
+                    inputAmount = ((((launchpadMarket.k + GRADUATED_CURVE_TOKEN_SUPPLY - 1) / GRADUATED_CURVE_TOKEN_SUPPLY) - launchpadMarket.virtualNativeReserve) * 100000 + launchpadParams.launchpadFee - 1) / launchpadParams.launchpadFee;
                 }
                 uint256 amountAfterFee = (inputAmount * launchpadParams.launchpadFee) / 100000;
                 virtualNativeReserve = launchpadMarket.virtualNativeReserve + uint112(amountAfterFee);
@@ -2105,10 +2119,10 @@ contract Crystal is ICrystal {
                 uint256 newToken = launchpadMarket.virtualTokenReserve - amountOut;
                 uint256 newNative = (uint256(launchpadMarket.k) + newToken - 1) / newToken;
                 uint256 preFeeIn = newNative - launchpadMarket.virtualNativeReserve;
-                if (launchpadMarket.virtualNativeReserve + preFeeIn > (launchpadMarket.k / GRADUATED_TOKEN_SUPPLY)) {
-                    preFeeIn = ((launchpadMarket.k + GRADUATED_TOKEN_SUPPLY - 1) / GRADUATED_TOKEN_SUPPLY) - launchpadMarket.virtualNativeReserve;
+                if (launchpadMarket.virtualNativeReserve + preFeeIn > (launchpadMarket.k / GRADUATED_CURVE_TOKEN_SUPPLY)) {
+                    preFeeIn = ((launchpadMarket.k + GRADUATED_CURVE_TOKEN_SUPPLY - 1) / GRADUATED_CURVE_TOKEN_SUPPLY) - launchpadMarket.virtualNativeReserve;
                     inputAmount = (preFeeIn * 100000 + launchpadParams.launchpadFee - 1) / launchpadParams.launchpadFee;
-                    virtualNativeReserve = uint112(launchpadMarket.k / GRADUATED_TOKEN_SUPPLY);
+                    virtualNativeReserve = uint112((launchpadMarket.k + GRADUATED_CURVE_TOKEN_SUPPLY - 1) / GRADUATED_CURVE_TOKEN_SUPPLY);
                     uint256 oldTokenReserve = launchpadMarket.virtualTokenReserve;
                     virtualTokenReserve = uint112((launchpadMarket.k + virtualNativeReserve - 1) / virtualNativeReserve);
                     outputAmount = oldTokenReserve - virtualTokenReserve;
@@ -2118,7 +2132,7 @@ contract Crystal is ICrystal {
                     outputAmount = amountOut;
                 }
             }
-            if (virtualNativeReserve >= ((launchpadMarket.k / GRADUATED_TOKEN_SUPPLY))) { // Graduate token from bonding curve to orderbook
+            if (virtualNativeReserve >= ((launchpadMarket.k + GRADUATED_CURVE_TOKEN_SUPPLY - 1) / GRADUATED_CURVE_TOKEN_SUPPLY)) { // Graduate token from bonding curve to orderbook
                 graduatedMarket = launchpadMarket.market;
                 graduated = true;
                 ICrystal.Market storage m = _getMarket[graduatedMarket];
@@ -2132,10 +2146,10 @@ contract Crystal is ICrystal {
                     }
                     newInputAmount = (newInputAmount * uint256(launchpadParams.graduatedTakerFee) + 99999) / 100000;
                     ammAmountIn = CM._exactInputBuySolve(m.reserveQuote, m.reserveBase, CM._tickToPrice(CM._priceToTick(GRADUATED_MAX_PRICE, 1) - 1, 1), launchpadParams.graduatedMakerRebate, newInputAmount, 9);
-                    ammAmountOut = (ammAmountIn * 9975 * m.reserveBase) / ((m.reserveQuote * 10000) + (ammAmountIn * 9975));
+                    ammAmountOut = (ammAmountIn * FOUR_AMM_FEE * m.reserveBase) / ((m.reserveQuote * 10000) + (ammAmountIn * FOUR_AMM_FEE));
                 } else {
                     ammAmountOut = CM._exactOutputBuySolve(m.reserveQuote, m.reserveBase, CM._tickToPrice(CM._priceToTick(GRADUATED_MAX_PRICE, 1) - 1, 1), launchpadParams.graduatedMakerRebate, newInputAmount, 9);
-                    ammAmountIn = (ammAmountOut * m.reserveQuote * 10000) / ((m.reserveBase - ammAmountOut) * 9975) + 1;
+                    ammAmountIn = (ammAmountOut * m.reserveQuote * 10000) / ((m.reserveBase - ammAmountOut) * FOUR_AMM_FEE) + 1;
                 }
                 if (_isExactInput) {
                     assembly {
@@ -2216,92 +2230,24 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Queues the closure of an inactive launchpad token or market.
+     * @notice Allows the governance to claim native token liquidity from graduated launchpad markets that would otherwise be stuck forever.
      *
-     * @dev Graduating a market will remove it from the queue
-     * Only markets created by the launchpad can be queued as otherwise the
-     * createTimestamp field will not be set.
-     *
-     * @param token Launchpad token address.
+     * @param market Graduated market address.
+     * 
+     * @return claimableLockedReserve The amount of stuck native token liquidity that is not yet claimed.
      */
-    function queueCloseInactiveMarket(address token) external {
-        require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
-        address market = getMarketByTokens[weth][token];
-        if (market == address(0) || market == placeholder) {
-            ICrystal.LaunchpadMarket storage l = launchpadTokenToMarket[token];
-            require(l.createTimestamp != 0 && block.timestamp > (l.createTimestamp + (86400 * 365)), ICrystal.InvalidCloseWindow());
-            pendingClosedMarkets[token] = block.timestamp;
-        } else {
-            ICrystal.Market storage m = _getMarket[market];
-            require(m.createTimestamp != 0 && block.timestamp > (m.createTimestamp + (86400 * 365)), ICrystal.InvalidCloseWindow());
-            pendingClosedMarkets[market] = block.timestamp;
-        }
-    }
-
-    /**
-     * @notice Unqueues an inactive launchpad token or market from being closed.
-     *
-     * @param token Launchpad token address.
-     */
-    function unqueueCloseInactiveMarket(address token) external {
-        require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
-        address market = getMarketByTokens[weth][token];
-        if (market == address(0) || market == placeholder) {
-            delete pendingClosedMarkets[token];
-        } else {
-            delete pendingClosedMarkets[market];
-        }
-    }
-
-    /**
-     * @notice Executes closure of a previously queued inactive market.
-     *
-     * @param token Launchpad token address.
-     *
-     * @return amountQuote Quote asset recovered to governance.
-     * @return amountBase Base asset recovered to governance.
-     */
-    function executeCloseInactiveMarket(address token) external nonReentrant returns (uint256 amountQuote, uint256 amountBase) {
-        require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
-        address market = getMarketByTokens[weth][token];
-        if (market == address(0) || market == placeholder) {
-            ICrystal.LaunchpadMarket storage l = launchpadTokenToMarket[token];
-            require(l.createTimestamp != 0 && pendingClosedMarkets[token] != 0 && block.timestamp > (pendingClosedMarkets[token] + (86400 * 7)) && block.timestamp < (pendingClosedMarkets[token] + (86400 * 30)), ICrystal.InvalidCloseWindow());
-            IERC20(token).transfer(address(0), l.virtualTokenReserve);
-            uint256 initialNativeReserve = l.k / INITIAL_TOKEN_SUPPLY;
-            if (l.virtualNativeReserve > initialNativeReserve) {
-                claimableRewards[weth][gov] += (l.virtualNativeReserve - initialNativeReserve);
-            }
-            delete launchpadTokenToMarket[token];
-        } else {
-            require(pendingClosedMarkets[market] != 0 && block.timestamp > (pendingClosedMarkets[market] + (86400 * 7)) && block.timestamp < (pendingClosedMarkets[market] + (86400 * 30)), ICrystal.InvalidCloseWindow());
-            ICrystal.Market storage m = _getMarket[market];
-            m.createTimestamp = 0;
-            uint256 liquidity = IERC20(market).balanceOf(address(0));
-            _getMarket[market].isAMMEnabled = false;
-            IERC20(market).transferFrom(address(0), address(this), liquidity - 1000);
-            assembly { // Manually unset reentry guard
-                tstore(0x0, 0)
-            }
-            (amountQuote, amountBase) = ICrystal(address(this)).removeLiquidity(market, address(this), liquidity - 1000, 0, 0);
-            claimableRewards[m.quoteAsset][gov] += amountQuote;
-            claimableRewards[m.baseAsset][gov] += amountBase;
-            _getMarket[market].isAMMEnabled = true;
-            if (getMarketByTokens[weth][token] == market) {
-                getMarketByTokens[weth][token] = address(0);
-                getMarketByTokens[token][weth] = address(0);
-                emit ICrystal.MarketParamsChanged(market, m.creator, (m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20), m.takerFee, m.makerRebate, m.creatorFeeSplit, m.isAMMEnabled, false);
-            }
-        }
-    }
-
-    /**
-     * @notice Locks zero-address liquidity for a market.
-     *
-     * @param market Market address.
-     */
-    function lockZeroAddressLiquidity(address market) external {
-        require(msg.sender == gov, ICrystal.Unauthorized(msg.sender));
-        _getMarket[market].createTimestamp = 0;
+    function claimLockedReserves(address market) external onlyOwner returns (uint256) {
+        require(wasLaunchpad[market] == true, ICrystal.ActionFailed());
+        ICrystal.Market storage m = _getMarket[market];
+        uint256 totalSupply = IERC20(market).totalSupply();
+        uint256 liquidity = IERC20(market).balanceOf(address(0));
+        uint256 reserveQuote = (liquidity * m.reserveQuote) / totalSupply;
+        uint256 reserveBase = (liquidity * m.reserveBase) / totalSupply;
+        uint256 amountIn = INITIAL_TOKEN_SUPPLY - reserveBase - IERC20(m.baseAsset).balanceOf(address(0));
+        uint256 requiredReserve = (amountIn * FOUR_AMM_FEE * reserveQuote) / ((reserveBase * 10000) + (amountIn * FOUR_AMM_FEE)); // Simulate sell of all free-floating tokens
+        uint256 claimableLockedReserve = reserveQuote - requiredReserve - claimedLockedReserve[market];
+        claimedLockedReserve[market] += claimableLockedReserve;
+        claimableRewards[weth][gov] += claimableLockedReserve;
+        return claimableLockedReserve;
     }
 }

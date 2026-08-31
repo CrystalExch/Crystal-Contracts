@@ -38,8 +38,7 @@ contract CrystalHarness is Crystal {
             virtualTokenReserve: virtualTokenReserve,
             k: k,
             creator: msg.sender,
-            market: market,
-            createTimestamp: uint88(block.timestamp)
+            market: market
         });
     }
     
@@ -52,16 +51,6 @@ contract CrystalHarness is Crystal {
     function setMarketMappings(address market, uint256 marketId) external {
         marketIdToMarket[marketId] = market;
         allMarkets.push(market);
-    }
-
-    /// @notice Set pending closed market timestamp.
-    function setPendingClosedMarket(address market, uint256 timestamp) external {
-        pendingClosedMarkets[market] = timestamp;
-    }
-
-    /// @notice Set launchpad createTimestamp for testing.
-    function setLaunchpadCreateTimestamp(address token, uint88 timestamp) external {
-        launchpadTokenToMarket[token].createTimestamp = timestamp;
     }
 
     /// @notice Get placeholder address.

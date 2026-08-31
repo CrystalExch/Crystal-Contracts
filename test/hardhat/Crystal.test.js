@@ -22,6 +22,12 @@ describe("Crystal Core Protocol Tests", function () {
     launchpadInitialNativeSupply: ethers.parseEther("2")
   };
 
+  const INITIAL_TOKEN_SUPPLY = ethers.parseEther("1000000000");
+  const GRADUATED_TOKEN_SUPPLY = ethers.parseEther("200000000");
+  const VIRTUAL_TOKEN_SUPPLY =
+    (GRADUATED_TOKEN_SUPPLY * GRADUATED_TOKEN_SUPPLY) /
+    (INITIAL_TOKEN_SUPPLY - 2n * GRADUATED_TOKEN_SUPPLY);
+
   async function wethFixture() {
     const [owner, user1, user2] = await ethers.getSigners();
     const WETH = await ethers.getContractFactory("WETH");
@@ -1131,9 +1137,9 @@ describe("Crystal Core Protocol Tests", function () {
         ).to.not.be.reverted;
       });
 
-      it("reverts with invalid market type (4)", async function () {
+      it("reverts with invalid market type (5)", async function () {
         await expect(
-          crystal.deploy(false, quote.target, base.target, 4, 15, 1, 100000, 1000000, 99970, 99990)
+          crystal.deploy(false, quote.target, base.target, 5, 15, 1, 100000, 1000000, 99970, 99990)
         ).to.be.revertedWithCustomError(crystal, "InvalidParams");
       });
 
@@ -3207,134 +3213,6 @@ describe("Crystal Core Protocol Tests", function () {
     });
   });
 
-  describe("queueCloseInactiveMarket", function () {
-    let crystal, tokenAddress;
-
-    beforeEach(async function () {
-      const fixture = await loadFixture(crystalFixture);
-      crystal = fixture.crystal;
-      const tx = await crystal.connect(user1).createToken(
-        "Test Token",
-        "TEST",
-        "QmTest123",
-        "A test token",
-        "",
-        "",
-        "",
-        ""
-      );
-      const receipt = await tx.wait();
-      const event = receipt.logs.find(log => {
-        try {
-          return crystal.interface.parseLog(log)?.name === "TokenCreated";
-        } catch { return false; }
-      });
-      tokenAddress = crystal.interface.parseLog(event).args.token;
-    });
-
-    it("reverts when non-gov tries to queue", async function () {
-      await expect(
-        crystal.connect(user1).queueCloseInactiveMarket(tokenAddress)
-      ).to.be.reverted;
-    });
-
-    it("reverts when market is not old enough (< 365 days)", async function () {
-      await expect(
-        crystal.connect(owner).queueCloseInactiveMarket(tokenAddress)
-      ).to.be.reverted;
-    });
-
-    it("queues closure after 365 days", async function () {
-
-      await ethers.provider.send("evm_increaseTime", [86400 * 366]);
-      await ethers.provider.send("evm_mine");
-
-      await expect(
-        crystal.connect(owner).queueCloseInactiveMarket(tokenAddress)
-      ).to.not.be.reverted;
-    });
-  });
-
-  describe("executeCloseInactiveMarket", function () {
-    let crystal, tokenAddress;
-
-    beforeEach(async function () {
-      const fixture = await loadFixture(crystalFixture);
-      crystal = fixture.crystal;
-      const tx = await crystal.connect(user1).createToken(
-        "Test Token",
-        "TEST",
-        "QmTest123",
-        "A test token",
-        "",
-        "",
-        "",
-        ""
-      );
-      const receipt = await tx.wait();
-      const event = receipt.logs.find(log => {
-        try {
-          return crystal.interface.parseLog(log)?.name === "TokenCreated";
-        } catch { return false; }
-      });
-      tokenAddress = crystal.interface.parseLog(event).args.token;
-    });
-
-    it("reverts when non-gov tries to execute", async function () {
-      await expect(
-        crystal.connect(user1).executeCloseInactiveMarket(tokenAddress)
-      ).to.be.reverted;
-    });
-
-    it("reverts when not queued", async function () {
-      await expect(
-        crystal.connect(owner).executeCloseInactiveMarket(tokenAddress)
-      ).to.be.reverted;
-    });
-
-    it("reverts when executed too early (< 7 days after queue)", async function () {
-
-      await ethers.provider.send("evm_increaseTime", [86400 * 366]);
-      await ethers.provider.send("evm_mine");
-      await crystal.connect(owner).queueCloseInactiveMarket(tokenAddress);
-
-
-      await expect(
-        crystal.connect(owner).executeCloseInactiveMarket(tokenAddress)
-      ).to.be.reverted;
-    });
-
-    it("reverts when executed too late (> 30 days after queue)", async function () {
-
-      await ethers.provider.send("evm_increaseTime", [86400 * 366]);
-      await ethers.provider.send("evm_mine");
-      await crystal.connect(owner).queueCloseInactiveMarket(tokenAddress);
-
-
-      await ethers.provider.send("evm_increaseTime", [86400 * 31]);
-      await ethers.provider.send("evm_mine");
-
-      await expect(
-        crystal.connect(owner).executeCloseInactiveMarket(tokenAddress)
-      ).to.be.reverted;
-    });
-
-    it("executes closure between 7-30 days after queue", async function () {
-
-      await ethers.provider.send("evm_increaseTime", [86400 * 366]);
-      await ethers.provider.send("evm_mine");
-      await crystal.connect(owner).queueCloseInactiveMarket(tokenAddress);
-
-
-      await ethers.provider.send("evm_increaseTime", [86400 * 8]);
-      await ethers.provider.send("evm_mine");
-
-      await expect(
-        crystal.connect(owner).executeCloseInactiveMarket(tokenAddress)
-      ).to.not.be.reverted;
-    });
-  });
-
   describe("lockZeroAddressLiquidity", function () {
     let crystal, market;
 
@@ -3352,18 +3230,6 @@ describe("Crystal Core Protocol Tests", function () {
         } catch { return false; }
       });
       market = crystal.interface.parseLog(event).args.market;
-    });
-
-    it("allows gov to lock zero address liquidity", async function () {
-      await expect(
-        crystal.connect(owner).lockZeroAddressLiquidity(market)
-      ).to.not.be.reverted;
-    });
-
-    it("reverts when non-gov tries to lock", async function () {
-      await expect(
-        crystal.connect(user1).lockZeroAddressLiquidity(market)
-      ).to.be.reverted;
     });
   });
 
@@ -3949,9 +3815,9 @@ describe("Crystal Core Protocol Tests", function () {
       expect(event).to.not.be.undefined;
     });
 
-    it("reverts with invalid market type (type 4)", async function () {
+    it("reverts with invalid market type (type 5)", async function () {
       await expect(
-        crystal.deploy(true, quote.target, base.target, 4, 15, 1, 100000, 1000000, 99970, 99990)
+        crystal.deploy(true, quote.target, base.target, 5, 15, 1, 100000, 1000000, 99970, 99990)
       ).to.be.revertedWithCustomError(crystal, "InvalidParams");
     });
   });
@@ -5582,9 +5448,6 @@ describe("Crystal Core Protocol Tests", function () {
 
       await setupMarket(weth.target, tokenA.target, maliciousMarket);
 
-
-
-
       await expect(
         crystal.connect(user1).swapExactETHForTokens(
           0,
@@ -5601,12 +5464,8 @@ describe("Crystal Core Protocol Tests", function () {
 
       await setupMarket(tokenA.target, weth.target, maliciousMarket);
 
-
       await tokenA.mint(user1.address, ethers.parseEther("100"));
       await tokenA.connect(user1).approve(crystal.target, ethers.parseEther("100"));
-
-
-
 
       await expect(
         crystal.connect(user1).swapExactTokensForETH(
@@ -5624,11 +5483,8 @@ describe("Crystal Core Protocol Tests", function () {
 
       await setupMarket(tokenA.target, tokenB.target, maliciousMarket);
 
-
       await tokenA.mint(user1.address, ethers.parseEther("100"));
       await tokenA.connect(user1).approve(crystal.target, ethers.parseEther("100"));
-
-
 
       await expect(
         crystal.connect(user1).swapExactTokensForTokens(
@@ -6533,45 +6389,6 @@ describe("Crystal Core Protocol Tests", function () {
           }
         }
       }
-    });
-  });
-
-  describe("Coverage: queueCloseInactiveMarket (lines 3347-3366)", function () {
-    let crystal, tokenAddress;
-
-    beforeEach(async function () {
-      const fixture = await loadFixture(crystalFixture);
-      crystal = fixture.crystal;
-      const tx = await crystal.connect(user1).createToken(
-        "Test Token",
-        "TEST",
-        "QmTest123",
-        "A test token",
-        "",
-        "",
-        "",
-        ""
-      );
-      const receipt = await tx.wait();
-      const event = receipt.logs.find(log => {
-        try {
-          return crystal.interface.parseLog(log)?.name === "TokenCreated";
-        } catch { return false; }
-      });
-      tokenAddress = crystal.interface.parseLog(event).args.token;
-    });
-
-    it("queueCloseInactiveMarket reverts for non-gov caller", async function () {
-      await expect(
-        crystal.connect(user1).queueCloseInactiveMarket(tokenAddress)
-      ).to.be.reverted;
-    });
-
-    it("queueCloseInactiveMarket reverts before 365 days", async function () {
-
-      await expect(
-        crystal.connect(owner).queueCloseInactiveMarket(tokenAddress)
-      ).to.be.reverted;
     });
   });
 
@@ -11388,47 +11205,6 @@ describe("Crystal Core Protocol Tests", function () {
     });
   });
 
-  describe("Coverage: queueCloseInactiveMarket (lines 3349, 3359)", function () {
-    let crystal, tokenAddress;
-
-    beforeEach(async function () {
-      const Crystal = await ethers.getContractFactory("Crystal");
-      crystal = await Crystal.deploy(
-        weth.target,
-        owner.address,
-        owner.address,
-        25,
-        86400,
-        validLaunchpadParams
-      );
-      await crystal.waitForDeployment();
-
-      const tx = await crystal.connect(user1).createToken(
-        "Test Token", "TEST", "", "Test token", "", "", "", ""
-      );
-      const receipt = await tx.wait();
-      const event = receipt.logs.find(log => {
-        try { return crystal.interface.parseLog(log)?.name === "TokenCreated"; } catch { return false; }
-      });
-      tokenAddress = crystal.interface.parseLog(event).args.token;
-    });
-
-    it("queueCloseInactiveMarket before 365 days fails (line 3349 launchpad path)", async function () {
-      await expect(
-        crystal.connect(owner).queueCloseInactiveMarket(tokenAddress)
-      ).to.be.reverted;
-    });
-
-    it("queueCloseInactiveMarket after 365 days succeeds for launchpad (line 3349)", async function () {
-      await ethers.provider.send("evm_increaseTime", [366 * 24 * 60 * 60]);
-      await ethers.provider.send("evm_mine", []);
-
-      await expect(
-        crystal.connect(owner).queueCloseInactiveMarket(tokenAddress)
-      ).to.not.be.reverted;
-    });
-  });
-
   describe("Coverage: launchpadSell exact output (lines 3014, 3032)", function () {
     let crystal, tokenAddress;
 
@@ -11866,107 +11642,6 @@ describe("Crystal Core Protocol Tests", function () {
     });
   });
 
-  describe("Coverage: queueCloseInactiveMarket for graduated market (line 3359)", function () {
-    let crystal, tokenAddress;
-
-    beforeEach(async function () {
-      const Crystal = await ethers.getContractFactory("Crystal");
-      crystal = await Crystal.deploy(
-        weth.target,
-        owner.address,
-        owner.address,
-        25,
-        86400,
-        validLaunchpadParams
-      );
-      await crystal.waitForDeployment();
-
-      const tx = await crystal.connect(user1).createToken(
-        "Test Token", "TEST", "", "Test token", "", "", "", ""
-      );
-      const receipt = await tx.wait();
-      const event = receipt.logs.find(log => {
-        try { return crystal.interface.parseLog(log)?.name === "TokenCreated"; } catch { return false; }
-      });
-      tokenAddress = crystal.interface.parseLog(event).args.token;
-      token = await ethers.getContractAt("CrystalToken", tokenAddress);
-
-
-      await crystal.connect(user1).buy(
-        true, tokenAddress, ethers.parseEther("100"), 0,
-        { value: ethers.parseEther("100") }
-      );
-    });
-
-    it("queueCloseInactiveMarket for graduated market after 365 days (line 3359)", async function () {
-      const market = await crystal.getMarketByTokens(weth.target, tokenAddress);
-      if (market !== ethers.ZeroAddress) {
-        await ethers.provider.send("evm_increaseTime", [366 * 24 * 60 * 60]);
-        await ethers.provider.send("evm_mine", []);
-
-        await expect(
-          crystal.connect(owner).queueCloseInactiveMarket(tokenAddress)
-        ).to.not.be.reverted;
-      }
-    });
-  });
-
-  describe("Coverage: executeCloseInactiveMarket (lines 3387, 3391)", function () {
-    let crystal, tokenAddress;
-
-    beforeEach(async function () {
-      const Crystal = await ethers.getContractFactory("Crystal");
-      crystal = await Crystal.deploy(
-        weth.target,
-        owner.address,
-        owner.address,
-        25,
-        86400,
-        validLaunchpadParams
-      );
-      await crystal.waitForDeployment();
-
-      const tx = await crystal.connect(user1).createToken(
-        "Test Token", "TEST", "", "Test token", "", "", "", ""
-      );
-      const receipt = await tx.wait();
-      const event = receipt.logs.find(log => {
-        try { return crystal.interface.parseLog(log)?.name === "TokenCreated"; } catch { return false; }
-      });
-      tokenAddress = crystal.interface.parseLog(event).args.token;
-    });
-
-    it("executeCloseInactiveMarket for launchpad after queue and wait (line 3387)", async function () {
-
-      await ethers.provider.send("evm_increaseTime", [366 * 24 * 60 * 60]);
-      await ethers.provider.send("evm_mine", []);
-
-
-      await crystal.connect(owner).queueCloseInactiveMarket(tokenAddress);
-
-
-      await ethers.provider.send("evm_increaseTime", [8 * 24 * 60 * 60]);
-      await ethers.provider.send("evm_mine", []);
-
-
-      await expect(
-        crystal.connect(owner).executeCloseInactiveMarket(tokenAddress)
-      ).to.not.be.reverted;
-    });
-
-    it("executeCloseInactiveMarket before 7 days fails", async function () {
-      await ethers.provider.send("evm_increaseTime", [366 * 24 * 60 * 60]);
-      await ethers.provider.send("evm_mine", []);
-
-      await crystal.connect(owner).queueCloseInactiveMarket(tokenAddress);
-
-
-      await expect(
-        crystal.connect(owner).executeCloseInactiveMarket(tokenAddress)
-      ).to.be.reverted;
-    });
-  });
-
   describe("Coverage: buy on graduated market with exact output (lines 2907-2921)", function () {
     let crystal, tokenAddress, token;
 
@@ -12061,61 +11736,6 @@ describe("Crystal Core Protocol Tests", function () {
         await tx.wait();
         const balanceAfter = await ethers.provider.getBalance(user1.address);
         expect(balanceAfter).to.be.gt(balanceBefore - ethers.parseEther("0.5"));
-      }
-    });
-  });
-
-  describe("Coverage: executeCloseInactiveMarket for graduated market (line 3396-3401)", function () {
-    let crystal, tokenAddress;
-
-    beforeEach(async function () {
-      const Crystal = await ethers.getContractFactory("Crystal");
-      crystal = await Crystal.deploy(
-        weth.target,
-        owner.address,
-        owner.address,
-        25,
-        86400,
-        validLaunchpadParams
-      );
-      await crystal.waitForDeployment();
-
-
-      const tx = await crystal.connect(user1).createToken(
-        "Test Token", "TEST", "", "Test token", "", "", "", ""
-      );
-      const receipt = await tx.wait();
-      const event = receipt.logs.find(log => {
-        try { return crystal.interface.parseLog(log)?.name === "TokenCreated"; } catch { return false; }
-      });
-      tokenAddress = crystal.interface.parseLog(event).args.token;
-      token = await ethers.getContractAt("CrystalToken", tokenAddress);
-
-
-      await crystal.connect(user1).buy(
-        true, tokenAddress, ethers.parseEther("100"), 0,
-        { value: ethers.parseEther("100") }
-      );
-    });
-
-    it("executeCloseInactiveMarket for graduated market (line 3396-3401)", async function () {
-      const market = await crystal.getMarketByTokens(weth.target, tokenAddress);
-      if (market !== ethers.ZeroAddress) {
-
-        await ethers.provider.send("evm_increaseTime", [366 * 24 * 60 * 60]);
-        await ethers.provider.send("evm_mine", []);
-
-
-        await crystal.connect(owner).queueCloseInactiveMarket(tokenAddress);
-
-
-        await ethers.provider.send("evm_increaseTime", [8 * 24 * 60 * 60]);
-        await ethers.provider.send("evm_mine", []);
-
-
-        await expect(
-          crystal.connect(owner).executeCloseInactiveMarket(tokenAddress)
-        ).to.not.be.reverted;
       }
     });
   });
@@ -15798,57 +15418,6 @@ describe("Crystal Core Protocol Tests", function () {
     });
   });
 
-  describe("Coverage: executeCloseInactiveMarket with revenue (line 3392)", function () {
-    let crystal, tokenAddress;
-
-    beforeEach(async function () {
-      const Crystal = await ethers.getContractFactory("Crystal");
-      crystal = await Crystal.deploy(
-        weth.target,
-        owner.address,
-        owner.address,
-        25,
-        86400,
-        validLaunchpadParams
-      );
-      await crystal.waitForDeployment();
-
-
-      const tx = await crystal.connect(user1).createToken(
-        "Close Test Token", "CTT", "", "Token", "", "", "", ""
-      );
-      const receipt = await tx.wait();
-      const event = receipt.logs.find(log => {
-        try { return crystal.interface.parseLog(log)?.name === "TokenCreated"; } catch { return false; }
-      });
-      tokenAddress = crystal.interface.parseLog(event).args.token;
-    });
-
-    it("executeCloseInactiveMarket with virtualNativeReserve > initialNativeReserve (line 3392)", async function () {
-
-      await crystal.connect(user1).buy(
-        true, tokenAddress, ethers.parseEther("1"), 0,
-        { value: ethers.parseEther("1") }
-      );
-
-
-      await ethers.provider.send("evm_increaseTime", [365 * 86400 + 1]);
-      await ethers.provider.send("evm_mine", []);
-
-
-      await crystal.connect(owner).queueCloseInactiveMarket(tokenAddress);
-
-
-      await ethers.provider.send("evm_increaseTime", [7 * 86400 + 1]);
-      await ethers.provider.send("evm_mine", []);
-
-
-      await expect(
-        crystal.connect(owner).executeCloseInactiveMarket(tokenAddress)
-      ).to.not.be.reverted;
-    });
-  });
-
   describe("Coverage: quoteSell after market graduation (line 3330-3334)", function () {
     let crystal, tokenAddress;
 
@@ -16422,74 +15991,6 @@ describe("Crystal Core Protocol Tests", function () {
 
       const result = await crystal.quoteSell.staticCall(true, tokenAddress, ethers.parseEther("1000"), 0);
       expect(result[0]).to.be.gt(0);
-    });
-  });
-
-  describe("Coverage: queueCloseInactiveMarket edge cases (lines 3351, 3361)", function () {
-    let crystal, tokenAddress;
-
-    beforeEach(async function () {
-      const Crystal = await ethers.getContractFactory("Crystal");
-      crystal = await Crystal.deploy(
-        weth.target,
-        owner.address,
-        owner.address,
-        25,
-        86400,
-        validLaunchpadParams
-      );
-      await crystal.waitForDeployment();
-
-      const tx = await crystal.connect(user1).createToken("Close Token", "CT", "", "Token", "", "", "", "");
-      const receipt = await tx.wait();
-      const event = receipt.logs.find(log => {
-        try { return crystal.interface.parseLog(log)?.name === "TokenCreated"; } catch { return false; }
-      });
-      tokenAddress = crystal.interface.parseLog(event).args.token;
-    });
-
-    it("queueCloseInactiveMarket on non-existent token reverts (line 3351)", async function () {
-      const fakeToken = "0x1234567890123456789012345678901234567890";
-      await expect(
-        crystal.connect(owner).queueCloseInactiveMarket(fakeToken)
-      ).to.be.reverted;
-    });
-
-    it("queueCloseInactiveMarket before 1 year reverts (line 3361)", async function () {
-
-      await expect(
-        crystal.connect(owner).queueCloseInactiveMarket(tokenAddress)
-      ).to.be.reverted;
-    });
-  });
-
-  describe("Coverage: executeCloseInactiveMarket edge cases (line 3389)", function () {
-    let harness, tokenAddress;
-
-    beforeEach(async function () {
-      const CrystalHarness = await ethers.getContractFactory("CrystalHarness");
-      harness = await CrystalHarness.deploy(
-        weth.target,
-        owner.address,
-        owner.address,
-        25,
-        86400,
-        validLaunchpadParams
-      );
-      await harness.waitForDeployment();
-
-      const tx = await harness.connect(user1).createToken("Execute Token", "EXT", "", "Token", "", "", "", "");
-      const receipt = await tx.wait();
-      const event = receipt.logs.find(log => {
-        try { return harness.interface.parseLog(log)?.name === "TokenCreated"; } catch { return false; }
-      });
-      tokenAddress = harness.interface.parseLog(event).args.token;
-    });
-
-    it("executeCloseInactiveMarket without queued close reverts (line 3389)", async function () {
-      await expect(
-        harness.connect(owner).executeCloseInactiveMarket(tokenAddress)
-      ).to.be.reverted;
     });
   });
 
@@ -17317,7 +16818,7 @@ describe("Crystal Core Protocol Tests", function () {
       const remainingTokens = launchpadMarket.virtualTokenReserve;
 
 
-      const result = await crystal.quoteBuy.staticCall(false, tokenAddress, 0, remainingTokens * 99n / 100n);
+      const result = await crystal.quoteBuy.staticCall(false, tokenAddress, 0, (remainingTokens - VIRTUAL_TOKEN_SUPPLY) * 99n / 100n);
 
 
       expect(result[0]).to.be.gte(0n);
@@ -19570,68 +19071,6 @@ describe("Crystal Core Protocol Tests", function () {
     });
   });
 
-  describe("Coverage: Branches 3361, 3389 - close inactive market", function () {
-    let harness, weth, user1, owner;
-
-    beforeEach(async function () {
-      [owner, user1] = await ethers.getSigners();
-      const WETH = await ethers.getContractFactory("WETH");
-      weth = await WETH.deploy();
-      const CrystalHarness = await ethers.getContractFactory("CrystalHarness");
-      harness = await CrystalHarness.deploy(
-        weth.target, owner.address, owner.address, 10, 86400,
-        {
-          launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
-          graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
-          graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
-        }
-      );
-    });
-
-    it("queueCloseInactiveMarket for graduated market fails without time - branch 3361:1", async function () {
-
-      const tx = await harness.connect(user1).createToken("Test3361", "T3361", "", "Test", "", "", "", "", { value: ethers.parseEther("100") });
-      const receipt = await tx.wait();
-      const event = receipt.logs.find(log => {
-        try { return harness.interface.parseLog(log)?.name === "TokenCreated"; } catch { return false; }
-      });
-      const tokenAddress = harness.interface.parseLog(event).args.token;
-      await harness.clearLaunchpadMarket(tokenAddress);
-
-
-      await expect(
-        harness.connect(owner).queueCloseInactiveMarket(tokenAddress)
-      ).to.be.reverted;
-    });
-
-    it("executeCloseInactiveMarket for launchpad market - branch 3389:0", async function () {
-
-      const tx = await harness.connect(user1).createToken("Test3389", "T3389", "", "Test", "", "", "", "");
-      const receipt = await tx.wait();
-      const event = receipt.logs.find(log => {
-        try { return harness.interface.parseLog(log)?.name === "TokenCreated"; } catch { return false; }
-      });
-      const tokenAddress = harness.interface.parseLog(event).args.token;
-
-
-      await harness.setLaunchpadCreateTimestamp(tokenAddress, 1);
-
-
-      await ethers.provider.send("evm_increaseTime", [366 * 24 * 60 * 60]);
-      await ethers.provider.send("evm_mine");
-
-
-      await harness.connect(owner).queueCloseInactiveMarket(tokenAddress);
-
-
-      await ethers.provider.send("evm_increaseTime", [8 * 24 * 60 * 60]);
-      await ethers.provider.send("evm_mine");
-
-
-      await harness.connect(owner).executeCloseInactiveMarket(tokenAddress);
-    });
-  });
-
   describe("Coverage: Branch 2584:1 and 2652:0 - createToken edge cases", function () {
     let harness, weth, user1, owner;
 
@@ -20003,33 +19442,6 @@ describe("Crystal Core Protocol Tests", function () {
       await expect(
         harness.quoteSell.staticCall(false, tokenAddress, 0, ethers.parseEther("100000"))
       ).to.be.reverted;
-    });
-
-
-    it("executeCloseInactiveMarket on launchpad - branch 3389:0", async function () {
-      const tx = await harness.connect(user1).createToken("T3389v2", "T3389v2", "", "Test", "", "", "", "");
-      const receipt = await tx.wait();
-      const event = receipt.logs.find(log => {
-        try { return harness.interface.parseLog(log)?.name === "TokenCreated"; } catch { return false; }
-      });
-      const tokenAddress = harness.interface.parseLog(event).args.token;
-
-
-      await harness.setLaunchpadCreateTimestamp(tokenAddress, 1);
-
-
-      await ethers.provider.send("evm_increaseTime", [366 * 24 * 60 * 60]);
-      await ethers.provider.send("evm_mine");
-
-
-      await harness.connect(owner).queueCloseInactiveMarket(tokenAddress);
-
-
-      await ethers.provider.send("evm_increaseTime", [8 * 24 * 60 * 60]);
-      await ethers.provider.send("evm_mine");
-
-
-      await harness.connect(owner).executeCloseInactiveMarket(tokenAddress);
     });
 
 
@@ -20476,32 +19888,6 @@ describe("Crystal Core Protocol Tests", function () {
     });
 
 
-    it("executeCloseInactiveMarket on market with zero address - branch 3389:cond-expr:0", async function () {
-
-      const tx = await harness.connect(user1).createToken("T3389x", "T3389x", "", "Test", "", "", "", "");
-      const receipt = await tx.wait();
-      const event = receipt.logs.find(log => {
-        try { return harness.interface.parseLog(log)?.name === "TokenCreated"; } catch { return false; }
-      });
-      const tokenAddress = harness.interface.parseLog(event).args.token;
-
-
-      await harness.setLaunchpadCreateTimestamp(tokenAddress, 1);
-
-
-      await ethers.provider.send("evm_increaseTime", [366 * 24 * 60 * 60]);
-      await ethers.provider.send("evm_mine");
-
-
-      await harness.connect(owner).queueCloseInactiveMarket(tokenAddress);
-
-
-      await ethers.provider.send("evm_increaseTime", [8 * 24 * 60 * 60]);
-      await ethers.provider.send("evm_mine");
-
-
-      await harness.connect(owner).executeCloseInactiveMarket(tokenAddress);
-    });
   });
 
   describe("Coverage: Additional targeted branches", function () {
@@ -20747,8 +20133,11 @@ describe("Crystal Core Protocol Tests", function () {
       return mappingSlot(token, mappingSlot(userId, 11n));
     }
 
-    function ordersSlot(key) {
-      return mappingSlot(key, 14n);
+    function cloidOrderSlot(userId, cloid) {
+      const cloidPairIndex = (cloid - 1n) >> 1n;
+      const key = (userId << 128n) | (cloidPairIndex / 42n);
+      const offset = (cloidPairIndex % 42n) * 3n + ((cloid & 1n) === 0n ? 1n : 0n);
+      return BigInt(mappingSlot(key, 0x100n)) + offset;
     }
 
     function marketSlot(market, offset) {
@@ -20866,8 +20255,7 @@ describe("Crystal Core Protocol Tests", function () {
       await harness.connect(user1).deposit(ethAddress, 1, { value: 1 });
       const userId = await harness.addressToUserId(user1.address);
       const orderId = 1n;
-      const key = (orderId << 41n) | userId;
-      const slot = mappingSlot(key, 14n);
+      const slot = cloidOrderSlot(userId, orderId);
       await setStorage(harness.target, slot, 1n);
       await harness.connect(user1).clearCloidSlots(userId, [Number(orderId)]);
     });
@@ -21374,8 +20762,7 @@ describe("Crystal Core Protocol Tests", function () {
       await harness.connect(user1).deposit(ethAddress, 1, { value: 1 });
       const userId = await harness.addressToUserId(user1.address);
       const orderId = 2n;
-      const key = (orderId << 41n) | userId;
-      const slot = ordersSlot(key);
+      const slot = cloidOrderSlot(userId, orderId);
       await setStorage(harness.target, slot, 1n << 113n);
       await harness.connect(user1).clearCloidSlots(userId, [Number(orderId)]);
     });
@@ -21384,8 +20771,7 @@ describe("Crystal Core Protocol Tests", function () {
       await harness.connect(user1).deposit(ethAddress, 1, { value: 1 });
       const userId = await harness.addressToUserId(user1.address);
       const orderId = 3n;
-      const key = (orderId << 41n) | userId;
-      const slot = ordersSlot(key);
+      const slot = cloidOrderSlot(userId, orderId);
       await setStorage(harness.target, slot, 1n);
       await harness.connect(user1).writeCloidSlots(userId, [Number(orderId)]);
     });
@@ -22033,37 +21419,6 @@ describe("Crystal Core Protocol Tests", function () {
       ).to.be.revertedWithCustomError(harness, "ActionFailed");
     });
 
-    it("queueCloseInactiveMarket and executeCloseInactiveMarket for market", async function () {
-      const base = await testTokenFactory.deploy("Test", "TEST", 18);
-      const market = await createMarket(weth.target, base.target);
-      await base.mint(owner.address, ethers.parseEther("10"));
-      await base.connect(owner).approve(harness.target, ethers.MaxUint256);
-      await harness.addLiquidity(
-        market,
-        ethers.ZeroAddress,
-        ethers.parseEther("1"),
-        ethers.parseEther("1"),
-        0,
-        0,
-        { value: ethers.parseEther("1") }
-      );
-      const block = await ethers.provider.getBlock("latest");
-      const oldTimestamp = BigInt(block.timestamp) - 366n * 86400n;
-      await setStorage(
-        harness.target,
-        marketSlot(market, 9n),
-        oldTimestamp << 160n
-      );
-      await harness.connect(owner).queueCloseInactiveMarket(base.target);
-      const pendingSlot = mappingSlot(market, 17n);
-      await setStorage(
-        harness.target,
-        pendingSlot,
-        BigInt(block.timestamp) - 8n * 86400n
-      );
-      await harness.connect(owner).executeCloseInactiveMarket(base.target);
-    });
-
     it("getAmountsOut rejects empty market", async function () {
       const token = await testTokenFactory.deploy("Test", "TEST", 18);
       await expect(
@@ -22278,7 +21633,6 @@ describe("Crystal Core Protocol Tests", function () {
         crystal.interface.encodeFunctionData("createToken", ["", "", "", "", "", "", "", ""]),
         crystal.interface.encodeFunctionData("buy", [true, zero, 0, 0]),
         crystal.interface.encodeFunctionData("sell", [true, zero, 0, 0]),
-        crystal.interface.encodeFunctionData("executeCloseInactiveMarket", [zero]),
       ];
   
       await attacker.setReenterCalldata(calls);
@@ -22318,41 +21672,6 @@ describe("Crystal Core Protocol Tests", function () {
       expect(await token.balanceOf(user1.address)).to.be.greaterThan(0n);
     });
   
-    it("executeCloseInactiveMarket for launchpad succeeds under guard", async function () {
-      const { crystal, owner, user1 } = await loadFixture(deployFixture);
-  
-      const tx = await crystal.connect(user1).createToken(
-        "Close Token",
-        "CLOSE",
-        "",
-        "Token for close guard test",
-        "",
-        "",
-        "",
-        ""
-      );
-  
-      const receipt = await tx.wait();
-      const event = receipt.logs
-        .map((log) => {
-          try {
-            return crystal.interface.parseLog(log);
-          } catch {
-            return null;
-          }
-        })
-        .find((e) => e && e.name === "TokenCreated");
-  
-      const tokenAddress = event.args.token;
-  
-      await advanceTime(TIME.ONE_YEAR + 1);
-      await crystal.connect(owner).queueCloseInactiveMarket(tokenAddress);
-      await advanceTime(TIME.SEVEN_DAYS + 1);
-      await crystal.connect(owner).executeCloseInactiveMarket(tokenAddress);
-  
-      const launchpadMarket = await crystal.launchpadTokenToMarket(tokenAddress);
-      expect(launchpadMarket.virtualTokenReserve).to.equal(0n);
-    });
   });
   
   describe("Final coverage cases", function () {
@@ -22594,8 +21913,11 @@ describe("Crystal Core Protocol Tests", function () {
       return mappingSlot(token, mappingSlot(userId, 11n));
     }
 
-    function ordersSlotFixed(key) {
-      return mappingSlot(key, 14n);
+    function cloidOrderSlotFixed(userId, cloid) {
+      const cloidPairIndex = (cloid - 1n) >> 1n;
+      const key = (userId << 128n) | (cloidPairIndex / 42n);
+      const offset = (cloidPairIndex % 42n) * 3n + ((cloid & 1n) === 0n ? 1n : 0n);
+      return BigInt(mappingSlot(key, 0x100n)) + offset;
     }
 
     async function setStorage(target, slot, value) {
@@ -22622,8 +21944,7 @@ describe("Crystal Core Protocol Tests", function () {
       await harness.connect(user1).deposit(ethAddress, 1, { value: 1 });
       const userId = await harness.addressToUserId(user1.address);
       const cloidId = 2n;
-      const orderKey = (cloidId << 41n) | userId;
-      const slot = ordersSlotFixed(orderKey);
+      const slot = cloidOrderSlotFixed(userId, cloidId);
       await setStorage(harness.target, slot, 1n << 200n);
       await harness.connect(user1).clearCloidSlots(userId, [Number(cloidId)]);
       const orderValue = await ethers.provider.getStorage(harness.target, slot);
@@ -22640,10 +21961,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 });
 
-// Auto-extracted regression PoCs from crystal.md.txt.
-// Each report snippet is block-scoped to avoid duplicate top-level declarations.
-
-// PoC block 1
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
@@ -22651,7 +21968,7 @@ describe("Crystal Core Protocol Tests", function () {
   
   const tokenAmount = (amount) => ethers.parseEther(amount);
   
-  describe("H-01: Replace-limit collateral release goes to shared router balance", function () {
+  describe("Replace-limit collateral release goes to shared router balance", function () {
     async function deployFixture() {
       const [deployer, victim, attacker] = await ethers.getSigners();
   
@@ -22782,7 +22099,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 4
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
@@ -22811,7 +22127,7 @@ describe("Crystal Core Protocol Tests", function () {
     return ethers.zeroPadValue(ethers.toBeHex(word), 32);
   }
   
-  describe("M-01: Fallback native-id cancel reverts on a linear-market bid", function () {
+  describe("Fallback native-id cancel reverts on a linear-market bid", function () {
     async function deployHighTickLinearBid() {
       const [deployer, victim] = await ethers.getSigners();
   
@@ -22932,7 +22248,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 5
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
@@ -22942,7 +22257,7 @@ describe("Crystal Core Protocol Tests", function () {
   
   const quoteAmount = (amount) => ethers.parseUnits(amount, 6);
   
-  describe("M-02: Exact-input router swaps can spend amountIn + 1", function () {
+  describe("Exact-input router swaps can spend amountIn + 1", function () {
     async function deployCrystalWithAmmLiquidity() {
       const [deployer, victim] = await ethers.getSigners();
   
@@ -23054,13 +22369,12 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 6
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
   const { ethers } = require("hardhat");
   
-  describe("M-03: ERC20 deposits accept unexpected native value", function () {
+  describe("ERC20 deposits accept unexpected native value", function () {
     async function deployCrystalFixture() {
       const [deployer, attacker, victim] = await ethers.getSigners();
   
@@ -23148,7 +22462,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 8
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
@@ -23198,7 +22511,7 @@ describe("Crystal Core Protocol Tests", function () {
     return (numerator + denominator - 1n) / denominator;
   }
   
-  describe("M-05: Launchpad quoteBuy graduation path is not static-callable", function () {
+  describe("Launchpad quoteBuy graduation path is not static-callable", function () {
     async function deployLaunchpadWithStaticQuoteIntegration() {
       const [deployer, attacker] = await ethers.getSigners();
   
@@ -23315,13 +22628,12 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 9
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
   const { ethers } = require("hardhat");
   
-  describe("M-06: Taking the last ask can exhaust bitmap search", function () {
+  describe("Taking the last ask can exhaust bitmap search", function () {
     async function deployLinearMarketWithSingleAsk() {
       const [deployer, attacker, victim] = await ethers.getSigners();
   
@@ -23446,7 +22758,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 11
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
@@ -23455,7 +22766,7 @@ describe("Crystal Core Protocol Tests", function () {
   const MAX_UINT256 = 2n ** 256n - 1n;
   const quoteAmount = (amount) => ethers.parseUnits(amount, 6);
   
-  describe("M-08: Closed vault balanceOf can divide by zero", function () {
+  describe("Closed vault balanceOf can divide by zero", function () {
     async function deployVaultFixture() {
       const [deployer, victim, attacker] = await ethers.getSigners();
   
@@ -23522,7 +22833,7 @@ describe("Crystal Core Protocol Tests", function () {
         0,
         0,
         false,
-        ["Victim Vault", "Closed vault balanceOf PoC", "", "", ""]
+        ["Vault", "Vault", "", "", ""]
       );
   
       await vaultFactory.connect(victim).deploy(
@@ -23533,7 +22844,7 @@ describe("Crystal Core Protocol Tests", function () {
         0,
         0,
         false,
-        ["Victim Vault", "Closed vault balanceOf PoC", "", "", ""]
+        ["Vault", "Vault", "", "", ""]
       );
   
       const vault = await ethers.getContractAt("CrystalVault", vaultAddress);
@@ -23577,13 +22888,12 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 13
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
   const { ethers } = require("hardhat");
   
-  describe("M-10: Off-grid price queries are accepted when tickSize > 1", function () {
+  describe("Off-grid price queries are accepted when tickSize > 1", function () {
     async function deployTickSizeMarketFixture() {
       const [deployer, alice, attacker] = await ethers.getSigners();
   
@@ -23683,7 +22993,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 14
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
@@ -23692,7 +23001,7 @@ describe("Crystal Core Protocol Tests", function () {
   const ETH_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
   const DEADLINE = 9999999999;
   
-  describe("M-11: ETH-input replaceLimitOrder returns released collateral as WETH instead of native ETH", function () {
+  describe("ETH-input replaceLimitOrder returns released collateral as WETH instead of native ETH", function () {
     async function deployCrystalWithEthInputMarket() {
       const [deployer, attacker] = await ethers.getSigners();
   
@@ -23824,7 +23133,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 17
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
@@ -23832,7 +23140,7 @@ describe("Crystal Core Protocol Tests", function () {
   
   const quoteAmount = (amount) => ethers.parseUnits(amount, 6);
   
-  describe("M-14: ERC20-only vault deposits accept and strand native ETH", function () {
+  describe("ERC20-only vault deposits accept and strand native ETH", function () {
     async function deployErc20OnlyVault() {
       const [deployer, alice, attacker] = await ethers.getSigners();
   
@@ -23900,7 +23208,7 @@ describe("Crystal Core Protocol Tests", function () {
         0,
         0,
         false,
-        ["ERC20 Only Vault", "ISSUE-29 PoC", "", "", ""]
+        ["ERC20 Only Vault", "ERC20 Only Vault", "", "", ""]
       );
   
       await vaultFactory.connect(alice).deploy(
@@ -23911,7 +23219,7 @@ describe("Crystal Core Protocol Tests", function () {
         0,
         0,
         false,
-        ["ERC20 Only Vault", "ISSUE-29 PoC", "", "", ""]
+        ["ERC20 Only Vault", "ERC20 Only Vault", "", "", ""]
       );
   
       const vault = await ethers.getContractAt("CrystalVault", vaultAddress);
@@ -23942,7 +23250,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 18
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
@@ -23963,7 +23270,7 @@ describe("Crystal Core Protocol Tests", function () {
     return buckets;
   }
   
-  describe("M-15: Exhausted boundary levels can appear as zero-liquidity depth buckets", function () {
+  describe("Exhausted boundary levels can appear as zero-liquidity depth buckets", function () {
     async function deployLinearOrderBook() {
       const [deployer, alice, attacker, bob] = await ethers.getSigners();
   
@@ -24113,7 +23420,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 20
 {
   const { expect } = require("chai");
   const { ethers } = require("hardhat");
@@ -24121,7 +23427,7 @@ describe("Crystal Core Protocol Tests", function () {
   const { deployFixture } = require("./helpers/setup");
   const { MAX_UINT256 } = require("./helpers/constants");
   
-  describe("M-17: Vault withdrawals can over-decrease active orders", function () {
+  describe("Vault withdrawals can over-decrease active orders", function () {
     async function fixture() {
       const base = await deployFixture();
       const { crystal, quote, weth, owner, vaultOperator, depositor } = base;
@@ -24214,7 +23520,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 25
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
@@ -24249,7 +23554,7 @@ describe("Crystal Core Protocol Tests", function () {
     ) / (reserveBase * AMM_FEE_DENOMINATOR * MAKER_REBATE);
   }
   
-  describe("L-01: Near-full LP burn can leave invalid residual AMM dust", function () {
+  describe("Near-full LP burn can leave invalid residual AMM dust", function () {
     async function deployNearMaxAmmFixture() {
       const [deployer, attacker] = await ethers.getSigners();
   
@@ -24368,7 +23673,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 26
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
@@ -24376,7 +23680,7 @@ describe("Crystal Core Protocol Tests", function () {
   
   const quoteAmount = (amount) => ethers.parseUnits(amount, 6);
   
-  describe("L-02: Structured batch accepts out-of-range CLOIDs", function () {
+  describe("Structured batch accepts out-of-range CLOIDs", function () {
     async function deployCrystalWithLinearMarket() {
       const [deployer, attacker, victim, alice, bob] = await ethers.getSigners();
   
@@ -24479,7 +23783,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 27
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
@@ -24493,7 +23796,7 @@ describe("Crystal Core Protocol Tests", function () {
   
   const ceilDiv = (a, b) => (a + b - 1n) / b;
   
-  describe("L-03: Market-to-limit buy remainder differs by one quote unit", function () {
+  describe("Market-to-limit buy remainder differs by one quote unit", function () {
     async function deployUnitMarketFixture() {
       const [deployer, attacker, alice] = await ethers.getSigners();
   
@@ -24624,13 +23927,12 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 28
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
   const { ethers } = require("hardhat");
   
-  describe("L-04: Vault factory min-size governance selector is unresolved", function () {
+  describe("Vault factory min-size governance selector is unresolved", function () {
     async function deployVaultFactoryFixture() {
       const [deployer] = await ethers.getSigners();
   
@@ -24674,7 +23976,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 29
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
@@ -24692,7 +23993,7 @@ describe("Crystal Core Protocol Tests", function () {
     return 10n ** (x / 90_000n) * (10_000n + (x % 90_000n)) * tickSize;
   }
   
-  describe("L-05: Price ladder view can revert near the AMM max-price boundary", function () {
+  describe("Price ladder view can revert near the AMM max-price boundary", function () {
     async function deployNearMaxAmmMarket() {
       const [deployer, attacker, victim] = await ethers.getSigners();
   
@@ -24829,7 +24130,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 31
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
@@ -24837,7 +24137,7 @@ describe("Crystal Core Protocol Tests", function () {
   
   const quoteAmount = (amount) => ethers.parseUnits(amount, 6);
   
-  describe("L-07: Required unknown structured batch action does not revert or roll back earlier actions", function () {
+  describe("Required unknown structured batch action does not revert or roll back earlier actions", function () {
     async function deployCrystalWithLinearMarket() {
       const [deployer, attacker, victim] = await ethers.getSigners();
   
@@ -24967,7 +24267,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 32
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
@@ -24988,7 +24287,7 @@ describe("Crystal Core Protocol Tests", function () {
   
   const ceilDiv = (numerator, denominator) => (numerator + denominator - 1n) / denominator;
   
-  describe("L-08: Launchpad exact-input graduation quote can exceed supplied input", function () {
+  describe("Launchpad exact-input graduation quote can exceed supplied input", function () {
     async function deployLaunchpadWithToken() {
       const [deployer, attacker] = await ethers.getSigners();
   
@@ -25015,11 +24314,11 @@ describe("Crystal Core Protocol Tests", function () {
   
       const launchpadToken = await crystal
         .connect(attacker)
-        .createToken.staticCall("Ultrafuzz Issue 20", "UF20", "", "PoC token", "", "", "", "");
+        .createToken.staticCall("Token", "T", "", "Token", "", "", "", "");
   
       await crystal
         .connect(attacker)
-        .createToken("Ultrafuzz Issue 20", "UF20", "", "PoC token", "", "", "", "");
+        .createToken("Token", "T", "", "Token", "", "", "", "");
   
       return { crystal, weth, launchpadToken, deployer, attacker };
     }
@@ -25065,7 +24364,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 33
 {
   const { expect } = require("chai");
   const { ethers } = require("hardhat");
@@ -25076,7 +24374,7 @@ describe("Crystal Core Protocol Tests", function () {
   const LAUNCHPAD_FEE = 99000n;
   const EXTREME_INITIAL_NATIVE_SUPPLY = MAX_UINT112 / 4n;
   
-  describe("L-09: Extreme launchpad parameter overflow repro is not source-backed", function () {
+  describe("Extreme launchpad parameter overflow repro is not source-backed", function () {
     it("rejects launchpad reserves whose graduation reserve cannot fit in uint112", async function () {
       const [deployer] = await ethers.getSigners();
   
@@ -25111,7 +24409,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 34
 {
   const { expect } = require("chai");
   const { loadFixture } = require("@nomicfoundation/hardhat-toolbox/network-helpers");
@@ -25147,7 +24444,7 @@ describe("Crystal Core Protocol Tests", function () {
     ]);
   }
   
-  describe("L-10: CLOID locators accept zero and underflow the pair index", function () {
+  describe("CLOID locators accept zero and underflow the pair index", function () {
     async function deployCrystalWithMarket() {
       const [deployer, attacker, victim] = await ethers.getSigners();
   
@@ -25250,7 +24547,6 @@ describe("Crystal Core Protocol Tests", function () {
   });
 }
 
-// PoC block 37
 {
   const { expect } = require("chai");
   const { ethers } = require("hardhat");
@@ -25311,7 +24607,7 @@ describe("Crystal Core Protocol Tests", function () {
         0,
         0,
         decreaseOnWithdraw,
-        ["Converted PoC Vault", "Converted Hardhat PoC", "", "", ""]
+        ["Vault", "Vault", "", "", ""]
       );
     await factory
       .connect(owner)
@@ -25323,13 +24619,13 @@ describe("Crystal Core Protocol Tests", function () {
         0,
         0,
         decreaseOnWithdraw,
-        ["Converted PoC Vault", "Converted Hardhat PoC", "", "", ""]
+        ["Vault", "Vault", "", "", ""]
       );
     return ethers.getContractAt("CrystalVault", predicted);
   }
   
-  describe("L-13: Single-sided vault asset states make future deposits and previews revert", function () {
-    it("L-13: single-sided vault previews and deposits revert", async function () {
+  describe("Single-sided vault asset states make future deposits and previews revert", function () {
+    it("single-sided vault previews and deposits revert", async function () {
       const fixture = await loadFixture(deployFixture);
       const { crystal, market, quote: quoteToken, weth, owner, maker, vaultOperator, depositor } = fixture;
       const initialQuote = quoteUnits(10000);
@@ -25652,3 +24948,118 @@ describe("Integration: Launchpad Flow", function () {
   });
 });
 }
+
+describe("Graduation sells exactly 800M", function () {
+  const params = {
+    launchpadFee: 99000,
+    launchpadCreatorFeeSplit: 50,
+    graduatedTakerFee: 99970,
+    graduatedMakerRebate: 99990,
+    graduatedMinSize: 1000000,
+    graduatedCreatorFeeSplit: 50,
+    launchpadInitialNativeSupply: ethers.parseEther("2")
+  };
+  const SOLD = 800000000n * 10n ** 18n;
+
+  async function fixture() {
+    const [owner, user1] = await ethers.getSigners();
+    const WETH = await ethers.getContractFactory("WETH");
+    const weth = await WETH.deploy();
+    const Crystal = await ethers.getContractFactory("Crystal");
+    const crystal = await Crystal.deploy(weth.target, owner.address, owner.address, 25, 86400, params);
+    await crystal.connect(user1).createToken("T", "T", "", "", "", "", "", "", { value: 0 });
+    const tokenAddr = await crystal.allTokens(0);
+    const token = await ethers.getContractAt("CrystalToken", tokenAddr);
+    return { owner, user1, crystal, token, tokenAddr };
+  }
+
+  async function curveNetSold(crystal, tokenAddr) {
+    const evs = await crystal.queryFilter(crystal.filters.LaunchpadTrade(tokenAddr));
+    let net = 0n;
+    for (const e of evs) {
+      net += e.args.isBuy ? e.args.amountOut : -e.args.amountIn;
+    }
+    return net;
+  }
+
+  async function strandedDust(crystal, token, tokenAddr) {
+    const syncs = await crystal.queryFilter(crystal.filters.Sync());
+    const last = syncs[syncs.length - 1];
+    const balance = await token.balanceOf(crystal.target);
+    return balance - last.args.reserve1;
+  }
+
+  async function expectGraduatedExact(crystal, token, tokenAddr) {
+    const lm = await crystal.launchpadTokenToMarket(tokenAddr);
+    expect(lm.virtualTokenReserve).to.equal(0);
+    expect(await curveNetSold(crystal, tokenAddr)).to.equal(SOLD);
+    expect(await strandedDust(crystal, token, tokenAddr)).to.equal(0n);
+  }
+
+  it("exact-input finisher sells exactly 800M, zero stranded", async function () {
+    const { user1, crystal, token, tokenAddr } = await loadFixture(fixture);
+    await crystal.connect(user1).buy(true, tokenAddr, ethers.parseEther("3"), 0, { value: ethers.parseEther("3") });
+    await crystal.connect(user1).buy(true, tokenAddr, ethers.parseEther("50"), 0, { value: ethers.parseEther("50") });
+    await expectGraduatedExact(crystal, token, tokenAddr);
+  });
+
+  it("exact-output finisher sells exactly 800M, zero stranded", async function () {
+    const { user1, crystal, token, tokenAddr } = await loadFixture(fixture);
+    await crystal.connect(user1).buy(true, tokenAddr, ethers.parseEther("3"), 0, { value: ethers.parseEther("3") });
+    await crystal.connect(user1).buy(
+      false, tokenAddr, ethers.parseEther("50"), 200000000n * 10n ** 18n, { value: ethers.parseEther("50") }
+    );
+    await expectGraduatedExact(crystal, token, tokenAddr);
+  });
+
+  it("quoteBuy matches execution through graduation", async function () {
+    const { user1, crystal, token, tokenAddr } = await loadFixture(fixture);
+    await crystal.connect(user1).buy(true, tokenAddr, ethers.parseEther("3"), 0, { value: ethers.parseEther("3") });
+    const [qIn, qOut, qGrad] = await crystal.connect(user1).quoteBuy.staticCall(true, tokenAddr, ethers.parseEther("50"), 0);
+    expect(qGrad).to.equal(true);
+    const before = await token.balanceOf(user1.address);
+    await crystal.connect(user1).buy(true, tokenAddr, ethers.parseEther("50"), 0, { value: ethers.parseEther("50") });
+    const got = (await token.balanceOf(user1.address)) - before;
+    expect(got).to.equal(qOut);
+    await expectGraduatedExact(crystal, token, tokenAddr);
+  });
+
+  it("adversarial exact-output aimed inside the old dust window cannot graduate short", async function () {
+    const { user1, crystal, token, tokenAddr } = await loadFixture(fixture);
+    const GC = 266666666666666666666666667n;
+    await crystal.connect(user1).buy(true, tokenAddr, ethers.parseEther("3"), 0, { value: ethers.parseEther("3") });
+    const [, vT] = await crystal.getVirtualReserves(tokenAddr);
+    const request = vT - (GC + 10000000n);
+    await crystal.connect(user1).buy(false, tokenAddr, ethers.parseEther("50"), request, { value: ethers.parseEther("50") });
+    const lmMid = await crystal.launchpadTokenToMarket(tokenAddr);
+    if (lmMid.virtualTokenReserve != 0n) {
+      await crystal.connect(user1).buy(true, tokenAddr, ethers.parseEther("1"), 0, { value: ethers.parseEther("1") });
+    }
+    await expectGraduatedExact(crystal, token, tokenAddr);
+  });
+
+  it("production params (1000 mon initial) graduate exactly too", async function () {
+    const [owner, user1] = await ethers.getSigners();
+    const WETH = await ethers.getContractFactory("WETH");
+    const weth = await WETH.deploy();
+    const prodParams = { ...params, launchpadInitialNativeSupply: ethers.parseEther("1000") };
+    const Crystal = await ethers.getContractFactory("Crystal");
+    const crystal = await Crystal.deploy(weth.target, owner.address, owner.address, 25, 86400, prodParams);
+    await crystal.connect(user1).createToken("T", "T", "", "", "", "", "", "", { value: 0 });
+    const tokenAddr = await crystal.allTokens(0);
+    const token = await ethers.getContractAt("CrystalToken", tokenAddr);
+    await crystal.connect(user1).buy(true, tokenAddr, ethers.parseEther("500"), 0, { value: ethers.parseEther("500") });
+    await crystal.connect(user1).buy(true, tokenAddr, ethers.parseEther("2800"), 0, { value: ethers.parseEther("2800") });
+    await expectGraduatedExact(crystal, token, tokenAddr);
+  });
+
+  it("small buys and a sell, then graduation is still exact", async function () {
+    const { user1, crystal, token, tokenAddr } = await loadFixture(fixture);
+    for (let i = 0; i < 7; i++) {
+      await crystal.connect(user1).buy(true, tokenAddr, ethers.parseEther("0.7"), 0, { value: ethers.parseEther("0.7") });
+    }
+    await crystal.connect(user1).sell(true, tokenAddr, 1000000n * 10n ** 18n, 0);
+    await crystal.connect(user1).buy(true, tokenAddr, ethers.parseEther("50"), 0, { value: ethers.parseEther("50") });
+    await expectGraduatedExact(crystal, token, tokenAddr);
+  });
+});

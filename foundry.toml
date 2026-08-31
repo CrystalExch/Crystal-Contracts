@@ -20,3 +20,23 @@ ignore = ["contracts/**/*.sol"]
 
 [invariant]
 fail_on_revert = false
+
+[profile.overnight]
+solc_version = "0.8.28"
+evm_version = "prague"
+optimizer = true
+optimizer_runs = 8000
+src = "contracts"
+test = "test/foundry"
+out = "out"
+libs = ["lib", "node_modules"]
+cache_path = "cache_forge"
+
+[profile.overnight.fuzz]
+runs = 1000000
+max_test_rejects = 20000000
+
+[profile.overnight.invariant]
+runs = 1000
+depth = 200
+fail_on_revert = false

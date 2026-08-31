@@ -82,9 +82,12 @@ contract CrystalMarket is ERC20 {
     /**
      * @notice Market id, max uint48.
      *
-     * @dev Already shifted 128 bits left, market id zero is invalid.
+     * @dev Already shifted 128 bits left, market id of zero is invalid.
      */
     uint256 internal immutable marketId;
+
+    /// @notice The AMM spread for this market.
+    uint256 internal immutable ammFee;
 
     /// @notice Fill event signature.
     uint256 internal constant FILL_SIG = 0xa195980963150be5fcca4acd6a80bf5a9de7f9c862258501b7c705e7d2c2d2f4;
@@ -121,7 +124,7 @@ contract CrystalMarket is ERC20 {
      * @dev Gets called during deployment to grab all the market parameters and set up the permit domain separator.
      */
     constructor() ERC20("Crystal V2", "CRY-V2") {
-        (quoteAsset, baseAsset, marketId, marketType, scaleFactor, tickSize, maxPrice) = ICrystal(msg.sender).parameters();
+        (quoteAsset, baseAsset, marketId, marketType, scaleFactor, tickSize, maxPrice, ammFee) = ICrystal(msg.sender).parameters();
         marketId <<= 128;
         scaleFactor = 10 ** scaleFactor;
         market = address(this);
@@ -709,12 +712,12 @@ contract CrystalMarket is ERC20 {
             (highestBid, lowestAsk) = (m.highestBid, m.lowestAsk);
             (uint256 reserveQuote, uint256 reserveBase) = m.isAMMEnabled ? (m.reserveQuote, m.reserveBase) : (0, 0);
             if (reserveQuote != 0) {
-                uint256 ammPrice = ((reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * uint256(m.makerRebate)));
+                uint256 ammPrice = ((reserveQuote * scaleFactor * ammFee * 100000) / (reserveBase * 10000 * uint256(m.makerRebate)));
                 ammPrice = marketType == 0 ? ((ammPrice + tickSize - 1) / tickSize) * tickSize : CM._toValidPrice(ammPrice, tickSize, true); // Compute adjusted AMM bid price
                 if (highestBid < ammPrice) {
                     highestBid = ammPrice;
                 }
-                ammPrice = ((reserveQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000));
+                ammPrice = ((reserveQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (reserveBase * ammFee * 100000 - 1)) / (reserveBase * ammFee * 100000));
                 ammPrice = marketType == 0 ? (ammPrice - (ammPrice % tickSize)) : CM._toValidPrice(ammPrice, tickSize, false); // Compute adjusted AMM ask price
                 if (lowestAsk > ammPrice) {
                     lowestAsk = ammPrice;
@@ -796,19 +799,19 @@ contract CrystalMarket is ERC20 {
                     {
                         uint256 adjustedAMMPrice;
                         if (_isBuy) {
-                            adjustedAMMPrice = (reserveQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000);
+                            adjustedAMMPrice = (reserveQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (reserveBase * ammFee * 100000 - 1)) / (reserveBase * ammFee * 100000);
                         } else {
-                            adjustedAMMPrice = (reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * uint256(m.makerRebate));
+                            adjustedAMMPrice = (reserveQuote * scaleFactor * ammFee * 100000) / (reserveBase * 10000 * uint256(m.makerRebate));
                         }
                         if (_isBuy && ammPriceLimit > adjustedAMMPrice) {
                             if (_isExactInput) {
                                 uint256 makerRebate = m.makerRebate;
                                 ammAmountIn = CM._exactInputBuySolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal input such that the AMM end price is as close as possible to the next order or worst price.
-                                ammAmountOut = (ammAmountIn * 9975 * reserveBase) / ((reserveQuote * 10000) + (ammAmountIn * 9975));
+                                ammAmountOut = (ammAmountIn * ammFee * reserveBase) / ((reserveQuote * 10000) + (ammAmountIn * ammFee));
                             } else {
                                 uint256 makerRebate = m.makerRebate;
                                 ammAmountOut = CM._exactOutputBuySolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal output such that the AMM end price is as close as possible to the next order or worst price.
-                                ammAmountIn = (ammAmountOut * reserveQuote * 10000) / ((reserveBase - ammAmountOut) * 9975) + 1;
+                                ammAmountIn = (ammAmountOut * reserveQuote * 10000) / ((reserveBase - ammAmountOut) * ammFee) + 1;
                             }
                             reserveQuote += ammAmountIn;
                             reserveBase -= ammAmountOut;
@@ -816,11 +819,11 @@ contract CrystalMarket is ERC20 {
                             if (_isExactInput) {
                                 uint256 makerRebate = m.makerRebate;
                                 ammAmountIn = CM._exactInputSellSolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal input such that the AMM end price is as close as possible to the next order or worst price.
-                                ammAmountOut = ((ammAmountIn * 9975) * reserveQuote) / ((reserveBase * 10000) + (ammAmountIn * 9975));
+                                ammAmountOut = ((ammAmountIn * ammFee) * reserveQuote) / ((reserveBase * 10000) + (ammAmountIn * ammFee));
                             } else {
                                 uint256 makerRebate = m.makerRebate;
                                 ammAmountOut = CM._exactOutputSellSolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal output such that the AMM end price is as close as possible to the next order or worst price.
-                                ammAmountIn = (ammAmountOut * reserveBase * 10000) / ((reserveQuote - ammAmountOut) * 9975) + 1;
+                                ammAmountIn = (ammAmountOut * reserveBase * 10000) / ((reserveQuote - ammAmountOut) * ammFee) + 1;
                             }
                             reserveBase += ammAmountIn;
                             reserveQuote -= ammAmountOut;
@@ -986,19 +989,19 @@ contract CrystalMarket is ERC20 {
                             (uint256 reserveQuote, uint256 reserveBase) = (reserves >> 128, reserves & MASK_KEEP_0_112);
                             uint256 adjustedAMMPrice;
                             if (isBuy) {
-                                adjustedAMMPrice = (reserveQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000);
+                                adjustedAMMPrice = (reserveQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (reserveBase * ammFee * 100000 - 1)) / (reserveBase * ammFee * 100000);
                             } else {
-                                adjustedAMMPrice = (reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * uint256(m.makerRebate));
+                                adjustedAMMPrice = (reserveQuote * scaleFactor * ammFee * 100000) / (reserveBase * 10000 * uint256(m.makerRebate));
                             }
                             if (isBuy && ammPriceLimit > adjustedAMMPrice) { // Compare AMM price with orderbook price adjusted for maker rebate
                                 if (isExactInput) {
                                     uint256 makerRebate = m.makerRebate;
                                     ammAmountIn = CM._exactInputBuySolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal input such that the AMM end price is as close as possible to the next order or worst price.
-                                    ammAmountOut = (ammAmountIn * 9975 * reserveBase) / ((reserveQuote * 10000) + (ammAmountIn * 9975)); // Execute Uniswap V2-style swap
+                                    ammAmountOut = (ammAmountIn * ammFee * reserveBase) / ((reserveQuote * 10000) + (ammAmountIn * ammFee)); // Execute Uniswap V2-style swap
                                 } else {
                                     uint256 makerRebate = m.makerRebate;
                                     ammAmountOut = CM._exactOutputBuySolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal output such that the AMM end price is as close as possible to the next order or worst price.
-                                    ammAmountIn = (ammAmountOut * reserveQuote * 10000) / ((reserveBase - ammAmountOut) * 9975) + 1; // Execute Uniswap V2-style swap
+                                    ammAmountIn = (ammAmountOut * reserveQuote * 10000) / ((reserveBase - ammAmountOut) * ammFee) + 1; // Execute Uniswap V2-style swap
                                 }
                                 reserveQuote += ammAmountIn;
                                 reserveBase -= ammAmountOut;
@@ -1009,7 +1012,7 @@ contract CrystalMarket is ERC20 {
                                         eventPrice := mload(0x80)
                                     }
                                     uint256 makerRebate = m.makerRebate;
-                                    uint256 endPrice = ((reserveQuote * scaleFactor * 10000 * makerRebate + (reserveBase * 9975 * 100000 - 1)) / (reserveBase * 9975 * 100000)); // Adjust price as against the AMM takers do not pay the maker rebate
+                                    uint256 endPrice = ((reserveQuote * scaleFactor * 10000 * makerRebate + (reserveBase * ammFee * 100000 - 1)) / (reserveBase * ammFee * 100000)); // Adjust price as against the AMM takers do not pay the maker rebate
                                     if (endPrice >= maxPrice) {
                                         endPrice = maxPrice;
                                     } else if (endPrice <= tickSize) {
@@ -1018,7 +1021,7 @@ contract CrystalMarket is ERC20 {
                                         endPrice = marketType == 0 ? (endPrice - (endPrice % tickSize)) : CM._toValidPrice(endPrice, tickSize, false); // Round down to valid price
                                     }
                                     if (eventPrice == 0) {
-                                        uint256 startPrice = (((reserveQuote - ammAmountIn) * scaleFactor * 10000 * makerRebate + ((reserveBase + ammAmountOut) * 9975 * 100000 - 1)) / ((reserveBase + ammAmountOut) * 9975 * 100000));
+                                        uint256 startPrice = (((reserveQuote - ammAmountIn) * scaleFactor * 10000 * makerRebate + ((reserveBase + ammAmountOut) * ammFee * 100000 - 1)) / ((reserveBase + ammAmountOut) * ammFee * 100000));
                                         if (startPrice >= maxPrice) {
                                             startPrice = maxPrice;
                                         } else if (startPrice <= tickSize) {
@@ -1038,11 +1041,11 @@ contract CrystalMarket is ERC20 {
                                 if (isExactInput) {
                                     uint256 makerRebate = m.makerRebate;
                                     ammAmountIn = CM._exactInputSellSolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal input such that the AMM end price is as close as possible to the next order or worst price.
-                                    ammAmountOut = ((ammAmountIn * 9975) * reserveQuote) / ((reserveBase * 10000) + (ammAmountIn * 9975)); // Execute Uniswap V2-style swap
+                                    ammAmountOut = ((ammAmountIn * ammFee) * reserveQuote) / ((reserveBase * 10000) + (ammAmountIn * ammFee)); // Execute Uniswap V2-style swap
                                 } else {
                                     uint256 makerRebate = m.makerRebate;
                                     ammAmountOut = CM._exactOutputSellSolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal output such that the AMM end price is as close as possible to the next order or worst price.
-                                    ammAmountIn = (ammAmountOut * reserveBase * 10000) / ((reserveQuote - ammAmountOut) * 9975) + 1; // Execute Uniswap V2-style swap
+                                    ammAmountIn = (ammAmountOut * reserveBase * 10000) / ((reserveQuote - ammAmountOut) * ammFee) + 1; // Execute Uniswap V2-style swap
                                 }
                                 reserveBase += ammAmountIn;
                                 reserveQuote -= ammAmountOut;
@@ -1053,7 +1056,7 @@ contract CrystalMarket is ERC20 {
                                         eventPrice := mload(0x80)
                                     }
                                     uint256 makerRebate = m.makerRebate;
-                                    uint256 endPrice = ((reserveQuote * scaleFactor * 9975 * 100000) / (reserveBase * 10000 * makerRebate));
+                                    uint256 endPrice = ((reserveQuote * scaleFactor * ammFee * 100000) / (reserveBase * 10000 * makerRebate));
                                     if (endPrice >= maxPrice) {
                                         endPrice = maxPrice;
                                     } else if (endPrice <= tickSize) {
@@ -1062,7 +1065,7 @@ contract CrystalMarket is ERC20 {
                                         endPrice = marketType == 0 ? ((endPrice + tickSize - 1) / tickSize) * tickSize : CM._toValidPrice(endPrice, tickSize, true); // Round up to valid price
                                     }
                                     if (eventPrice == 0) {
-                                        uint256 startPrice = ((reserveQuote + ammAmountOut) * scaleFactor * 9975 * 100000) / ((reserveBase - ammAmountIn) * 10000 * makerRebate);
+                                        uint256 startPrice = ((reserveQuote + ammAmountOut) * scaleFactor * ammFee * 100000) / ((reserveBase - ammAmountIn) * 10000 * makerRebate);
                                         if (startPrice >= maxPrice) {
                                             startPrice = maxPrice;
                                         } else if (startPrice <= tickSize) {
@@ -1428,7 +1431,7 @@ contract CrystalMarket is ERC20 {
             }
             if (refAddress == address(0)) {
                 uint256 creatorFee;
-                if (marketType == 3) {
+                if (marketType > 2) {
                     creatorFee = (feeAmount * m.creatorFeeSplit) / 100;
                     claimableRewards[quoteAsset][m.creator] += creatorFee;
                 }
@@ -1437,7 +1440,7 @@ contract CrystalMarket is ERC20 {
                 uint256 amountCommission = (feeAmount * feeCommission) / 100;
                 claimableRewards[quoteAsset][refAddress] += amountCommission;
                 uint256 creatorFee;
-                if (marketType == 3) {
+                if (marketType > 2) {
                     creatorFee = (feeAmount * m.creatorFeeSplit) / 100;
                     claimableRewards[quoteAsset][m.creator] += creatorFee;
                 }
@@ -1486,7 +1489,7 @@ contract CrystalMarket is ERC20 {
                         return (0, 0);
                     }
                     if (m.isAMMEnabled && m.reserveQuote != 0) {
-                        uint256 adjustedAMMPrice = ((uint256(m.reserveQuote) * scaleFactor * 10000 * 100000 + (uint256(m.reserveBase) * 9975 * uint256(m.makerRebate) - 1)) / (uint256(m.reserveBase) * 9975 * uint256(m.makerRebate)));
+                        uint256 adjustedAMMPrice = ((uint256(m.reserveQuote) * scaleFactor * 10000 * 100000 + (uint256(m.reserveBase) * ammFee * uint256(m.makerRebate) - 1)) / (uint256(m.reserveBase) * ammFee * uint256(m.makerRebate)));
                         if (price > adjustedAMMPrice) { // Reverts if the buy order price is greater than the AMM limit ask adjusted upward for maker rebate
                             return (0, 0);
                         }
@@ -1504,7 +1507,7 @@ contract CrystalMarket is ERC20 {
                         return (0, 0);
                     }
                     if (m.isAMMEnabled && m.reserveQuote != 0) {
-                        uint256 adjustedAMMPrice = ((uint256(m.reserveQuote) * scaleFactor * 9975 * uint256(m.makerRebate)) / (uint256(m.reserveBase) * 10000 * 100000));
+                        uint256 adjustedAMMPrice = ((uint256(m.reserveQuote) * scaleFactor * ammFee * uint256(m.makerRebate)) / (uint256(m.reserveBase) * 10000 * 100000));
                         if (price < adjustedAMMPrice) { // Reverts if the sell order price is greater than the AMM limit bid adjusted downwards for maker rebate
                             return (0, 0);
                         }
@@ -2187,7 +2190,7 @@ contract CrystalMarket is ERC20 {
     function premint(address to, uint256 amountQuoteDesired, uint256 amountBaseDesired) external payable returns (uint256 liquidity) {
         ICrystal.Market storage m = _getMarket[market];
         liquidity = CM._sqrt(amountQuoteDesired * (amountBaseDesired));
-        require(marketType == 3 && IERC20(market).totalSupply() == 0 && liquidity != 0 && amountQuoteDesired <= MASK_KEEP_0_112 && amountBaseDesired <= MASK_KEEP_0_112, ICrystal.InvalidParams());
+        require(marketType > 2 && IERC20(market).totalSupply() == 0 && liquidity != 0 && amountQuoteDesired <= MASK_KEEP_0_112 && amountBaseDesired <= MASK_KEEP_0_112, ICrystal.InvalidParams());
         IERC20(market).mint(to, liquidity);
         (m.reserveQuote, m.reserveBase) = (uint112(amountQuoteDesired), uint112(amountBaseDesired));
     }
@@ -2215,8 +2218,6 @@ contract CrystalMarket is ERC20 {
         if (totalSupply == 0) {
             amountQuote = amountQuoteDesired;
             amountBase = amountBaseDesired;
-            liquidity = CM._sqrt(amountQuote * (amountBase)) - 1000;
-            IERC20(market).mint(address(0), 1000);
         } else {
             uint256 amountBaseOptimal = (amountQuoteDesired * reserveBase) / reserveQuote;
             if (amountBaseOptimal <= amountBaseDesired) {
@@ -2227,17 +2228,38 @@ contract CrystalMarket is ERC20 {
                 amountQuote = amountQuoteOptimal;
                 amountBase = amountBaseDesired;
             }
-            uint256 liquidityIfQuote = (amountQuote * totalSupply) / reserveQuote;
-            uint256 liquidityIfBase = (amountBase * totalSupply) / reserveBase;
-            liquidity = CM._min(liquidityIfQuote, liquidityIfBase);
         }
         reserveQuote += amountQuote;
         reserveBase += amountBase;
+        require(reserveQuote != 0 && reserveBase != 0 && m.isAMMEnabled == true, ICrystal.SlippageExceeded());
         {
-            uint256 ammAsk = ((reserveQuote * scaleFactor * 10000 * 100000 + (reserveBase * 9975 * uint256(m.makerRebate) - 1)) / (reserveBase * 9975 * uint256(m.makerRebate)));
-            uint256 ammBid = ((reserveQuote * scaleFactor * 9975 * uint256(m.makerRebate)) / (reserveBase * 10000 * 100000));
-            require(m.highestBid <= ammAsk && m.lowestAsk >= ammBid && liquidity != 0 && amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && reserveQuote <= MASK_KEEP_0_112 && reserveBase <= MASK_KEEP_0_112 && m.isAMMEnabled == true, ICrystal.SlippageExceeded());
+            uint256 ammAsk = ((reserveQuote * scaleFactor * 10000 * 100000 + (reserveBase * ammFee * uint256(m.makerRebate) - 1)) / (reserveBase * ammFee * uint256(m.makerRebate)));
+            uint256 ammBid = ((reserveQuote * scaleFactor * ammFee * uint256(m.makerRebate)) / (reserveBase * 10000 * 100000));
+            if (m.highestBid > ammAsk) {
+                uint256 newReserveBase = (reserveQuote * scaleFactor * 10000 * 100000 - 1) / ((uint256(m.highestBid) - 1) * ammFee * uint256(m.makerRebate));
+                ammBid = ((reserveQuote * scaleFactor * ammFee * uint256(m.makerRebate)) / (newReserveBase * 10000 * 100000));
+                require(reserveBase - newReserveBase <= amountBase && m.lowestAsk >= ammBid, ICrystal.SlippageExceeded());
+                amountBase -= (reserveBase - newReserveBase);
+                reserveBase = newReserveBase;
+            } else if (m.lowestAsk < ammBid) {
+                uint256 newReserveQuote = ((uint256(m.lowestAsk) + 1) * reserveBase * 10000 * 100000 - 1) / (scaleFactor * ammFee * uint256(m.makerRebate));
+                ammAsk = ((newReserveQuote * scaleFactor * 10000 * 100000 + (reserveBase * ammFee * uint256(m.makerRebate) - 1)) / (reserveBase * ammFee * uint256(m.makerRebate)));
+                require(reserveQuote - newReserveQuote <= amountQuote && m.highestBid <= ammAsk, ICrystal.SlippageExceeded());
+                amountQuote -= (reserveQuote - newReserveQuote);
+                reserveQuote = newReserveQuote;
+            }
         }
+        if (totalSupply == 0) {
+            liquidity = CM._sqrt(amountQuote * (amountBase)) - 1000;
+            IERC20(market).mint(address(0), 1000);
+        } else {
+            uint256 liquidityIfQuote = (amountQuote * totalSupply) / (reserveQuote - amountQuote);
+            uint256 liquidityIfBase = (amountBase * totalSupply) / (reserveBase - amountBase);
+            liquidity = CM._min(liquidityIfQuote, liquidityIfBase);
+        }
+        require(liquidity != 0 && amountQuote >= amountQuoteMin && amountBase >= amountBaseMin && reserveQuote <= MASK_KEEP_0_112 && reserveBase <= MASK_KEEP_0_112, ICrystal.SlippageExceeded());
+        (m.reserveQuote, m.reserveBase) = (uint112(reserveQuote), uint112(reserveBase));
+        IERC20(market).mint(to, liquidity);
         if ((options & 1) == 0) {
             IERC20(quoteAsset).transferFrom(msg.sender, address(this), amountQuote);
         } else {
@@ -2277,17 +2299,17 @@ contract CrystalMarket is ERC20 {
         reserveQuote -= uint112(amountQuote);
         reserveBase -= uint112(amountBase);
         if (m.isAMMEnabled) {
-            uint256 ammAsk = ((reserveQuote * scaleFactor * 10000 * 100000 + (reserveBase * 9975 * uint256(m.makerRebate) - 1)) / (reserveBase * 9975 * uint256(m.makerRebate)));
-            uint256 ammBid = ((reserveQuote * scaleFactor * 9975 * uint256(m.makerRebate)) / (reserveBase * 10000 * 100000));
+            uint256 ammAsk = ((reserveQuote * scaleFactor * 10000 * 100000 + (reserveBase * ammFee * uint256(m.makerRebate) - 1)) / (reserveBase * ammFee * uint256(m.makerRebate)));
+            uint256 ammBid = ((reserveQuote * scaleFactor * ammFee * uint256(m.makerRebate)) / (reserveBase * 10000 * 100000));
             if (m.highestBid > ammAsk) {
-                uint256 newReserveQuote = (((uint256(m.highestBid) - 1) * reserveBase * 9975 * uint256(m.makerRebate)) / (scaleFactor * 10000 * 100000)) + 1;
-                ammBid = ((newReserveQuote * scaleFactor * 9975 * uint256(m.makerRebate)) / (reserveBase * 10000 * 100000));
+                uint256 newReserveQuote = (((uint256(m.highestBid) - 1) * reserveBase * ammFee * uint256(m.makerRebate)) / (scaleFactor * 10000 * 100000)) + 1;
+                ammBid = ((newReserveQuote * scaleFactor * ammFee * uint256(m.makerRebate)) / (reserveBase * 10000 * 100000));
                 require(newReserveQuote - reserveQuote <= amountQuote && m.lowestAsk >= ammBid, ICrystal.SlippageExceeded());
                 amountQuote -= (newReserveQuote - reserveQuote);
                 reserveQuote = newReserveQuote;
             } else if (m.lowestAsk < ammBid) {
-                uint256 newReserveBase = ((reserveQuote * scaleFactor * 9975 * uint256(m.makerRebate)) / ((uint256(m.lowestAsk) + 1) * 10000 * 100000)) + 1;
-                ammAsk = ((reserveQuote * scaleFactor * 10000 * 100000 + (newReserveBase * 9975 * uint256(m.makerRebate) - 1)) / (newReserveBase * 9975 * uint256(m.makerRebate)));
+                uint256 newReserveBase = ((reserveQuote * scaleFactor * ammFee * uint256(m.makerRebate)) / ((uint256(m.lowestAsk) + 1) * 10000 * 100000)) + 1;
+                ammAsk = ((reserveQuote * scaleFactor * 10000 * 100000 + (newReserveBase * ammFee * uint256(m.makerRebate) - 1)) / (newReserveBase * ammFee * uint256(m.makerRebate)));
                 require(newReserveBase - reserveBase <= amountBase && m.highestBid <= ammAsk, ICrystal.SlippageExceeded());
                 amountBase -= (newReserveBase - reserveBase);
                 reserveBase = newReserveBase;
@@ -2332,7 +2354,7 @@ contract CrystalMarket is ERC20 {
                 mstore(0xc0, caller())
                 mstore(0x40, 0x100) // Reserve memory as 0x80 is used internally by _marketOrder
                 userId := calldataload(offset)
-                balanceMode := shr(44, userId)
+                balanceMode := shr(44, userId) // Extract uint4, fromInternal and toInternal aren't supported in fallback
                 userId := and(MASK_KEEP_0_41, userId) // Extract uint41 userId from uint44 encoding
             }
             offset += 32;
@@ -2378,7 +2400,17 @@ contract CrystalMarket is ERC20 {
                         require(!isBuy, ICrystal.ActionFailed());
                     }
                 } else if (action > 3 && action < 12) { // Action codes: 4=MTL buy, 5=MTL sell, 6=partial buy, 7=partial sell, 8=partial buy (gas-aware), 9=partial sell (gas-aware), 10=complete buy, 11=complete sell
-                    uint256 settlementDelta = (uint256((action < 6) ? 2 : (action < 8) ? 0 : (action < 10) ? 3 : 1) << 252) | (((action & 1) != 0) ? (1 << 244) : 0) | (1 << 240) | (balanceMode << 236); // Avoid stack too deep
+                    uint256 settlementDelta;
+                    {
+                        uint256 stp;
+                        assembly {
+                            stp := and(0x3, shr(248, calldataload(offset))) // Extract STP mode from bits 7-8
+                        }
+                        if (stp == 0) {
+                            stp = 1; // STP mode of 0 is invalid in the fallback, default to 1
+                        }
+                        settlementDelta = (uint256((action < 6) ? 2 : (action < 8) ? 0 : (action < 10) ? 3 : 1) << 252) | (((action & 1) != 0) ? (1 << 244) : 0) | (stp << 240) | (balanceMode << 236); // Avoid stack too deep
+                    }
                     (, param1, , settlementDelta) = _marketOrder(param2, param1, settlementDelta | (cloid << 208) | (userId << 160) | uint160(msg.sender)); // Market orders through the batch order endpoint are always exact input
                     if (action & 1 != 0) { // Sell order settlement
                         baseAssetDebt += int256(settlementDelta >> 128);

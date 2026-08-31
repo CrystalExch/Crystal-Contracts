@@ -363,21 +363,14 @@ A non-exhaustive list of protocol invariants that should be satisfied at all tim
 - Canceling or decreasing an order must release exactly the reduced locked collateral back to available balance.
 - Fills must conserve value across maker, taker, and fee accounting: maker locked input decreases, maker output increases, taker input decreases, taker output increases, and protocol/referral/creator fee accounting explains any spread.
 
-### Market Reserves and Metadata
-
-- Market configuration must remain stable after creation. Quote asset, base asset, scale factor, tick size, max price, and minimum size must continue to match the configured market.
-- Reserve views must agree after adds, swaps, and removals. `getReserves(market)` and `getMarket(market).reserveQuote/reserveBase` should report the same quote and base reserves.
-- Reported AMM reserves must be backed by real assets held by `Crystal`; reserves may not exceed the protocol's actual quote and base token balances.
-- Market index views must remain valid. Market lists should contain nonzero markets, and token-pair routing should resolve to the expected active market.
-
 ### Orderbook
 
 - Resting limit orders may only exist at valid market ticks, with `price > 0`, `price < maxPrice`, `price % tickSize == 0`, and size satisfying the market minimum in the correct denomination.
-- The primary book must never remain crossed. If both sides of the book exist, `highestBid < lowestAsk`; otherwise executable liquidity was left unmatched.
+- The primary book must never remain crossed. If both sides of the book exist, `highestBid < lowestAsk` must hold true.
 - Market buys must consume the lowest ask before higher asks, and market sells must consume the highest bid before lower bids.
 - Orders at the same price must fill by time priority: older resting orders fill before newer resting orders.
 - Limit orders must execute at the specified price or better, never worse, and maker orders must not pay taker fees.
-- Market orders must stop at `worstPrice`; complete-fill orders must revert without mutation if constraints cannot be satisfied; partial-fill orders must cancel the unfilled remainder.
+- Market orders must stop at `worstPrice`, complete-fill orders must revert if not fully filled, and partial-fill orders must cancel the unfilled remainder.
 - Market-to-limit orders must consume executable liquidity up to the limit price, then rest any remaining quantity as a limit order on the same side at that limit price.
 - Live tracked orders must match on-chain storage, and aggregate price-level liquidity must cover live orders resting at that price.
 - Client order IDs must stay in `1..1023`, be unique while active for a user, be cancelable/decreaseable by CLOID, and be reusable after cancellation or fill. CLOID list views and single-order views must agree.
@@ -397,7 +390,7 @@ A non-exhaustive list of protocol invariants that should be satisfied at all tim
 - Vault `totalSupply`, user share balances, and factory `totalShares` must stay synchronized across deposits, withdrawals, and close.
 - A user who deposits into a vault and withdraws the received shares should not end with more quote or base than before, absent external fills or fees.
 - Vault shares must be non-transferable, even after approval.
-- Withdrawals before `unlockTimestamp` must revert; withdrawals at or after lockup must return previewed assets.
+- Withdrawals before `unlockTimestamp` must revert and withdrawals at or after lockup must return previewed assets.
 - Vault buy and sell limit orders must lock collateral owned by the vault address and must not directly mutate depositor wallets.
 - Active-order withdrawal behavior must follow `decreaseOnWithdraw`: active orders are reduced proportionally or only by needed locked liquidity according to the vault setting.
 - Vault risk parameters must respect owner and factory-wide bounds, including `maxShares`, `orderCap`, `lockup`, and owner minimum stake constraints. Unsafe deposits or operator actions must reject without moving funds.
@@ -411,17 +404,18 @@ A non-exhaustive list of protocol invariants that should be satisfied at all tim
 - Removing LP liquidity must burn exactly the requested liquidity and return quote/base amounts greater than the specified minimums.
 - When both book and AMM liquidity are available, execution should use the lower effective marginal price source, subject to slippage and maker rebate rules.
 - Add-liquidity-only orders that cross AMM-implied executable liquidity must revert or leave reserves unchanged according to the documented mode.
+- Deposits, withdrawals, placements, cancellations, fills, mints, burns, and syncs must emit enough data to reconstruct account and market state from the exchange address.
 
 ### Batching, Fallback, and Router
 
-- If a batch action marked `isRequireSuccess == true` fails, all prior successful actions in the same batch must roll back.
-- If a batch action marked `isRequireSuccess == false` fails, later valid actions may still execute and earlier successful optional actions should remain.
+- If a batch action marked `isRequireSuccess == true` or a complete fill order fails, all prior successful actions in the same batch must roll back.
+- If a batch action marked `isRequireSuccess == false` fails or a partial fill order fails to fill, later valid actions may still execute and earlier successful optional actions should remain.
 - Multi-batch and multi-market calls must settle atomically at the transaction boundary, including netted settlement and rollback on required failure.
-- Fallback calldata action words must decode to the same semantic operations as structured `batchOrders` actions for limit, cancel, market, and decrease flows.
 - Fallback internal-balance mode must debit and lock deposited balances instead of taking a fresh wallet transfer, while preserving `total == available + locked`.
 - Router exact-input and exact-output swaps must enforce deadline and slippage, transfer outputs to `to`, and support ERC20/native sentinel paths.
 - Invalid paths or missing markets must revert without changing balances, reserves, or orderbook state.
 - `routerDeposit` and `routerWithdraw` must use the same exchange ledger slots as direct deposit/withdraw and preserve native wrap/unwrap semantics.
+- Structured and fallback batches must emit order/fill events whose aggregate deltas match post-execution view snapshots.
 
 ### Launchpad
 
@@ -430,13 +424,6 @@ A non-exhaustive list of protocol invariants that should be satisfied at all tim
 - Launchpad buys and sells must move virtual native/token reserves in opposite directions while preserving bonding-curve constraints and the constant-product lower bound.
 - `quoteBuy` and `quoteSell` must predict `buy` and `sell` for exact-input and exact-output modes within explicit rounding tolerance, bound outputs by available virtual reserves, and avoid mutating virtual reserves.
 - Launchpad token metadata must remain valid, with nonempty name, nonempty symbol, 18 decimals, and nonzero total supply. `Crystal` must not hold more of a launchpad token than the token total supply.
-
-### Token and Event Surfaces
-
-- Market LP token `transferFrom` must update balances and finite allowances exactly, while max allowance must not be decremented.
-- Market LP token `mint` and `burn` must be callable only by `Crystal`; authorized mint/burn must change balance and total supply by the same amount.
-- Deposits, withdrawals, placements, cancellations, fills, mints, burns, and syncs must emit enough data to reconstruct account and market state from the exchange address.
-- Structured and fallback batches must emit order/fill events whose aggregate deltas match post-execution view snapshots.
 
 ## Deploy Contracts
 

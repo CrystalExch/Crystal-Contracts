@@ -79,6 +79,7 @@ contract MockCrystal {
     uint256 public scaleFactor;
     uint256 public tickSize;
     uint256 public maxPrice;
+    uint256 public ammFee;
 
     CrystalMarketHarness public harness;
 
@@ -109,9 +110,10 @@ contract MockCrystal {
         uint256,
         uint256,
         uint256,
+        uint256,
         uint256
     ) {
-        return (quoteAsset, baseAsset, marketId, marketType, scaleFactor, tickSize, maxPrice);
+        return (quoteAsset, baseAsset, marketId, marketType, scaleFactor, tickSize, maxPrice, ammFee);
     }
 
     /// @notice Deploy a CrystalMarketHarness with the specified parameters.
@@ -131,6 +133,7 @@ contract MockCrystal {
         scaleFactor = _scaleFactor;
         tickSize = _tickSize;
         maxPrice = _maxPrice;
+        ammFee = 9975;
 
         harness = new CrystalMarketHarness();
         return address(harness);

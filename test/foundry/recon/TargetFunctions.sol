@@ -42,14 +42,6 @@ abstract contract TargetFunctions is Properties {
         vm.warp(block.timestamp + between(secondsSeed, 1, 400 days));
     }
 
-    function manager_warp_inactive_close_window(uint256 daysSeed) public updateGhosts {
-        vm.warp(block.timestamp + 366 days + (daysSeed % 30 days));
-    }
-
-    function manager_warp_pending_close_window(uint256 secondsSeed) public updateGhosts {
-        vm.warp(block.timestamp + 8 days + (secondsSeed % 20 days));
-    }
-
     function crystal_deposit_quote(uint256 amountSeed) public updateGhosts asActor {
         address actor = _getActor();
         uint256 walletBalance = quote.balanceOf(actor);
@@ -799,12 +791,12 @@ abstract contract TargetFunctions is Properties {
         );
     }
 
-    function crystal_governance_lock_zero_address_liquidity() public updateGhosts asActor {
+    function crystal_governance_claim_locked_reserves() public updateGhosts asActor {
         if (_getActor() != currentGovernance) {
             return;
         }
 
-        crystal.lockZeroAddressLiquidity(address(market));
+        try crystal.claimLockedReserves(address(market)) {} catch {}
     }
 
     function crystal_governance_uncanonicalize_market(uint256 paramSeed) public updateGhosts asActor {
@@ -990,39 +982,12 @@ abstract contract TargetFunctions is Properties {
         );
     }
 
-    function crystal_governance_lock_fresh_market_liquidity(uint256 marketSeed) public updateGhosts asActor {
+    function crystal_governance_claim_fresh_market_locked_reserves(uint256 marketSeed) public updateGhosts asActor {
         if (_getActor() != currentGovernance || trackedFreshMarkets.length == 0) {
             return;
         }
 
-        crystal.lockZeroAddressLiquidity(_trackedFreshMarket(marketSeed));
-    }
-
-    function crystal_governance_queue_close_fresh_market(uint256 marketSeed) public updateGhosts asActor {
-        if (_getActor() != currentGovernance || trackedFreshMarkets.length == 0) {
-            return;
-        }
-
-        address freshMarket = _trackedFreshMarket(marketSeed);
-        crystal.queueCloseInactiveMarket(freshMarket);
-        _recordPendingCloseMarket(freshMarket);
-    }
-
-    function crystal_governance_execute_close_fresh_market(uint256 marketSeed) public updateGhosts asActor {
-        if (_getActor() != currentGovernance) {
-            return;
-        }
-
-        address freshMarket;
-        if (trackedPendingCloseMarkets.length != 0) {
-            freshMarket = _trackedPendingCloseMarket(marketSeed);
-        } else if (trackedFreshMarkets.length != 0) {
-            freshMarket = _trackedFreshMarket(marketSeed);
-        } else {
-            return;
-        }
-
-        crystal.executeCloseInactiveMarket(freshMarket);
+        try crystal.claimLockedReserves(_trackedFreshMarket(marketSeed)) {} catch {}
     }
 
     function crystal_governance_queue_claim_expired_fees(uint256 actorSeed) public updateGhosts asActor {
@@ -1045,36 +1010,6 @@ abstract contract TargetFunctions is Properties {
         address[] memory suiteActors = _actors();
         address actor = suiteActors[actorSeed % suiteActors.length];
         crystal.executeClaimExpiredFees(actor);
-    }
-
-    function crystal_governance_queue_close_inactive_market(uint256 tokenSeed) public updateGhosts asActor {
-        if (_getActor() != currentGovernance) {
-            return;
-        }
-        if (trackedLaunchpadTokens.length == 0) {
-            return;
-        }
-
-        address token = _trackedLaunchpadToken(tokenSeed);
-        crystal.queueCloseInactiveMarket(token);
-        _recordPendingCloseToken(token);
-    }
-
-    function crystal_governance_execute_close_inactive_market(uint256 tokenSeed) public updateGhosts asActor {
-        if (_getActor() != currentGovernance) {
-            return;
-        }
-
-        address token;
-        if (trackedPendingCloseTokens.length != 0) {
-            token = _trackedPendingCloseToken(tokenSeed);
-        } else if (trackedLaunchpadTokens.length != 0) {
-            token = _trackedLaunchpadToken(tokenSeed);
-        } else {
-            return;
-        }
-
-        crystal.executeCloseInactiveMarket(token);
     }
 
     function crystal_admin_add_claimable_token_fees(uint256 actorSeed, uint256 amountSeed) public updateGhosts asActor {

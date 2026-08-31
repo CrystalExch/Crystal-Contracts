@@ -352,7 +352,7 @@ abstract contract Properties is BeforeAfter, Asserts {
                 uint112 virtualTokenReserve,
                 uint256 k,
                 address creator,
-                address marketAddress,
+                address marketAddress
             ) = crystal.launchpadTokenToMarket(trackedLaunchpadTokens[i]);
 
             if (virtualNativeReserve == 0 || virtualTokenReserve == 0) {

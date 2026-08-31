@@ -80,8 +80,6 @@ abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils, Deploy 
     address[] internal trackedVaults;
     address[] internal trackedLaunchpadTokens;
     address[] internal trackedFreshMarkets;
-    address[] internal trackedPendingCloseTokens;
-    address[] internal trackedPendingCloseMarkets;
     uint256 internal extraAssetsDeployed;
 
     receive() external payable { }
@@ -279,14 +277,6 @@ abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils, Deploy 
         return trackedFreshMarkets[seed % trackedFreshMarkets.length];
     }
 
-    function _trackedPendingCloseToken(uint256 seed) internal view returns (address) {
-        return trackedPendingCloseTokens[seed % trackedPendingCloseTokens.length];
-    }
-
-    function _trackedPendingCloseMarket(uint256 seed) internal view returns (address) {
-        return trackedPendingCloseMarkets[seed % trackedPendingCloseMarkets.length];
-    }
-
     function _path(address tokenIn, address tokenOut) internal pure returns (address[] memory path) {
         path = new address[](2);
         path[0] = tokenIn;
@@ -470,34 +460,6 @@ abstract contract Setup is BaseSetup, ActorManager, AssetManager, Utils, Deploy 
     function _recordFreshMarket(address marketAddress) internal {
         if (marketAddress != address(0) && trackedFreshMarkets.length < MAX_TRACKED_FRESH_MARKETS) {
             trackedFreshMarkets.push(marketAddress);
-        }
-    }
-
-    function _recordPendingCloseToken(address token) internal {
-        if (token == address(0)) {
-            return;
-        }
-        for (uint256 i = 0; i < trackedPendingCloseTokens.length; i++) {
-            if (trackedPendingCloseTokens[i] == token) {
-                return;
-            }
-        }
-        if (trackedPendingCloseTokens.length < MAX_TRACKED_LAUNCHPAD_TOKENS) {
-            trackedPendingCloseTokens.push(token);
-        }
-    }
-
-    function _recordPendingCloseMarket(address marketAddress) internal {
-        if (marketAddress == address(0)) {
-            return;
-        }
-        for (uint256 i = 0; i < trackedPendingCloseMarkets.length; i++) {
-            if (trackedPendingCloseMarkets[i] == marketAddress) {
-                return;
-            }
-        }
-        if (trackedPendingCloseMarkets.length < MAX_TRACKED_FRESH_MARKETS) {
-            trackedPendingCloseMarkets.push(marketAddress);
         }
     }
 

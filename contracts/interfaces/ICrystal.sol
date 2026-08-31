@@ -44,8 +44,8 @@ interface ICrystal {
         uint256 scaleFactor;
         uint256 tickSize;
         uint256 maxPrice;
+        uint256 ammFee;
         address creator;
-        uint88 createTimestamp;
         uint8 creatorFeeSplit;
     }
 
@@ -106,6 +106,7 @@ interface ICrystal {
         uint256 scaleFactor; // uint112 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF
         uint256 tickSize; // uint80 0xFFFFFFFFFFFFFFFFFFFF
         uint256 maxPrice; // uint80 0xFFFFFFFFFFFFFFFFFFFF
+        uint256 ammPrice;
     }
 
     struct LaunchpadMarket {
@@ -114,7 +115,6 @@ interface ICrystal {
         uint256 k;
         address creator;
         address market;
-        uint88 createTimestamp;
     }
 
     struct LaunchpadParams {
@@ -154,7 +154,6 @@ interface ICrystal {
     error ActionFailed();
     error AlreadyRegistered();
     error SlippageExceeded();
-    error InvalidCloseWindow();
     error Expired(uint256 timestamp);
     error TransferFailed(address recipient);
     error InvalidMsgValue();
@@ -183,7 +182,7 @@ interface ICrystal {
 
     function pendingExpiredFeeClaims(address user) external view returns (uint256 deadline);
 
-    function pendingClosedMarkets(address user) external view returns (uint256);
+    function claimedLockedReserve(address market) external view returns (uint256);
 
     function isCanonicalDeployer(address) external view returns (bool);
 
@@ -195,11 +194,13 @@ interface ICrystal {
 
     function allMarkets(uint256) external view returns (address);
 
-    function parameters() external view returns (address, address, uint256, uint256, uint256, uint256, uint256);
+    function parameters() external view returns (address, address, uint256, uint256, uint256, uint256, uint256, uint256);
 
     function launchpadParams() external view returns (uint112, uint256, uint256, uint256, uint256, uint256, uint256);
 
-    function launchpadTokenToMarket(address) external view returns (uint112, uint112, uint256, address, address, uint88);
+    function launchpadTokenToMarket(address) external view returns (uint112, uint112, uint256, address, address);
+
+    function wasLaunchpad(address) external view returns (bool);
 
     function allTokens(uint256) external view returns (address);
 
@@ -321,6 +322,8 @@ interface ICrystal {
 
     function multiBatchOrders(Batch[] calldata batches, uint256 deadline, address referrer) external payable;
 
+    function getVirtualReserves(address token) external view returns (uint256, uint256);
+
     function createToken(string memory name, string memory symbol, string memory metadataCID, string memory description, string memory social1, string memory social2, string memory social3, string memory social4) external payable returns (address token);
 
     function buy(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external payable returns (uint256, uint256, bool);
@@ -331,11 +334,5 @@ interface ICrystal {
 
     function quoteSell(bool isExactInput, address token, uint256 amountIn, uint256 amountOut) external returns (uint256, uint256);
 
-    function getVirtualReserves(address token) external view returns (uint256, uint256);
-
-    function queueCloseInactiveMarket(address token) external;
-
-    function executeCloseInactiveMarket(address token) external returns (uint256 amountQuote, uint256 amountBase);
-
-    function lockZeroAddressLiquidity(address market) external;
+    function claimLockedReserves(address market) external returns (uint256);
 }

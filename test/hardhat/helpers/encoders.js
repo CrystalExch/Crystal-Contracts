@@ -22,7 +22,7 @@ function makeHeader(marketAddr, numActions, balanceMode = 0n, bribe = 0n) {
 
 /**
  * Encode a single action for fallback function
- * @param {number} action - Action type (1-7)
+ * @param {number} action - Action type (1-12)
  * @param {bigint} price - Price parameter
  * @param {bigint} size - Size parameter
  * @param {bigint} cloid - Client order ID (optional)
@@ -72,21 +72,6 @@ function encodeLimitOrder(isBuy, price, size, cloid = 0n) {
  */
 function encodeCancelOrder(price, orderId) {
   return encodeAction(ACTIONS.CANCEL, price, orderId);
-}
-
-/**
- * Encode a replace order action
- * @param {boolean} isBuy - True for buy, false for sell
- * @param {bigint} price - Original price (or 0 to keep current)
- * @param {bigint} orderId - Order ID to replace (or CLOID in upper bits)
- * @param {bigint} newPrice - New price (or 0 to keep current)
- * @param {bigint} newSize - New size (or 0 to keep current)
- * @returns {string} - Encoded action as hex string
- */
-function encodeReplaceOrder(isBuy, price, orderId, newPrice, newSize) {
-  const action = isBuy ? ACTIONS.REPLACE_BUY : ACTIONS.REPLACE_SELL;
-  const chunk = (BigInt(action) << 252n) | (BigInt(newPrice) << 192n) | (BigInt(price) << 112n) | BigInt(orderId);
-  return ethers.zeroPadValue(ethers.toBeHex(chunk), 32);
 }
 
 /**
@@ -160,7 +145,6 @@ module.exports = {
   encodeMarketOrder,
   encodeLimitOrder,
   encodeCancelOrder,
-  encodeReplaceOrder,
   buildFallbackData,
   buildMultiMarketData,
   parseOrdersUpdatedEvent,

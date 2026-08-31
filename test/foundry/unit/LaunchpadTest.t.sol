@@ -23,8 +23,7 @@ contract LaunchpadTest is BaseTest {
             uint112 virtualTokenReserve,
             uint256 k,
             address creator,
-            address marketAddress,
-            uint88 createTimestamp
+            address marketAddress
         ) = crystal.launchpadTokenToMarket(token);
 
         assertEq(crystal.allTokens(0), token, "assert crystal.allTokens(0) == token");
@@ -37,7 +36,6 @@ contract LaunchpadTest is BaseTest {
         );
         assertEq(creator, alice, "assert creator == alice");
         assertTrue(marketAddress != address(0), "assert marketAddress != address(0)");
-        assertGt(createTimestamp, 0, "assert createTimestamp > 0");
         assertEq(
             virtualNativeReserve,
             LAUNCHPAD_INITIAL_NATIVE_SUPPLY,
