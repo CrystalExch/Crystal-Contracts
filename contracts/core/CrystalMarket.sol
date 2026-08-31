@@ -1675,9 +1675,8 @@ contract CrystalMarket is ERC20 {
         if (price <= highestBid) {
             isBuy = true;
         }
-        uint256 quoteOrderSize = (isBuy ? size : ((size * price) / scaleFactor));
-        uint256 quoteDecreaseAmount = (isBuy ? decreaseAmount : ((decreaseAmount * price) / scaleFactor)) + (((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20)));
-        if (quoteOrderSize < quoteDecreaseAmount) { // Cancel entirely if resulting order size would be dust
+        uint256 minSize = ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20));
+        if ((decreaseAmount >= size) || (isBuy ? (size - decreaseAmount < minSize) : (((size - decreaseAmount) * price / scaleFactor) < minSize))) { // Cancel entirely if resulting order size would be below minimum
             if ((order & MASK_KEEP_112_113) != 0) { // Release locked internal balance tokens if specified
                 isBuy ? tokenBalances[userId][quoteAsset] -= (size << 128) : tokenBalances[userId][baseAsset] -= (size << 128);
             }
