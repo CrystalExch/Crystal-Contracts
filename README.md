@@ -147,7 +147,7 @@ So when calling `Crystal.sol` fallback, you do not encode `userId` yourself in c
 
 #### Action Word
 
-Each action is still one 32-byte word.
+Each action is still one 32-byte word. Note that market orders and native id decreases are slightly different from the generic implementation:
 
 | Bits | Field | Type | Notes |
 | --- | --- | --- | --- |
@@ -159,13 +159,35 @@ Each action is still one 32-byte word.
 | `249..251` | unused | - | set to `0` |
 | `252..255` | `action` | `uint4` | action code |
 
-#### Generic Action Formula
+#### Generic Action Encoding (Actions 1-3 & 12)
 
 ```text
 word =
     param2
     | (param1 << 112)
     | (cloid << 192)
+    | (isRequireSuccess << 248)
+    | (action << 252)
+```
+
+#### Market Order Encoding (Actions 4-11)
+
+```text
+word =
+    param2
+    | (param1 << 112)
+    | (cloid << 192)
+    | (stp << 248)
+    | (action << 252)
+```
+
+#### Native Decrease Encoding (Action 12)
+
+```text
+word =
+    param2
+    | (param1 << 112)
+    | (id << 192)
     | (isRequireSuccess << 248)
     | (action << 252)
 ```
@@ -269,6 +291,8 @@ Decrease by cloid:
 | `cloid` | `uint10` |
 | `param1` | `uint80` |
 | `param2` | `uint112` |
+| `isRequireSuccess` | `bool` |
+| `stp` | `uint2` |
 | native order `id` | `uint41` |
 
 All unused bits should be zeroed.
@@ -384,7 +408,7 @@ A non-exhaustive list of protocol invariants that should be satisfied at all tim
 
 - Initial AMM liquidity must mint `sqrt(amountQuote * amountBase)` LP shares and set reserves to the deposited amounts.
 - Exact-input AMM swaps must preserve the reserve product lower bound, with `reserveQuoteAfter * reserveBaseAfter >= reserveQuoteBefore * reserveBaseBefore`, while moving reserves in the expected direction.
-- Removing LP liquidity must burn exactly the requested liquidity and return quote/base amounts pro-rata to reserves and total supply.
+- Removing LP liquidity must burn exactly the requested liquidity and return quote/base amounts greater than the specified minimums.
 - When both book and AMM liquidity are available, execution should use the lower effective marginal price source, subject to slippage and maker rebate rules.
 - Add-liquidity-only orders that cross AMM-implied executable liquidity must revert or leave reserves unchanged according to the documented mode.
 

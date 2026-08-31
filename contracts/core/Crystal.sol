@@ -527,7 +527,11 @@ contract Crystal is ICrystal {
      * @return lockedBalance Locked balance.
      */
     function getDepositedBalance(address user, address asset) external view returns (uint256 totalBalance, uint256 availableBalance, uint256 lockedBalance) {
-        uint256 tokenBalance = tokenBalances[addressToUserId[user]][asset];
+        uint256 userId = addressToUserId[user];
+        if (user != address(0) && userId == 0) {
+            return (0, 0, 0);
+        }
+        uint256 tokenBalance = tokenBalances[userId][asset];
         availableBalance = tokenBalance & MASK_KEEP_0_128;
         lockedBalance = tokenBalance >> 128;
         return (availableBalance + lockedBalance, availableBalance, lockedBalance);
@@ -735,7 +739,7 @@ contract Crystal is ICrystal {
         if (options != 0) {
             _delegateToMarket(market, CrystalMarket.addLiquidity.selector, 160, address(uint160(options)));
         } else {
-            _delegateToMarket(market, CrystalMarket.addLiquidity.selector, 192, address(0));
+            _delegateToMarket(market, CrystalMarket.addLiquidity.selector, 160, address(2));
         }
         assembly {
             liquidity := mload(0x80)
@@ -764,7 +768,7 @@ contract Crystal is ICrystal {
      * @return amountBase Base asset returned.
      */
     function removeLiquidity(address market, address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin) external nonReentrant returns (uint256 amountQuote, uint256 amountBase) {
-        _delegateToMarket(market, CrystalMarket.removeLiquidity.selector, 160, address(0));
+        _delegateToMarket(market, CrystalMarket.removeLiquidity.selector, 128, address(2));
         assembly {
             amountQuote := mload(0x80)
             amountBase := mload(0xa0)
@@ -1283,8 +1287,9 @@ contract Crystal is ICrystal {
         for (uint256 i = 0; i < tokens.length; ++i) {
             address token = tokens[i];
             assembly {
-                mstore(0x00, token)
-                let slot := keccak256(0x00, 0x20)
+                mstore(0x00, user)
+                mstore(0x20, token)
+                let slot := keccak256(0x00, 0x40)
                 if tload(slot) { revert(0,0) }
                 tstore(slot, 1)
             }
@@ -1365,7 +1370,7 @@ contract Crystal is ICrystal {
             (key, offset) = CS._getActivated((marketId << 128), maxTick / 255);
             CS._writeMapping(key, offset, CS.PRICELEVELS_KEY, (1 << (maxTick % 255)) | ((maxTick / 255) == 0 ? 1 : 0));
             (key, offset) = CS._getGroups((marketId << 128), (maxTick / 255) / 255);
-            CS._writeMapping(key, offset, CS.GROUPS_KEY, (1 << ((maxTick / 255) % 255)) | ((maxTick / 255) == 0 ? 1 : 0));
+            CS._writeMapping(key, offset, CS.GROUPS_KEY, (1 << ((maxTick / 255) % 255)) | (((maxTick / 255) / 255) == 0 ? 1 : 0));
             uint256 minSizeZeroes;
             uint256 _minSize = minSize;
             while (_minSize != 0 && _minSize % 10 == 0) {
@@ -1942,7 +1947,7 @@ contract Crystal is ICrystal {
         allTokens.push(address(token));
         emit ICrystal.TokenCreated(address(token), msg.sender, name, symbol, metadataCID, description, social1, social2, social3, social4);
         uint256 marketId = allMarkets.length + 1;
-        require(marketId < MASK_KEEP_0_48, ICrystal.InvalidParams());
+        require(marketId < MASK_KEEP_0_48 && bytes(name).length != 0 && bytes(symbol).length != 0, ICrystal.InvalidParams());
         parameters = ICrystal.Parameters(weth, token, marketId, 3, 9, 1, GRADUATED_MAX_PRICE);
         uint256 maxTick;
         address market;
@@ -1959,7 +1964,7 @@ contract Crystal is ICrystal {
         (key, offset) = CS._getActivated((marketId << 128), maxTick / 255);
         CS._writeMapping(key, offset, CS.PRICELEVELS_KEY, (1 << (maxTick % 255)) | ((maxTick / 255) == 0 ? 1 : 0));
         (key, offset) = CS._getGroups((marketId << 128), (maxTick / 255) / 255);
-        CS._writeMapping(key, offset, CS.GROUPS_KEY, (1 << ((maxTick / 255) % 255)) | ((maxTick / 255) == 0 ? 1 : 0));
+        CS._writeMapping(key, offset, CS.GROUPS_KEY, (1 << ((maxTick / 255) % 255)) | (((maxTick / 255) / 255) == 0 ? 1 : 0));
         allMarkets.push(market);
         marketIdToMarket[marketId] = market;
         getMarketByTokens[weth][token] = placeholder;
@@ -2144,7 +2149,8 @@ contract Crystal is ICrystal {
                 outputAmount += ammAmountOut;
             }
         }
-        if (!graduated && (isExactInput ? inputAmount < amountIn : outputAmount < amountOut)) { // Token is graduated, swap through orderbook
+        if (isExactInput ? inputAmount < amountIn : outputAmount < amountOut) { // Token is graduated, swap through orderbook
+            require(!graduated, ICrystal.SlippageExceeded());
             uint256 newInputAmount = isExactInput ? (amountIn - inputAmount) : (amountOut - outputAmount);
             bytes memory ret = abi.encodeWithSelector(CrystalMarket.getQuote.selector, true, isExactInput, true, newInputAmount, 0);
             bool result;
