@@ -11,6 +11,7 @@ evm_version = "prague"
 optimizer = true
 optimizer_runs = 8000
 via_ir = false
+network = "monad"
 
 [fmt]
 line_length = 120
