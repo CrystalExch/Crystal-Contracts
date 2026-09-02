@@ -283,50 +283,6 @@ async function vaultFixture() {
 }
 
 /**
- * Deploy multi-market fixture - multiple markets for batch testing
- * @returns {Object} - Deployed contracts with multiple markets
- */
-async function multiMarketFixture() {
-  const base = await deployFixture();
-
-  const markets = [base.market, base.linearMarket];
-  const market3Addr = await base.crystal.deploy.staticCall(
-    false,
-    base.token1.target,
-    base.token2.target,
-    MARKET_TYPES.LOGARITHMIC,
-    18,
-    1,
-    1_000_000_000_000_000,
-    1_000_000,
-    99970,
-    99990
-  );
-
-  await base.crystal.deploy(
-    false,
-    base.token1.target,
-    base.token2.target,
-    MARKET_TYPES.LOGARITHMIC,
-    18,
-    1,
-    1_000_000_000_000_000,
-    1_000_000,
-    99970,
-    99990
-  );
-
-  const market3 = await ethers.getContractAt("CrystalMarket", market3Addr);
-  markets.push(market3);
-
-  return {
-    ...base,
-    markets,
-    market3,
-  };
-}
-
-/**
  * Calculate price parameters for a market
  * @param {Object} market - Market contract
  * @param {Object} quote - Quote token contract
@@ -363,32 +319,10 @@ async function advanceTime(seconds) {
   await ethers.provider.send("evm_mine");
 }
 
-/**
- * Helper to get current block timestamp
- * @returns {number} - Current timestamp
- */
-async function getBlockTimestamp() {
-  const block = await ethers.provider.getBlock("latest");
-  return block.timestamp;
-}
-
-/**
- * Helper to mine blocks
- * @param {number} blocks - Number of blocks to mine
- */
-async function mineBlocks(blocks) {
-  for (let i = 0; i < blocks; i++) {
-    await ethers.provider.send("evm_mine");
-  }
-}
-
 module.exports = {
   deployFixture,
   launchpadFixture,
   vaultFixture,
-  multiMarketFixture,
   calculatePriceParams,
   advanceTime,
-  getBlockTimestamp,
-  mineBlocks,
 };

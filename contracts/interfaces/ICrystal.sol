@@ -106,7 +106,7 @@ interface ICrystal {
         uint256 scaleFactor; // uint112 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFF
         uint256 tickSize; // uint80 0xFFFFFFFFFFFFFFFFFFFF
         uint256 maxPrice; // uint80 0xFFFFFFFFFFFFFFFFFFFF
-        uint256 ammPrice;
+        uint256 ammFee;
     }
 
     struct LaunchpadMarket {

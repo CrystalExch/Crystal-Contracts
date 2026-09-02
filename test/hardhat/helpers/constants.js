@@ -1,22 +1,6 @@
-const MASKS = {
-  MASK_KEEP_0_128: (1n << 128n) - 1n,
-  MASK_KEEP_0_112: (1n << 112n) - 1n,
-  MASK_KEEP_0_80: (1n << 80n) - 1n,
-  MASK_KEEP_0_51: (1n << 51n) - 1n,
-  MASK_KEEP_0_41: (1n << 41n) - 1n,
-  MASK_OUT_0_128: ~((1n << 128n) - 1n),
-};
-
 const ETH_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
 const MAX_UINT256 = 2n ** 256n - 1n;
-
-const FEES = {
-  MIN_FEE: 90000,
-  MAX_FEE: 100000,
-  DEFAULT_TAKER_FEE: 99970,
-  DEFAULT_MAKER_REBATE: 99990,
-};
 
 const MARKET_TYPES = {
   LINEAR: 0,
@@ -48,11 +32,6 @@ const TIME = {
   ONE_YEAR: 365 * 86400,
 };
 
-const LAUNCHPAD = {
-  INITIAL_TOKEN_SUPPLY: 1000000000n * 10n ** 18n,
-  MIN_LIQUIDITY: 100000n,
-};
-
 const DEFAULT_DEPLOY_PARAMS = {
   feeCommission: 10,
   feeClaimDuration: 86400,
@@ -75,15 +54,12 @@ const DEFAULT_MARKET_PARAMS = {
 };
 
 module.exports = {
-  MASKS,
   ETH_ADDRESS,
   MAX_UINT256,
-  FEES,
   MARKET_TYPES,
   ACTIONS,
   ORDER_TYPES,
   TIME,
-  LAUNCHPAD,
   DEFAULT_DEPLOY_PARAMS,
   DEFAULT_MARKET_PARAMS,
 };

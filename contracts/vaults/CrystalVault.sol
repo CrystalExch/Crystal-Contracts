@@ -104,7 +104,7 @@ contract CrystalVault is ERC20 {
     }
 
     /**
-     * @notice Accepts native token transfers for priority bid.
+     * @notice Accepts native token transfers to allow for priority bid without reverting.
      */
     receive() external payable {}
 

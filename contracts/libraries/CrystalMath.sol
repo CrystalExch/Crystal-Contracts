@@ -112,7 +112,7 @@ library CrystalMath {
      * @notice Snaps a price to the nearest valid price on the grid.
      *
      * @param p Raw price.
-     * @param tickSize THe market's tick size.
+     * @param tickSize The market's tick size.
      * @param roundUp Whether to round up or down.
      *
      * @return The price adjusted to fit the valid grid.

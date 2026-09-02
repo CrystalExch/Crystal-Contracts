@@ -95,6 +95,81 @@ A second-level bitmap word tracks which first-level bitmap words are non-empty:
 
 To find the next active price level when both the second-level and first-level activated slots are empty, `_searchUp` and `_searchDown` iterate across the second-level bitmap until they find an active group, then find the correct first-level activated slot by finding the closest nonzero bit. The same process is repeated within the first-level activated slot where the closest nonzero bit is found, which corresponds to the tick of the next active price level. If either the second-level or first-level activated slots are non-empty to begin with, the process starts with finding the next active bit within the lowest level non-empty bitmap.
 
+### Events
+
+Crystal emits events from the exchange contract so indexers can reconstruct balances, market state, order activity, AMM reserves, launchpad state, and fee accounting from one canonical log stream.
+
+#### Core Account and Governance Events:
+
+| Event | Purpose |
+| ----- | ------- |
+| `UserRegistered` | Records the address to user id mapping used by the order book. |
+| `Deposit` | Records internal exchange balance deposits by users. |
+| `Withdraw` | Records exchange balance withdrawals. |
+| `RewardsClaimed` | Records fee and reward claims by token and amount. |
+| `GovChanged` | Records when the governance address is changed. |
+
+#### Launchpad Events:
+
+| Event | Purpose |
+| ----- | ------- |
+| `LaunchpadParamsChanged` | Records launchpad fee, initial native reserve, graduation threshold, creator split, and graduated market parameter updates. |
+| `TokenCreated` | Records launchpad token creation, creator, metadata, and social links. |
+| `LaunchpadTrade` | Records launchpad trade direction, input/output amounts, and post-trade virtual reserves before graduation. |
+
+Launchpad trading uses `LaunchpadTrade` before graduation. Once a launchpad token graduates, subsequent activity is emitted through the normal market `Trade`, `Mint`, `Burn`, `Sync`, `OrdersUpdated`, and `Fill` events.
+
+#### Market Events:
+
+| Event | Purpose |
+| ----- | ------- |
+| `MarketCreated` | Records market deployment, canonical status, token metadata, and market parameters. |
+| `MarketParamsChanged` | Records updates to the market fee, rebate, min-size, creator, AMM, and whether a market is canonical. |
+| `Mint` | Records AMM liquidity added to a market. |
+| `Burn` | Records AMM liquidity removed from a market. |
+| `Sync` | Records the current AMM quote/base reserves after any changes. |
+| `Trade` | Records aggregate swap direction, input, output, and start/end prices. |
+| `OrdersUpdated` | Records packed order placement, cancellation, decrease, and cloid update data. |
+| `Fill` | Records packed maker-side fill data emitted during order matching. |
+
+Orderbook activity is emitted from `OrdersUpdated` and `Fill` events. 
+
+`OrdersUpdated.orderData` is a packed stream of 32-byte updates:
+
+| Bits | Field | Meaning |
+| ---- | ----- | ------- |
+| `0..111` | `size` | Placed, cancelled, or decreased size. |
+| `112..167` | `id` | Native order id or encoded cloid/user id. |
+| `168..247` | `price` | Price level affected by the update. |
+| `252..255` | `flag` | Update type and side. |
+
+The `flag` parameter enumerates the update type and side:
+
+| Flag | Update Type | Side | `size` Meaning |
+| ---- | ----------- | ---- | -------------- |
+| `0` | Cancel | Buy | Cancelled order size. |
+| `1` | Cancel | Sell | Cancelled order size. |
+| `2` | Place | Buy | New resting order size. |
+| `3` | Place | Sell | New resting order size. |
+| `4` | Decrease | Buy | Decreased amount. |
+| `5` | Decrease | Sell | Decreased amount. |
+
+`Fill` emits one event per filled maker order. `fillInfo` is recorded as:
+
+| Bits | Field | Meaning |
+| ---- | ----- | ------- |
+| `0..111` | `remainingSize` | Remaining maker order size after the fill if any. |
+| `112..162` | `id` | Either native order id or encoded cloid/user id of the filled order. |
+| `168..247` | `price` | Price level of the filled order. |
+| `252..255` | `sideFlag` | `0` if the filled order was a sell order, `1` if the filled order was a buy order. |
+
+`fillAmount` is recorded as:
+
+| Bits | Field | Meaning |
+| ---- | ----- | ------- |
+| `0..127` | `takerReceiveAmount` | Amount received by the taker. |
+| `128..255` | `makerReceiveAmount` | Amount received by the maker. |
+
 ### Fallback
 
 The fallback function is gas-optimized and intended for use by market makers and other high frequency automated trading strategies. By default, msg.sender is used in place of all address parameters for each action. Calldata is a sequence of market batches:

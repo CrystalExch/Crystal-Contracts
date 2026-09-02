@@ -1287,7 +1287,7 @@ contract Crystal is ICrystal {
     }
 
     /**
-     * @notice Initiate the expiration of unclaimed fee balances.
+     * @notice Initiates the expiration of unclaimed fee balances.
 
      * @dev Anyone can initiate this fee claim for any user, but only governance can execute the claim.
      *
@@ -1526,7 +1526,7 @@ contract Crystal is ICrystal {
      * @notice Deposits tokens into the router's shared slot. Tokens here are not intended to persist beyond
      * a single atomic transaction and are freely withdrawable by anyone.
      *
-     * @dev Anyone can deposit/withdraw from 0 slot, used as in between for multihop swaps and native token wrapping/unwrapping.
+     * @dev Anyone can deposit/withdraw from slot 0, which is used by the router as in between for multihop swaps and native token wrapping.
      *
      * @param token Token address.
      * @param amount Amount to deposit.

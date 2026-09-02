@@ -106,7 +106,7 @@ async function main() {
     wallet.address,
     10, // 10%
     86400, // 1 Day
-    [1000000000000000000000n, 99000n, 10n, 100000000000000000000n, 99970n, 99995n, 50] // [1000 MON, 1%, 10%, 100 MON, 0.03%, 0.005%, 50%]
+    [200000000000000000000000n, 99000n, 10n, 100000000000000000000n, 99970n, 99995n, 50] // [1000 MON, 1%, 10%, 100 MON, 0.03%, 0.005%, 50%]
   ])
   const crystal = new ethers.Contract(crystalAddr, Crystal.interface, wallet)
 

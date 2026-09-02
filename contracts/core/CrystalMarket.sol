@@ -20,6 +20,7 @@ import {CrystalStorage as CS} from "../libraries/CrystalStorage.sol";
  * - All read methods are private as state is held in the core exchange contract.
  * - Storage layout is optimized for gas therefore non-traditional bitmasks are used.
  * - CrystalMarket inherits ERC20 so the relevant state to be delegatecalled starts at slot 8 and beyond.
+ * - Because Crystal can delegatecall through the fallback function, function selectors here must not start with 0x00000000.
  */
 contract CrystalMarket is ERC20 {
     /// @notice Address receiving trading fees.
@@ -718,6 +719,9 @@ contract CrystalMarket is ERC20 {
                     highestBid = ammPrice;
                 }
                 ammPrice = ((reserveQuote * scaleFactor * 10000 * uint256(m.makerRebate) + (reserveBase * ammFee * 100000 - 1)) / (reserveBase * ammFee * 100000));
+                if (ammPrice > maxPrice) {
+                    ammPrice = maxPrice;
+                }
                 ammPrice = marketType == 0 ? (ammPrice - (ammPrice % tickSize)) : CM._toValidPrice(ammPrice, tickSize, false); // Compute adjusted AMM ask price
                 if (lowestAsk > ammPrice) {
                     lowestAsk = ammPrice;
@@ -1464,7 +1468,7 @@ contract CrystalMarket is ERC20 {
      * @dev Validates prices against spread, AMM bounds, cloid uniqueness, and minimum size.
      *
      * @param isBuy True for bids, false for asks.
-     * @param isRecieveTokens True to receive proceeds as token transfers, false to use internal balances.
+     * @param isReceiveTokens True to receive proceeds as token transfers, false to use internal balances.
      * @param price Limit price.
      * @param size Order size (quote for bids, base for asks).
      * @param userId User id placing the order.
@@ -1473,7 +1477,7 @@ contract CrystalMarket is ERC20 {
      * @return orderSize Final size placed.
      * @return id Assigned order identifier (native id or cloid pointer).
      */
-    function _limitOrder(bool isBuy, bool isRecieveTokens, uint256 price, uint256 size, uint256 userId, uint256 cloid) internal returns (uint256, uint256 id) {
+    function _limitOrder(bool isBuy, bool isReceiveTokens, uint256 price, uint256 size, uint256 userId, uint256 cloid) internal returns (uint256, uint256 id) {
         unchecked { // Client order ID (cloid) size previously validated already, 0 is invalid
             {
                 ICrystal.Market storage m = _getMarket[market];
@@ -1497,7 +1501,7 @@ contract CrystalMarket is ERC20 {
                     if (price > highestBid) {
                         m.highestBid = uint80(price);
                     }
-                    if (!isRecieveTokens) {
+                    if (!isReceiveTokens) {
                         require(((tokenBalances[userId][quoteAsset] >> 128) + size) <= MASK_KEEP_0_128, ICrystal.Overflow());
                         tokenBalances[userId][quoteAsset] += (size << 128); // Lock tokens for internal balance orders
                     }
@@ -1515,7 +1519,7 @@ contract CrystalMarket is ERC20 {
                     if (price < lowestAsk) {
                         m.lowestAsk = uint80(price);
                     }
-                    if (!isRecieveTokens) {
+                    if (!isReceiveTokens) {
                         require(((tokenBalances[userId][baseAsset] >> 128) + size) <= MASK_KEEP_0_128, ICrystal.Overflow());
                         tokenBalances[userId][baseAsset] += (size << 128); // Lock tokens for internal balance orders
                     }
@@ -1543,7 +1547,7 @@ contract CrystalMarket is ERC20 {
                     fillBefore = (((cloid << 41) | userId) << 205) | (CS._readMapping(key, offset, CS.ORDERS_KEY) & MASK_OUT_205_256);
                     CS._writeMapping(key, offset, CS.ORDERS_KEY, fillBefore); // Update fillBefore's fillAfter to point to cloid
                 }
-                uint256 order = ((((priceLevel >> 113) & MASK_KEEP_0_41) + 1) << 205) | (priceLevel & (MASK_KEEP_0_51 << 154)) | (userId << 113) | (isRecieveTokens ? 0 : (1 << 112)) | size;
+                uint256 order = ((((priceLevel >> 113) & MASK_KEEP_0_41) + 1) << 205) | (priceLevel & (MASK_KEEP_0_51 << 154)) | (userId << 113) | (isReceiveTokens ? 0 : (1 << 112)) | size;
                 (key, offset) = CS._getCloidOrder(userId, cloid);
                 CS._writeMapping(key, offset, CS.ORDERS_KEY, order); // Set fillAfter to next native ID, fillBefore to latest
                 cloid = (cloid << 41) | userId; // Convert cloid to storage pointer with userId
@@ -1557,7 +1561,7 @@ contract CrystalMarket is ERC20 {
                 if ((priceLevel & MASK_KEEP_0_112) == 0) {
                     priceLevel = _activatePriceLevel(price, priceLevel, id); // Set fillNext pointer to order id
                 }
-                uint256 order = ((id + 1) << 205) | (priceLevel & (MASK_KEEP_0_51 << 154)) | (userId << 113) | (isRecieveTokens ? 0 : (1 << 112)) | size;
+                uint256 order = ((id + 1) << 205) | (priceLevel & (MASK_KEEP_0_51 << 154)) | (userId << 113) | (isReceiveTokens ? 0 : (1 << 112)) | size;
                 (key, offset) = CS._getOrder(marketId, price, id);
                 CS._writeMapping(key, offset, CS.ORDERS_KEY, order); // Set fillAfter to next native ID, fillBefore to latest
                 priceLevel = (id << 154) | (id << 113) | ((priceLevel & MASK_OUT_113_205) + size); // Update latest and latestNativeId, add to liquidity
@@ -2179,7 +2183,7 @@ contract CrystalMarket is ERC20 {
     /**
      * @notice Adds the initial liquidity to a launchpad market's AMM (happens before regular trading starts).
      *
-     * @dev Can only be called when the pool has no LP tokens yet.
+     * @dev Can only be called when the pool has no LP tokens yet in createToken.
      *
      * @param to Who gets the LP tokens.
      * @param amountQuoteDesired How much quote asset to add.
@@ -2190,7 +2194,7 @@ contract CrystalMarket is ERC20 {
     function premint(address to, uint256 amountQuoteDesired, uint256 amountBaseDesired) external payable returns (uint256 liquidity) {
         ICrystal.Market storage m = _getMarket[market];
         liquidity = CM._sqrt(amountQuoteDesired * (amountBaseDesired));
-        require(marketType > 2 && IERC20(market).totalSupply() == 0 && liquidity != 0 && amountQuoteDesired <= MASK_KEEP_0_112 && amountBaseDesired <= MASK_KEEP_0_112, ICrystal.InvalidParams());
+        require(marketType > 3 && IERC20(market).totalSupply() == 0 && liquidity != 0 && amountQuoteDesired <= MASK_KEEP_0_112 && amountBaseDesired <= MASK_KEEP_0_112, ICrystal.InvalidParams());
         IERC20(market).mint(to, liquidity);
         (m.reserveQuote, m.reserveBase) = (uint112(amountQuoteDesired), uint112(amountBaseDesired));
     }
