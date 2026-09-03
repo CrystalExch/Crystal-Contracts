@@ -810,11 +810,11 @@ contract CrystalMarket is ERC20 {
                         if (_isBuy && ammPriceLimit > adjustedAMMPrice) {
                             if (_isExactInput) {
                                 uint256 makerRebate = m.makerRebate;
-                                ammAmountIn = CM._exactInputBuySolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal input such that the AMM end price is as close as possible to the next order or worst price.
+                                ammAmountIn = CM._exactInputBuySolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor, ammFee); // Compute optimal input such that the AMM end price is as close as possible to the next order or worst price.
                                 ammAmountOut = (ammAmountIn * ammFee * reserveBase) / ((reserveQuote * 10000) + (ammAmountIn * ammFee));
                             } else {
                                 uint256 makerRebate = m.makerRebate;
-                                ammAmountOut = CM._exactOutputBuySolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal output such that the AMM end price is as close as possible to the next order or worst price.
+                                ammAmountOut = CM._exactOutputBuySolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor, ammFee); // Compute optimal output such that the AMM end price is as close as possible to the next order or worst price.
                                 ammAmountIn = (ammAmountOut * reserveQuote * 10000) / ((reserveBase - ammAmountOut) * ammFee) + 1;
                             }
                             reserveQuote += ammAmountIn;
@@ -822,11 +822,11 @@ contract CrystalMarket is ERC20 {
                         } else if (!_isBuy && ammPriceLimit < adjustedAMMPrice) {
                             if (_isExactInput) {
                                 uint256 makerRebate = m.makerRebate;
-                                ammAmountIn = CM._exactInputSellSolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal input such that the AMM end price is as close as possible to the next order or worst price.
+                                ammAmountIn = CM._exactInputSellSolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor, ammFee); // Compute optimal input such that the AMM end price is as close as possible to the next order or worst price.
                                 ammAmountOut = ((ammAmountIn * ammFee) * reserveQuote) / ((reserveBase * 10000) + (ammAmountIn * ammFee));
                             } else {
                                 uint256 makerRebate = m.makerRebate;
-                                ammAmountOut = CM._exactOutputSellSolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal output such that the AMM end price is as close as possible to the next order or worst price.
+                                ammAmountOut = CM._exactOutputSellSolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor, ammFee); // Compute optimal output such that the AMM end price is as close as possible to the next order or worst price.
                                 ammAmountIn = (ammAmountOut * reserveBase * 10000) / ((reserveQuote - ammAmountOut) * ammFee) + 1;
                             }
                             reserveBase += ammAmountIn;
@@ -1000,11 +1000,11 @@ contract CrystalMarket is ERC20 {
                             if (isBuy && ammPriceLimit > adjustedAMMPrice) { // Compare AMM price with orderbook price adjusted for maker rebate
                                 if (isExactInput) {
                                     uint256 makerRebate = m.makerRebate;
-                                    ammAmountIn = CM._exactInputBuySolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal input such that the AMM end price is as close as possible to the next order or worst price.
+                                    ammAmountIn = CM._exactInputBuySolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor, ammFee); // Compute optimal input such that the AMM end price is as close as possible to the next order or worst price.
                                     ammAmountOut = (ammAmountIn * ammFee * reserveBase) / ((reserveQuote * 10000) + (ammAmountIn * ammFee)); // Execute Uniswap V2-style swap
                                 } else {
                                     uint256 makerRebate = m.makerRebate;
-                                    ammAmountOut = CM._exactOutputBuySolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal output such that the AMM end price is as close as possible to the next order or worst price.
+                                    ammAmountOut = CM._exactOutputBuySolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor, ammFee); // Compute optimal output such that the AMM end price is as close as possible to the next order or worst price.
                                     ammAmountIn = (ammAmountOut * reserveQuote * 10000) / ((reserveBase - ammAmountOut) * ammFee) + 1; // Execute Uniswap V2-style swap
                                 }
                                 reserveQuote += ammAmountIn;
@@ -1044,11 +1044,11 @@ contract CrystalMarket is ERC20 {
                             } else if (!isBuy && ammPriceLimit < adjustedAMMPrice) {
                                 if (isExactInput) {
                                     uint256 makerRebate = m.makerRebate;
-                                    ammAmountIn = CM._exactInputSellSolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal input such that the AMM end price is as close as possible to the next order or worst price.
+                                    ammAmountIn = CM._exactInputSellSolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor, ammFee); // Compute optimal input such that the AMM end price is as close as possible to the next order or worst price.
                                     ammAmountOut = ((ammAmountIn * ammFee) * reserveQuote) / ((reserveBase * 10000) + (ammAmountIn * ammFee)); // Execute Uniswap V2-style swap
                                 } else {
                                     uint256 makerRebate = m.makerRebate;
-                                    ammAmountOut = CM._exactOutputSellSolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor); // Compute optimal output such that the AMM end price is as close as possible to the next order or worst price.
+                                    ammAmountOut = CM._exactOutputSellSolve(reserveQuote, reserveBase, ammPriceLimit, makerRebate, sizeLeft, scaleFactor, ammFee); // Compute optimal output such that the AMM end price is as close as possible to the next order or worst price.
                                     ammAmountIn = (ammAmountOut * reserveBase * 10000) / ((reserveQuote - ammAmountOut) * ammFee) + 1; // Execute Uniswap V2-style swap
                                 }
                                 reserveBase += ammAmountIn;

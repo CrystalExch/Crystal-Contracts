@@ -44,7 +44,8 @@ contract CrystalMarketHarness is CrystalMarket {
         uint256 targetPrice,
         uint256 scaleFactor,
         uint256 makerRebate,
-        uint256 high
+        uint256 high,
+        uint256 ammFee
     ) external pure returns (uint256) {
         return CM._exactInputBuySolve(
             reserveQuote,
@@ -52,7 +53,8 @@ contract CrystalMarketHarness is CrystalMarket {
             targetPrice,
             makerRebate,
             high,
-            scaleFactor
+            scaleFactor,
+            ammFee
         );
     }
 
@@ -62,7 +64,8 @@ contract CrystalMarketHarness is CrystalMarket {
         uint256 targetPrice,
         uint256 scaleFactor,
         uint256 makerRebate,
-        uint256 high
+        uint256 high,
+        uint256 ammFee
     ) external pure returns (uint256) {
         return CM._exactOutputBuySolve(
             reserveQuote,
@@ -70,7 +73,8 @@ contract CrystalMarketHarness is CrystalMarket {
             targetPrice,
             makerRebate,
             high,
-            scaleFactor
+            scaleFactor,
+            ammFee
         );
     }
 
@@ -80,7 +84,8 @@ contract CrystalMarketHarness is CrystalMarket {
         uint256 targetPrice,
         uint256 scaleFactor,
         uint256 makerRebate,
-        uint256 high
+        uint256 high,
+        uint256 ammFee
     ) external pure returns (uint256) {
         return CM._exactInputSellSolve(
             reserveQuote,
@@ -88,7 +93,8 @@ contract CrystalMarketHarness is CrystalMarket {
             targetPrice,
             makerRebate,
             high,
-            scaleFactor
+            scaleFactor,
+            ammFee
         );
     }
 
@@ -98,7 +104,8 @@ contract CrystalMarketHarness is CrystalMarket {
         uint256 targetPrice,
         uint256 scaleFactor,
         uint256 makerRebate,
-        uint256 high
+        uint256 high,
+        uint256 ammFee
     ) external pure returns (uint256) {
         return CM._exactOutputSellSolve(
             reserveQuote,
@@ -106,7 +113,8 @@ contract CrystalMarketHarness is CrystalMarket {
             targetPrice,
             makerRebate,
             high,
-            scaleFactor
+            scaleFactor,
+            ammFee
         );
     }
 

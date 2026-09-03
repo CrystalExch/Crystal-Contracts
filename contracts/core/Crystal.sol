@@ -2145,10 +2145,10 @@ contract Crystal is ICrystal {
                         mstore(0x60, newInputAmount)
                     }
                     newInputAmount = (newInputAmount * uint256(launchpadParams.graduatedTakerFee) + 99999) / 100000;
-                    ammAmountIn = CM._exactInputBuySolve(m.reserveQuote, m.reserveBase, CM._tickToPrice(CM._priceToTick(GRADUATED_MAX_PRICE, 1) - 1, 1), launchpadParams.graduatedMakerRebate, newInputAmount, 9);
+                    ammAmountIn = CM._exactInputBuySolve(m.reserveQuote, m.reserveBase, CM._tickToPrice(CM._priceToTick(GRADUATED_MAX_PRICE, 1) - 1, 1), launchpadParams.graduatedMakerRebate, newInputAmount, 9, FOUR_AMM_FEE);
                     ammAmountOut = (ammAmountIn * FOUR_AMM_FEE * m.reserveBase) / ((m.reserveQuote * 10000) + (ammAmountIn * FOUR_AMM_FEE));
                 } else {
-                    ammAmountOut = CM._exactOutputBuySolve(m.reserveQuote, m.reserveBase, CM._tickToPrice(CM._priceToTick(GRADUATED_MAX_PRICE, 1) - 1, 1), launchpadParams.graduatedMakerRebate, newInputAmount, 9);
+                    ammAmountOut = CM._exactOutputBuySolve(m.reserveQuote, m.reserveBase, CM._tickToPrice(CM._priceToTick(GRADUATED_MAX_PRICE, 1) - 1, 1), launchpadParams.graduatedMakerRebate, newInputAmount, 9, FOUR_AMM_FEE);
                     ammAmountIn = (ammAmountOut * m.reserveQuote * 10000) / ((m.reserveBase - ammAmountOut) * FOUR_AMM_FEE) + 1;
                 }
                 if (_isExactInput) {

@@ -237,14 +237,15 @@ library CrystalMath {
      * @param targetPrice The execution price you want to reach.
      * @param makerRebate Maker rebate that affects the price.
      * @param high Maximum input amount to consider.
+     * @param ammFee The AMM Fee.
      *
      * @return low Largest quote amount that does not cross the target price.
      */
-    function _exactInputBuySolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 makerRebate, uint256 high, uint256 scaleFactor) internal pure returns (uint256 low) {
+    function _exactInputBuySolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 makerRebate, uint256 high, uint256 scaleFactor, uint256 ammFee) internal pure returns (uint256 low) {
         unchecked {
             while (low < high) {
                 uint256 mid = low + ((high - low + 1) >> 1);
-                uint256 den = 9975 * (reserveBase - ((mid * 9975 * reserveBase) / (reserveQuote * 10000 + mid * 9975)));
+                uint256 den = ammFee * (reserveBase - ((mid * ammFee * reserveBase) / (reserveQuote * 10000 + mid * ammFee)));
                 uint256 num = (reserveQuote + mid) * 10000;
                 uint256 pMid = (num * scaleFactor * makerRebate + ((den * 100000) - 1)) / (den * 100000);
                 if (pMid <= targetPrice) {
@@ -267,16 +268,17 @@ library CrystalMath {
      * @param targetPrice The execution price you want.
      * @param makerRebate Maker rebate that affects the price.
      * @param high Maximum output amount to consider.
+     * @param ammFee The AMM Fee.
      *
      * @return low Largest base amount that does not cross the target price.
      */
-    function _exactOutputBuySolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 makerRebate, uint256 high, uint256 scaleFactor) internal pure returns (uint256 low) {
+    function _exactOutputBuySolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 makerRebate, uint256 high, uint256 scaleFactor, uint256 ammFee) internal pure returns (uint256 low) {
         unchecked {
             high = high > (reserveBase - 1) ? (reserveBase - 1) : high;
             while (low < high) {
                 uint256 mid = low + ((high - low + 1) >> 1);
-                uint256 num = (reserveQuote + ((mid * reserveQuote * 10000) / ((reserveBase - mid) * 9975)) + 1) * 10000;
-                uint256 den = 9975 * (reserveBase - mid);
+                uint256 num = (reserveQuote + ((mid * reserveQuote * 10000) / ((reserveBase - mid) * ammFee)) + 1) * 10000;
+                uint256 den = ammFee * (reserveBase - mid);
                 uint256 pMid = (num * scaleFactor * makerRebate + ((den * 100000) - 1)) / (den * 100000);
                 if (pMid <= targetPrice) {
                     low = mid;
@@ -297,14 +299,15 @@ library CrystalMath {
      * @param targetPrice The execution price you want to reach.
      * @param makerRebate Maker rebate that affects the price.
      * @param high Maximum input amount to consider.
+     * @param ammFee The AMM Fee.
      *
      * @return low Largest base amount that does not cross the target price.
      */
-    function _exactInputSellSolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 makerRebate, uint256 high, uint256 scaleFactor) internal pure returns (uint256 low) {
+    function _exactInputSellSolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 makerRebate, uint256 high, uint256 scaleFactor, uint256 ammFee) internal pure returns (uint256 low) {
         unchecked {
             while (low < high) {
                 uint256 mid = low + ((high - low + 1) >> 1);
-                uint256 num = 9975 * (reserveQuote - ((mid * 9975 * reserveQuote) / (reserveBase * 10000 + mid * 9975)));
+                uint256 num = ammFee * (reserveQuote - ((mid * ammFee * reserveQuote) / (reserveBase * 10000 + mid * ammFee)));
                 uint256 den = (reserveBase + mid) * 10000;
                 uint256 pMid = (num * scaleFactor * 100000) / (den * makerRebate);
                 if (pMid >= targetPrice) {
@@ -326,16 +329,17 @@ library CrystalMath {
      * @param targetPrice The execution price you want.
      * @param makerRebate Maker rebate that affects the price.
      * @param high Maximum output amount to consider.
+     * @param ammFee The AMM Fee.
      *
      * @return low Largest quote amount that does not cross the target price.
      */
-    function _exactOutputSellSolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 makerRebate, uint256 high, uint256 scaleFactor) internal pure returns (uint256 low) {
+    function _exactOutputSellSolve(uint256 reserveQuote, uint256 reserveBase, uint256 targetPrice, uint256 makerRebate, uint256 high, uint256 scaleFactor, uint256 ammFee) internal pure returns (uint256 low) {
         unchecked {
             high = high > (reserveQuote - 1) ? (reserveQuote - 1) : high;
             while (low < high) {
                 uint256 mid = low + ((high - low + 1) >> 1);
-                uint256 den = (reserveBase + ((mid * reserveBase * 10000) / ((reserveQuote - mid) * 9975)) + 1) * 10000;
-                uint256 num = 9975 * (reserveQuote - mid);
+                uint256 den = (reserveBase + ((mid * reserveBase * 10000) / ((reserveQuote - mid) * ammFee)) + 1) * 10000;
+                uint256 num = ammFee * (reserveQuote - mid);
                 uint256 pMid = (num * scaleFactor * 100000) / (den * makerRebate);
                 if (pMid >= targetPrice) {
                     low = mid;
