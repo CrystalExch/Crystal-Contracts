@@ -51,14 +51,14 @@ const MARKETS = [ // [Canonical, Quote Asset, Base Asset, Market Type, Scale Fac
     99990n, // 0.01%
     100000n // 0.00%
   ],
-  [ // XAUt0/USDC market, canonical
+  [ // cbBTC/USDC market, canonical
     true,
     USDC,
-    '0x01bFF41798a0BcF287b996046Ca68b395DbC1071',
-    2, // Dynamic Price Ticks, AMM Enabled
-    9, // USDC is 6 Decimals, XAUt0 is 6, 9 - 6 + 6 = 9, Minimum Price Tick of 0.000000001
+    '0xd18B7EC58Cdf4876f6AFebd3Ed1730e4Ce10414b',
+    0, // Dynamic Price Ticks, AMM Disabled
+    9, // USDC is 6 Decimals, cbBTC is 8, 1 - 6 + 8 = 3, Minimum Price Tick of 0.1
     1, // Tick size of 1
-    1_000_000_000_000_000n, // 1,000,000 USDC per XAUt0
+    10_000_000n, // 1,000,000 USDC per cbBTC
     1_000_000n, // 1 USDC
     99970n, // 0.03%
     99995n // 0.005%
@@ -106,7 +106,7 @@ async function main() {
     wallet.address,
     10, // 10%
     86400, // 1 Day
-    [200000000000000000000000n, 99000n, 10n, 100000000000000000000n, 99970n, 99995n, 50] // [1000 MON, 1%, 10%, 100 MON, 0.03%, 0.005%, 50%]
+    [1000000000000000000000n, 99000n, 10n, 100000000000000000000n, 99970n, 99995n, 50] // [1000 MON, 1%, 10%, 100 MON, 0.03%, 0.005%, 50%]
   ])
   const crystal = new ethers.Contract(crystalAddr, Crystal.interface, wallet)
 
