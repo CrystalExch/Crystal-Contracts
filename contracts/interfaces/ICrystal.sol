@@ -118,6 +118,7 @@ interface ICrystal {
     }
 
     struct LaunchpadParams {
+        bool isTokenCreationPaused;
         uint112 launchpadInitialNativeSupply;
         uint256 launchpadFee;
         uint256 launchpadCreatorFeeSplit;
@@ -135,7 +136,7 @@ interface ICrystal {
 
     event MarketCreated(bool indexed isCanonical, address indexed quoteAsset, address indexed baseAsset, address market, address creator, ICrystal.TokenMetadata quoteInfo, ICrystal.TokenMetadata baseInfo, ICrystal.MarketDetails marketInfo);
     event MarketParamsChanged(address indexed market, address creator, uint256 minSize, uint24 takerFee, uint24 makerRebate, uint8 creatorFee, bool isAMMEnabled, bool isCanonical);
-    event LaunchpadParamsChanged(uint112 launchpadInitialNativeSupply, uint256 launchpadFee, uint256 launchpadCreatorFeeSplit, uint256 graduatedMinSize, uint256 graduatedTakerFee, uint256 graduatedMakerRebate, uint256 graduatedCreatorFeeSplit);
+    event LaunchpadParamsChanged(bool isTokenCreationPaused, uint112 launchpadInitialNativeSupply, uint256 launchpadFee, uint256 launchpadCreatorFeeSplit, uint256 graduatedMinSize, uint256 graduatedTakerFee, uint256 graduatedMakerRebate, uint256 graduatedCreatorFeeSplit);
     event GovChanged(address prev, address gov);
     event UserRegistered(address indexed user, uint256 indexed userId);
     event Deposit(address indexed user, uint256 indexed userId, address indexed token, uint256 amount);
@@ -196,7 +197,7 @@ interface ICrystal {
 
     function parameters() external view returns (address, address, uint256, uint256, uint256, uint256, uint256, uint256);
 
-    function launchpadParams() external view returns (uint112, uint256, uint256, uint256, uint256, uint256, uint256);
+    function launchpadParams() external view returns (bool, uint112, uint256, uint256, uint256, uint256, uint256, uint256);
 
     function launchpadTokenToMarket(address) external view returns (uint112, uint112, uint256, address, address);
 

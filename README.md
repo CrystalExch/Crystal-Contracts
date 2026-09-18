@@ -113,7 +113,7 @@ Crystal emits events from the exchange contract so indexers can reconstruct bala
 
 | Event | Purpose |
 | ----- | ------- |
-| `LaunchpadParamsChanged` | Records launchpad fee, initial native reserve, graduation threshold, creator split, and graduated market parameter updates. |
+| `LaunchpadParamsChanged` | Records token-creation pause status, launchpad fee, initial native reserve, graduation threshold, creator split, and graduated market parameter updates. |
 | `TokenCreated` | Records launchpad token creation, creator, metadata, and social links. |
 | `LaunchpadTrade` | Records launchpad trade direction, input/output amounts, and post-trade virtual reserves before graduation. |
 
@@ -453,7 +453,8 @@ A non-exhaustive list of protocol invariants that should be satisfied at all tim
 
 ### Price and Quote Views
 
-- `getPrice`, `getPriceLevels`, and `getPriceLevelsFromMid` must return active levels that are bounded, sorted in the requested direction, and consistent with direct `getPriceLevel` values.
+- `getPriceLevels`, and `getPriceLevelsFromMid` must return active levels that are bounded, sorted in the requested direction, and consistent with direct `getPriceLevel` values.
+- `getPrice` may result in off cases such as when the AMM is disabled then enabled where the returned highestBid and lowestAsk cross, but orderbook highest bid and ask should never cross.
 - For fixed state and inputs, `getQuote(...)` must predict the next successful `marketOrder(...)` within explicit rounding tolerance and must not mutate state.
 - `getAmountsOut` and `getAmountsIn` must match direct market quotes for each valid full-fill hop and must not mutate state. Partial-fill path quotes must not be treated as exact execution guarantees.
 
@@ -552,7 +553,13 @@ To customize deployment parameters, edit the `MARKETS` arrays in [`scripts/deplo
 [canonical, quoteAsset, baseAsset, marketType, scaleFactor, tickSize, maxPrice, minSize, takerFee, makerRebate]
 ```
 
-The core deployment script also hardcodes `Crystal` constructor parameters, launchpad parameters, and `CrystalVaultFactory` constructor parameters in [`scripts/deploy.js`](./scripts/deploy.js)
+The launchpad tuple format used by the `Crystal` constructor is:
+
+```text
+[isTokenCreationPaused, launchpadInitialNativeSupply, launchpadFee, launchpadCreatorFeeSplit, graduatedMinSize, graduatedTakerFee, graduatedMakerRebate, graduatedCreatorFeeSplit]
+```
+
+The core deployment script also hardcodes `Crystal` constructor parameters, launchpad parameters, and `CrystalVaultFactory` constructor parameters in [`scripts/deploy.js`](./scripts/deploy.js). The launchpad parameter tuple starts with `isTokenCreationPaused`.
 
 ## License
 

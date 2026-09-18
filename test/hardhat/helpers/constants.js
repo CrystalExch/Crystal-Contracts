@@ -2,6 +2,8 @@ const ETH_ADDRESS = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 
 const MAX_UINT256 = 2n ** 256n - 1n;
 
+const powerOfTenExponent = value => BigInt(value.toString().length - 1);
+
 const MARKET_TYPES = {
   LINEAR: 0,
   LOGARITHMIC: 1,
@@ -35,6 +37,7 @@ const TIME = {
 const DEFAULT_DEPLOY_PARAMS = {
   feeCommission: 10,
   feeClaimDuration: 86400,
+  isTokenCreationPaused: false,
   launchpadInitialNativeSupply: 1000000000000000000000n,
   launchpadFee: 99000n,
   launchpadCreatorFeeSplit: 5n,
@@ -56,6 +59,7 @@ const DEFAULT_MARKET_PARAMS = {
 module.exports = {
   ETH_ADDRESS,
   MAX_UINT256,
+  powerOfTenExponent,
   MARKET_TYPES,
   ACTIONS,
   ORDER_TYPES,

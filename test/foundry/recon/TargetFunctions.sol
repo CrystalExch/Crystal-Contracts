@@ -780,6 +780,7 @@ abstract contract TargetFunctions is Properties {
 
         crystal.changeLaunchpadParams(
             ICrystal.LaunchpadParams({
+                isTokenCreationPaused: false,
                 launchpadInitialNativeSupply: LAUNCHPAD_INITIAL_NATIVE_SUPPLY,
                 launchpadFee: LAUNCHPAD_FEE,
                 launchpadCreatorFeeSplit: LAUNCHPAD_CREATOR_FEE_SPLIT,

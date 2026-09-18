@@ -23,43 +23,7 @@ const MARKETS = [ // [Canonical, Quote Asset, Base Asset, Market Type, Scale Fac
     21, // USDC is 6 Decimals, WMON is 18, 21 - 18 + 6 = 9, Minimum Price Tick of 0.000000001
     1, // Tick size of 1
     1_000_000_000_000_000n, // 1,000,000 USDC per WMON
-    1_000_000n, // 1 USDC
-    99970n, // 0.03%
-    99995n // 0.005%
-  ],
-  [ // Duplicate WMON/USDC market, non-canonical
-    false,
-    USDC,
-    WETH,
-    0, // Static Price Ticks, AMM Disabled
-    17, // USDC is 6 Decimals, WMON is 18, 17 - 18 + 6 = 5, Minimum Price Tick of 0.00001
-    1, // Tick size of 1
-    1_000_000n, // 10 USDC per WMON
-    1_000_000n, // 1 USDC
-    99970n, // 0.03%
-    99995n // 0.005%
-  ],
-  [ // AUSD/USDC market, canonical
-    true,
-    USDC,
-    "0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a",
-    0, // Static Price Ticks, AMM Disabled
-    4, // USDC is 6 Decimals, AUSD is 6, 4 - 6 + 6 = 4, Minimum Price Tick of 0.0001
-    1, // Tick size of 1
-    100_000n, // 10 USDC per AUSD
-    1_000_000n, // 1 USDC
-    99990n, // 0.01%
-    100000n // 0.00%
-  ],
-  [ // cbBTC/USDC market, canonical
-    true,
-    USDC,
-    '0xd18B7EC58Cdf4876f6AFebd3Ed1730e4Ce10414b',
-    0, // Dynamic Price Ticks, AMM Disabled
-    9, // USDC is 6 Decimals, cbBTC is 8, 1 - 6 + 8 = 3, Minimum Price Tick of 0.1
-    1, // Tick size of 1
-    10_000_000n, // 1,000,000 USDC per cbBTC
-    1_000_000n, // 1 USDC
+    5_000_000n, // 5 USDC
     99970n, // 0.03%
     99995n // 0.005%
   ],
@@ -98,15 +62,16 @@ async function main() {
   const privateKey = envOrDefault("PRIVATE_KEY")
   if (!privateKey) throw new Error("PRIVATE_KEY is required")
   const wallet = new ethers.Wallet(privateKey, provider)
+  const gov = ethers.getAddress(envOrDefault("GOV", wallet.address))
 
   const Crystal = await hardhat.ethers.getContractFactory("Crystal", wallet)
-  const crystalAddr = await deploy(Crystal, wallet, provider, [ // [WETH, Owner, Fee Recipient, Referral Commission (x/100), Fee Claim Duration (s), Launchpad Parameters: [Initial Native Supply, Launchpad Fee, Launchpad Creator Fee Split, Graduated Minimum Size, Graduated Taker Fee, Graduated Maker Rebate, Graduated Creator Fee Split]]
+  const crystalAddr = await deploy(Crystal, wallet, provider, [ // [WETH, Owner, Fee Recipient, Referral Commission (x/100), Fee Claim Duration (s), Launchpad Parameters: [Token Creation Paused, Initial Native Supply, Launchpad Fee, Launchpad Creator Fee Split, Graduated Minimum Size, Graduated Taker Fee, Graduated Maker Rebate, Graduated Creator Fee Split]]
     WETH,
     wallet.address,
-    wallet.address,
+    gov,
     10, // 10%
-    86400, // 1 Day
-    [1000000000000000000000n, 99000n, 10n, 100000000000000000000n, 99970n, 99995n, 50] // [1000 MON, 1%, 10%, 100 MON, 0.03%, 0.005%, 50%]
+    86400 * 30, // 1 Month
+    [true, 100000000000000000000000n, 99000n, 10n, 100000000000000000000n, 99970n, 99995n, 50] // [Token creation paused, 100,000 MON, 1%, 10%, 100 MON, 0.03%, 0.005%, 50%]
   ])
   const crystal = new ethers.Contract(crystalAddr, Crystal.interface, wallet)
 
@@ -117,10 +82,12 @@ async function main() {
     markets.push(predicted)
   }
 
+  if (gov !== wallet.address) await call(crystal, wallet, provider, "changeGov", [gov])
+
   const VaultFactory = await hardhat.ethers.getContractFactory("CrystalVaultFactory")
   const vaultFactoryAddr = await deploy(VaultFactory, wallet, provider, [ // [Crystal, Owner, WETH, Minimum Deposit, Order Cap, Maximum Lockup Duration (s)]
     crystalAddr,
-    wallet.address,
+    gov,
     WETH,
     1000, // 1000 Wei
     100, // 100 Orders

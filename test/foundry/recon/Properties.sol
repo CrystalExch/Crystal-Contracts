@@ -78,7 +78,7 @@ abstract contract Properties is BeforeAfter, Asserts {
         ICrystal.MarketInfo memory info = crystal.getMarket(address(market));
         t(info.quoteAsset == address(quote), "assert info.quoteAsset == address(quote)");
         t(info.baseAsset == address(weth), "assert info.baseAsset == address(weth)");
-        eq(info.scaleFactor, MARKET_SCALE_FACTOR, "assert info.scaleFactor == MARKET_SCALE_FACTOR");
+        eq(info.scaleFactor, 10 ** MARKET_SCALE_FACTOR, "assert info.scaleFactor == MARKET_SCALE_FACTOR");
         eq(info.tickSize, MARKET_TICK_SIZE, "assert info.tickSize == MARKET_TICK_SIZE");
         eq(info.maxPrice, MARKET_MAX_PRICE, "assert info.maxPrice == MARKET_MAX_PRICE");
 

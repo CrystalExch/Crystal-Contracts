@@ -248,8 +248,12 @@ contract Crystal is ICrystal {
             minSize /= 10;
             ++minSizeZeroes;
         }
-        require(_feeCommission <= 50 && _feeClaimDuration >= 86400 && minSize > 0 && minSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20 && _launchpadParams.launchpadInitialNativeSupply > 1e18 && _launchpadParams.launchpadInitialNativeSupply <= (MASK_KEEP_0_112 / 5) && MAX_FEE <= _launchpadParams.launchpadFee && _launchpadParams.launchpadFee <= 100000 && MAX_FEE <= _launchpadParams.graduatedTakerFee, ICrystal.InvalidParams());
-        require(_launchpadParams.graduatedTakerFee <= 100000 && MAX_AMM_MAKER_REBATE <= _launchpadParams.graduatedMakerRebate && _launchpadParams.graduatedMakerRebate <= 100000 && _launchpadParams.graduatedCreatorFeeSplit <= 50 && _launchpadParams.launchpadCreatorFeeSplit <= 50, ICrystal.InvalidParams());
+        require(
+            _feeCommission <= 50 && _feeClaimDuration >= 86400 && minSize > 0 && minSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20 && _launchpadParams.launchpadInitialNativeSupply > 1e18 &&
+            _launchpadParams.launchpadInitialNativeSupply <= (MASK_KEEP_0_112 / 5) && MAX_FEE <= _launchpadParams.launchpadFee && _launchpadParams.launchpadFee <= 100000 && MAX_FEE <= _launchpadParams.graduatedTakerFee &&
+            _launchpadParams.graduatedTakerFee <= 100000 && MAX_AMM_MAKER_REBATE <= _launchpadParams.graduatedMakerRebate && _launchpadParams.graduatedMakerRebate <= 100000 && _launchpadParams.graduatedCreatorFeeSplit <= 50 &&
+            _launchpadParams.launchpadCreatorFeeSplit <= 50, ICrystal.InvalidParams()
+        );
         launchpadParams = _launchpadParams;
     }
 
@@ -527,7 +531,7 @@ contract Crystal is ICrystal {
      */
     function getMarket(address market) external view returns (ICrystal.MarketInfo memory info) {
         ICrystal.Market storage marketInfo = _getMarket[market];
-        info = ICrystal.MarketInfo(marketInfo.quoteAsset, marketInfo.baseAsset, marketInfo.marketType, marketInfo.highestBid, marketInfo.lowestAsk, marketInfo.scaleFactor, marketInfo.tickSize, marketInfo.maxPrice, (marketInfo.minSize >> 20) * 10 ** (marketInfo.minSize & MASK_KEEP_0_20), marketInfo.takerFee, marketInfo.makerRebate, marketInfo.reserveQuote, marketInfo.reserveBase, marketInfo.isAMMEnabled);
+        info = ICrystal.MarketInfo(marketInfo.quoteAsset, marketInfo.baseAsset, marketInfo.marketType, marketInfo.highestBid, marketInfo.lowestAsk, 10 ** marketInfo.scaleFactor, marketInfo.tickSize, marketInfo.maxPrice, (marketInfo.minSize >> 20) * 10 ** (marketInfo.minSize & MASK_KEEP_0_20), marketInfo.takerFee, marketInfo.makerRebate, marketInfo.reserveQuote, marketInfo.reserveBase, marketInfo.isAMMEnabled);
     }
 
     /**
@@ -1046,12 +1050,16 @@ contract Crystal is ICrystal {
             minSize /= 10;
             ++minSizeZeroes;
         }
-        require(minSize > 0 && minSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20 && newLaunchpadParams.launchpadInitialNativeSupply > 1e18 && newLaunchpadParams.launchpadInitialNativeSupply <= (MASK_KEEP_0_112 / 5) && MAX_FEE <= newLaunchpadParams.launchpadFee && newLaunchpadParams.launchpadFee <= 100000 && MAX_FEE <= newLaunchpadParams.graduatedTakerFee, ICrystal.InvalidParams());
-        require(newLaunchpadParams.graduatedTakerFee <= 100000 && MAX_AMM_MAKER_REBATE <= newLaunchpadParams.graduatedMakerRebate && newLaunchpadParams.graduatedMakerRebate <= 100000 && newLaunchpadParams.graduatedCreatorFeeSplit <= 50 && newLaunchpadParams.launchpadCreatorFeeSplit <= 50, ICrystal.InvalidParams());
+        require(
+            minSize > 0 && minSize < MASK_KEEP_0_20 && minSizeZeroes < MASK_KEEP_0_20 && newLaunchpadParams.launchpadInitialNativeSupply > 1e18 && newLaunchpadParams.launchpadInitialNativeSupply <= (MASK_KEEP_0_112 / 5) &&
+            MAX_FEE <= newLaunchpadParams.launchpadFee && newLaunchpadParams.launchpadFee <= 100000 && MAX_FEE <= newLaunchpadParams.graduatedTakerFee && newLaunchpadParams.graduatedTakerFee <= 100000 &&
+            MAX_AMM_MAKER_REBATE <= newLaunchpadParams.graduatedMakerRebate && newLaunchpadParams.graduatedMakerRebate <= 100000 && newLaunchpadParams.graduatedCreatorFeeSplit <= 50 &&
+            newLaunchpadParams.launchpadCreatorFeeSplit <= 50, ICrystal.InvalidParams()
+        );
         launchpadParams = newLaunchpadParams;
-        emit ICrystal.LaunchpadParamsChanged(newLaunchpadParams.launchpadInitialNativeSupply, newLaunchpadParams.launchpadFee, newLaunchpadParams.launchpadCreatorFeeSplit, newLaunchpadParams.graduatedMinSize, newLaunchpadParams.graduatedTakerFee, newLaunchpadParams.graduatedMakerRebate, newLaunchpadParams.graduatedCreatorFeeSplit);
+        emit ICrystal.LaunchpadParamsChanged(newLaunchpadParams.isTokenCreationPaused, newLaunchpadParams.launchpadInitialNativeSupply, newLaunchpadParams.launchpadFee, newLaunchpadParams.launchpadCreatorFeeSplit, newLaunchpadParams.graduatedMinSize, newLaunchpadParams.graduatedTakerFee, newLaunchpadParams.graduatedMakerRebate, newLaunchpadParams.graduatedCreatorFeeSplit);
     }
-
+    
     /**
      * @notice Adds an address authorized to deploy canonical markets.
      *
@@ -1344,7 +1352,7 @@ contract Crystal is ICrystal {
      * @param quoteAsset Quote asset address.
      * @param baseAsset Base asset address.
      * @param marketType Market type identifier.
-     * @param scaleFactor Market scale factor.
+     * @param scaleFactor Decimal exponent market scale factor (9 means 1e9).
      * @param tickSize Tick size for the market.
      * @param maxPrice Maximum price supported.
      * @param minSize Minimum order size.
@@ -1961,7 +1969,7 @@ contract Crystal is ICrystal {
         allTokens.push(address(token));
         emit ICrystal.TokenCreated(address(token), msg.sender, name, symbol, metadataCID, description, social1, social2, social3, social4);
         uint256 marketId = allMarkets.length + 1;
-        require(marketId < MASK_KEEP_0_48 && bytes(name).length != 0 && bytes(symbol).length != 0, ICrystal.InvalidParams());
+        require(!launchpadParams.isTokenCreationPaused && marketId < MASK_KEEP_0_48 && bytes(name).length != 0 && bytes(symbol).length != 0, ICrystal.InvalidParams());
         parameters = ICrystal.Parameters(weth, token, marketId, 4, 9, 1, GRADUATED_MAX_PRICE, FOUR_AMM_FEE);
         uint256 maxTick;
         address market;
@@ -2149,18 +2157,21 @@ contract Crystal is ICrystal {
                     ammAmountOut = (ammAmountIn * FOUR_AMM_FEE * m.reserveBase) / ((m.reserveQuote * 10000) + (ammAmountIn * FOUR_AMM_FEE));
                 } else {
                     ammAmountOut = CM._exactOutputBuySolve(m.reserveQuote, m.reserveBase, CM._tickToPrice(CM._priceToTick(GRADUATED_MAX_PRICE, 1) - 1, 1), launchpadParams.graduatedMakerRebate, newInputAmount, 10 ** 9, FOUR_AMM_FEE);
-                    ammAmountIn = (ammAmountOut * m.reserveQuote * 10000) / ((m.reserveBase - ammAmountOut) * FOUR_AMM_FEE) + 1;
+                    uint256 denominator = (m.reserveBase - ammAmountOut) * FOUR_AMM_FEE;
+                    ammAmountIn = ((ammAmountOut * m.reserveQuote * 10000) + denominator - 1) / denominator;
                 }
-                if (_isExactInput) {
-                    assembly {
-                        ammAmountIn := mload(0x60)
+                if (ammAmountOut != 0) {
+                    if (_isExactInput) {
+                        assembly {
+                            ammAmountIn := mload(0x60)
+                        }
                     }
+                    else {
+                        ammAmountIn = (ammAmountIn * 100000 + uint256(launchpadParams.graduatedTakerFee) - 1) / uint256(launchpadParams.graduatedTakerFee);
+                    }
+                    inputAmount += ammAmountIn;
+                    outputAmount += ammAmountOut;
                 }
-                else {
-                    ammAmountIn = (ammAmountIn * 100000 + uint256(launchpadParams.graduatedTakerFee) - 1) / uint256(launchpadParams.graduatedTakerFee);
-                }
-                inputAmount += ammAmountIn;
-                outputAmount += ammAmountOut;
             }
         }
         if (isExactInput ? inputAmount < amountIn : outputAmount < amountOut) { // Token is graduated, swap through orderbook
@@ -2178,7 +2189,7 @@ contract Crystal is ICrystal {
             inputAmount += newInputAmount;
             outputAmount += newOutputAmount;
         }
-        isExactInput ? require(outputAmount >= amountOut, ICrystal.SlippageExceeded()) : require(amountIn != 0 ? inputAmount <= amountIn : true, ICrystal.SlippageExceeded());
+        isExactInput ? require(outputAmount >= amountOut, ICrystal.SlippageExceeded()) : require(amountIn == 0 || inputAmount <= amountIn, ICrystal.SlippageExceeded());
         return (inputAmount, outputAmount, graduated);
     }
 
@@ -2225,7 +2236,7 @@ contract Crystal is ICrystal {
             require(result, ICrystal.ActionFailed());
             (inputAmount, outputAmount) = abi.decode(ret, (uint256, uint256)); // Avoid stack too deep
         }
-        isExactInput ? require(outputAmount >= amountOut, ICrystal.SlippageExceeded()) : require(amountIn != 0 ? inputAmount <= amountIn : true, ICrystal.SlippageExceeded());
+        isExactInput ? require(outputAmount >= amountOut, ICrystal.SlippageExceeded()) : require(amountIn == 0 || inputAmount <= amountIn, ICrystal.SlippageExceeded());
         return (inputAmount, outputAmount);
     }
 
@@ -2237,7 +2248,7 @@ contract Crystal is ICrystal {
      * @return claimableLockedReserve The amount of stuck native token liquidity that is not yet claimed.
      */
     function claimLockedReserves(address market) external onlyOwner returns (uint256) {
-        require(wasLaunchpad[market] == true, ICrystal.ActionFailed());
+        require(wasLaunchpad[market], ICrystal.ActionFailed());
         ICrystal.Market storage m = _getMarket[market];
         uint256 totalSupply = IERC20(market).totalSupply();
         uint256 liquidity = IERC20(market).balanceOf(address(0));

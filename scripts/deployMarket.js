@@ -14,6 +14,18 @@ const GAS_PRICE = BigInt(envOrDefault("GAS_PRICE", "150000000000")) // 150 gwei
 const USDC = envOrDefault("USDC", "0x754704Bc059F8C67012fEd69BC8A327a5aafb603") // Canonical Stablecoin
 
 const MARKETS = [ // [Canonical, Quote Asset, Base Asset, Market Type, Scale Factor, Tick Size, Max Price, Min Size, Taker Fee, Maker Rebate]
+  [ // cbBTC/USDC market, canonical
+    true,
+    USDC,
+    '0xd18B7EC58Cdf4876f6AFebd3Ed1730e4Ce10414b',
+    0, // Dynamic Price Ticks, AMM Disabled
+    3, // USDC is 6 Decimals, cbBTC is 8, 1 - 6 + 8 = 3, Minimum Price Tick of 0.1
+    1, // Tick size of 1
+    10_000_000n, // 1,000,000 USDC per cbBTC
+    5_000_000n, // 5 USDC
+    99970n, // 0.03%
+    99995n // 0.005%
+  ],
   [ // XAUt0/USDC market, canonical
     true,
     USDC,
@@ -22,9 +34,21 @@ const MARKETS = [ // [Canonical, Quote Asset, Base Asset, Market Type, Scale Fac
     9, // USDC is 6 Decimals, XAUt0 is 6, 9 - 6 + 6 = 9, Minimum Price Tick of 0.000000001
     1, // Tick size of 1
     1_000_000_000_000_000n, // 1,000,000 USDC per XAUt0
-    1_000_000n, // 1 USDC
+    5_000_000n, // 5 USDC
     99970n, // 0.03%
     99995n // 0.005%
+  ],
+  [ // AUSD/USDC market, canonical
+    true,
+    USDC,
+    "0x00000000eFE302BEAA2b3e6e1b18d08D69a9012a",
+    0, // Static Price Ticks, AMM Disabled
+    4, // USDC is 6 Decimals, AUSD is 6, 4 - 6 + 6 = 4, Minimum Price Tick of 0.0001
+    1, // Tick size of 1
+    100_000n, // 10 USDC per AUSD
+    5_000_000n, // 5 USDC
+    99990n, // 0.01%
+    100000n // 0.00%
   ],
 ]
 

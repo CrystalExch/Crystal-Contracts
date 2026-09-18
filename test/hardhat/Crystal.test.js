@@ -6,6 +6,7 @@ const {
   advanceTime,
   TIME,
   ETH_ADDRESS,
+  powerOfTenExponent,
 } = require("./helpers");
 
 describe("Crystal Core Protocol Tests", function () {
@@ -13,6 +14,7 @@ describe("Crystal Core Protocol Tests", function () {
   let weth;
 
   const validLaunchpadParams = {
+    isTokenCreationPaused: false,
     launchpadFee: 99000,
     launchpadCreatorFeeSplit: 50,
     graduatedTakerFee: 99970,
@@ -1017,6 +1019,7 @@ describe("Crystal Core Protocol Tests", function () {
     describe("changeLaunchpadParams", function () {
       it("allows gov to change launchpad params", async function () {
         const newParams = {
+          isTokenCreationPaused: false,
           launchpadFee: 98000,
           launchpadCreatorFeeSplit: 40,
           graduatedTakerFee: 99960,
@@ -2347,6 +2350,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -18219,6 +18223,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -18265,6 +18270,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -18318,6 +18324,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -18355,6 +18362,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -18381,6 +18389,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -18406,6 +18415,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -18452,6 +18462,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -18495,6 +18506,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -18567,6 +18579,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -18614,6 +18627,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -18664,6 +18678,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -18719,6 +18734,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -18776,6 +18792,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -18835,6 +18852,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -18890,6 +18908,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -18956,6 +18975,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -19029,6 +19049,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -19082,6 +19103,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -19106,6 +19128,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -19138,6 +19161,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -19163,6 +19187,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -19461,6 +19486,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -19676,6 +19702,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -19697,6 +19724,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -19751,6 +19779,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -19804,6 +19833,7 @@ describe("Crystal Core Protocol Tests", function () {
       harness = await CrystalHarness.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
         {
+          isTokenCreationPaused: false,
           launchpadInitialNativeSupply: ethers.parseEther("5"), graduatedTakerFee: 99700,
           graduatedMakerRebate: 99900, launchpadFee: 99000, launchpadCreatorFeeSplit: 50,
           graduatedCreatorFeeSplit: 25, graduatedMinSize: 1000000000
@@ -19898,6 +19928,7 @@ describe("Crystal Core Protocol Tests", function () {
       const WETH = await ethers.getContractFactory("WETH");
       weth = await WETH.deploy();
       validLaunchpadParams = {
+        isTokenCreationPaused: false,
         launchpadInitialNativeSupply: ethers.parseEther("5"),
         graduatedTakerFee: 99700,
         graduatedMakerRebate: 99900,
@@ -21986,6 +22017,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -22146,6 +22178,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -22275,6 +22308,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -22392,6 +22426,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -22526,6 +22561,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           LAUNCHPAD_FEE,
           5,
@@ -22652,6 +22688,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -22784,6 +22821,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -22912,6 +22950,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -23019,6 +23058,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -23158,6 +23198,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -23289,6 +23330,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -23483,7 +23525,7 @@ describe("Crystal Core Protocol Tests", function () {
         await loadFixture(fixture);
       const marketInfo = await crystal.getMarket(await vault.market());
       const quoteDecimals = BigInt(await quote.decimals());
-      const priceFactor = 10n ** (quoteDecimals + BigInt(marketInfo.scaleFactor) - 18n);
+      const priceFactor = 10n ** (quoteDecimals + powerOfTenExponent(marketInfo.scaleFactor) - 18n);
       const price = 5000n * priceFactor;
   
       const actions = [];
@@ -23539,6 +23581,7 @@ describe("Crystal Core Protocol Tests", function () {
   const MINIMUM_LIQUIDITY = 1000n;
   
   const launchpadParams = [
+    false,
     ethers.parseEther("1000"),
     99_000,
     5,
@@ -23699,6 +23742,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -23815,6 +23859,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -24012,6 +24057,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -24156,6 +24202,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -24276,6 +24323,7 @@ describe("Crystal Core Protocol Tests", function () {
   const GRADUATED_TOKEN_SUPPLY = 200000000000000000000000000n;
   
   const launchpadParams = {
+    isTokenCreationPaused: false,
     launchpadInitialNativeSupply: ethers.parseEther("2"),
     launchpadFee: 99000n,
     launchpadCreatorFeeSplit: 50n,
@@ -24302,6 +24350,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          launchpadParams.isTokenCreationPaused,
           launchpadParams.launchpadInitialNativeSupply,
           launchpadParams.launchpadFee,
           launchpadParams.launchpadCreatorFeeSplit,
@@ -24395,6 +24444,7 @@ describe("Crystal Core Protocol Tests", function () {
           10,
           86400,
           [
+            false,
             EXTREME_INITIAL_NATIVE_SUPPLY,
             LAUNCHPAD_FEE,
             5,
@@ -24462,6 +24512,7 @@ describe("Crystal Core Protocol Tests", function () {
         10,
         86400,
         [
+          false,
           ethers.parseEther("1000"),
           99000,
           5,
@@ -24951,6 +25002,7 @@ describe("Integration: Launchpad Flow", function () {
 
 describe("Graduation sells exactly 800M", function () {
   const params = {
+    isTokenCreationPaused: false,
     launchpadFee: 99000,
     launchpadCreatorFeeSplit: 50,
     graduatedTakerFee: 99970,
@@ -25063,3 +25115,5 @@ describe("Graduation sells exactly 800M", function () {
     await expectGraduatedExact(crystal, token, tokenAddr);
   });
 });
+
+

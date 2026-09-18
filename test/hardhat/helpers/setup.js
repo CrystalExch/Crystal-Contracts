@@ -36,6 +36,7 @@ async function deployFixture() {
     DEFAULT_DEPLOY_PARAMS.feeCommission,
     DEFAULT_DEPLOY_PARAMS.feeClaimDuration,
     [
+      DEFAULT_DEPLOY_PARAMS.isTokenCreationPaused,
       DEFAULT_DEPLOY_PARAMS.launchpadInitialNativeSupply,
       DEFAULT_DEPLOY_PARAMS.launchpadFee,
       DEFAULT_DEPLOY_PARAMS.launchpadCreatorFeeSplit,

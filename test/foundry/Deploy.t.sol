@@ -89,6 +89,7 @@ abstract contract Deploy {
 
     function _launchpadParams() private pure returns (ICrystal.LaunchpadParams memory) {
         return ICrystal.LaunchpadParams({
+            isTokenCreationPaused: false,
             launchpadInitialNativeSupply: LAUNCHPAD_INITIAL_NATIVE_SUPPLY,
             launchpadFee: LAUNCHPAD_FEE,
             launchpadCreatorFeeSplit: LAUNCHPAD_CREATOR_FEE_SPLIT,

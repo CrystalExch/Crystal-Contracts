@@ -7,6 +7,7 @@ const {
   advanceTime,
   TIME,
   MAX_UINT256,
+  powerOfTenExponent,
 } = require("./helpers");
 
 describe("CrystalVault", function () {
@@ -444,7 +445,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 500n * priceFactor;
 
       const actions = [{ action: 2n, requireSuccess: false, cloid: 50n, param1: priceParam, param2: ethers.parseUnits("100", 6) }];
@@ -780,7 +781,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 500n * priceFactor;
 
       const [quoteBalanceBefore, , availableQuoteBefore] = await vault.getBalances();
@@ -808,7 +809,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 5000n * priceFactor;
 
       const [, baseBalanceBefore, , availableBaseBefore] = await vault.getBalances();
@@ -838,7 +839,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 500n * priceFactor;
 
       const [quoteBalanceAfterDeposit, , availableQuoteBefore] = await vault.getBalances();
@@ -866,7 +867,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 5000n * priceFactor;
 
       const [, baseBalanceAfterDeposit, , availableBaseBefore] = await vault.getBalances();
@@ -894,7 +895,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const buyPrice = 500n * priceFactor;
       const sellPrice = 5000n * priceFactor;
 
@@ -926,7 +927,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 500n * priceFactor;
 
       const buySize = ethers.parseUnits("100", 6);
@@ -1008,7 +1009,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 500n * priceFactor;
 
       const actions = [{ action: 2n, requireSuccess: false, cloid: 1n, param1: priceParam, param2: 1000n }];
@@ -1025,7 +1026,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 500n * priceFactor;
 
       const actions = [{ action: 2n, requireSuccess: false, cloid: 1n, param1: priceParam, param2: 1000n }];
@@ -1037,7 +1038,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 500n * priceFactor;
 
       await vault.connect(vaultOperator).execute([{ action: 2n, requireSuccess: false, cloid: 1n, param1: priceParam, param2: 10000n }], 0);
@@ -1049,7 +1050,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 500n * priceFactor;
 
       const actions = [{ action: 2n, requireSuccess: false, cloid: 0n, param1: priceParam, param2: 1000n }];
@@ -1061,7 +1062,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 500n * priceFactor;
       const orderCap = await vault.orderCap();
 
@@ -1074,7 +1075,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 500n * priceFactor;
 
       const actions = [{ action: 2n, requireSuccess: false, cloid: 1n, param1: priceParam, param2: 1000n }];
@@ -1086,7 +1087,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 500n * priceFactor;
 
       const actions = [
@@ -1101,7 +1102,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 500n * priceFactor;
 
       await vault.connect(vaultOperator).execute([{ action: 2n, requireSuccess: false, cloid: 1n, param1: priceParam, param2: 1000n }], 0);
@@ -1113,7 +1114,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 500n * priceFactor;
 
       await vault.connect(vaultOperator).execute([{ action: 2n, requireSuccess: false, cloid: 1n, param1: priceParam, param2: 10000n }], 0);
@@ -1127,7 +1128,7 @@ describe("CrystalVault", function () {
       const marketInfo = await crystal.getMarket(await vault.market());
       const scaleFactor = marketInfo.scaleFactor;
       const quoteDecimals = await quote.decimals();
-      const priceFactor = 10n ** (BigInt(quoteDecimals) + BigInt(scaleFactor) - 18n);
+      const priceFactor = 10n ** (BigInt(quoteDecimals) + powerOfTenExponent(scaleFactor) - 18n);
       const priceParam = 500n * priceFactor;
 
       const actions = [{ action: 2n, requireSuccess: false, cloid: 1n, param1: priceParam, param2: 1000n }];

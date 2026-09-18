@@ -1146,31 +1146,6 @@ describe("CrystalMarket", function () {
       expect(result[1]).to.equal(0n);
     });
 
-    it("marketOrder commits reserveBase change only", async function () {
-      const { harness } = await deployHarness({
-        marketType: 0,
-        tickSize: 1,
-        scaleFactor: 6,
-        maxPrice: 1_000_000,
-      });
-      const userId = 26n;
-      await harness.setMarketState(
-        1n,
-        0n,
-        1n << 20n,
-        99970,
-        99990,
-        true,
-        1n,
-        1n
-      );
-      const orderInfo = (2n << 252n) | (1n << 244n) | (1n << 248n) | (userId << 160n);
-      const result = await harness.exposed_marketOrder.staticCall(1n, 2n, orderInfo);
-      await harness.exposed_marketOrder(1n, 2n, orderInfo);
-      expect(result[0]).to.equal(1n);
-      expect(result[1]).to.equal(0n);
-    });
-
     it("decreaseOrder rejects oversize decrease on active order", async function () {
       const { harness } = await deployHarness({ marketType: 0 });
       const userId = 27n;
@@ -1244,7 +1219,7 @@ describe("CrystalMarket", function () {
       expect(result[1]).to.equal(1n);
     });
 
-    it("marketOrder commits reserveBase-only change", async function () {
+    it("marketOrder ignores input reserve only change", async function () {
       const { harness } = await deployHarness({
         marketType: 0,
         tickSize: 1,
@@ -1265,7 +1240,7 @@ describe("CrystalMarket", function () {
       const orderInfo = (2n << 252n) | (1n << 244n) | (0n << 248n) | (userId << 160n);
       const result = await harness.exposed_marketOrder.staticCall(2n, 2n, orderInfo);
       await harness.exposed_marketOrder(2n, 2n, orderInfo);
-      expect(result[0]).to.equal(2n);
+      expect(result[0]).to.equal(0n);
       expect(result[1]).to.equal(0n);
     });
   });
@@ -1929,7 +1904,7 @@ describe("CrystalMarket", function () {
 
       await harness.setMarketState(1n, 0n, 1n << 20n, 100000, 100000, true, 100, 1_000_000);
       const orderInfo = (0n << 252n) | (0n << 248n) | (1n << 244n) | (userId << 160n);
-      await harness.exposed_marketOrder(1n, 1n, orderInfo);
+      await harness.exposed_marketOrder(10_127n, 1n, orderInfo);
     });
 
     it("slippage commit only changes reserveBase", async function () {
@@ -3898,6 +3873,64 @@ describe("CrystalMarket", function () {
       const marketInfo = await crystal.getMarket(market.target);
       expect(marketInfo.reserveQuote).to.equal(amountQuote);
       expect(marketInfo.reserveBase).to.equal(amountBase);
+    });
+
+    it("Should expose the adjusted reserves and executable price after a near-empty reserve add", async function () {
+      const { crystal, quote, weth, maker, taker } = await loadFixture(deployFixture);
+      const marketAddress = await crystal.deploy.staticCall(
+        false,
+        quote.target,
+        weth.target,
+        MARKET_TYPES.LOGARITHMIC_AMM,
+        21,
+        1,
+        1_000_000_000_000_000n,
+        1_000_000,
+        99970,
+        99995
+      );
+      await crystal.deploy(
+        false,
+        quote.target,
+        weth.target,
+        MARKET_TYPES.LOGARITHMIC_AMM,
+        21,
+        1,
+        1_000_000_000_000_000n,
+        1_000_000,
+        99970,
+        99995
+      );
+
+      await crystal.connect(maker).addLiquidity(
+        marketAddress,
+        maker.address,
+        3n,
+        132910644136509n,
+        0,
+        0,
+        { value: 132910644136509n }
+      );
+      await crystal.connect(maker).limitOrder(marketAddress, true, 0, 22513000n, 1_000_000n, maker.address);
+      await crystal.connect(taker).limitOrder(marketAddress, false, 0, 22514000n, 100n * 10n ** 18n, taker.address);
+      await crystal.connect(maker).addLiquidity(
+        marketAddress,
+        "0x25afd36012fa25336cc56a1b26c56e92dd77f0f3",
+        77984724n,
+        3455000000000000262144n,
+        0,
+        0,
+        { value: 3455000000000000262144n }
+      );
+
+      const [reserveQuote, reserveBase] = await crystal.getReserves.staticCall(marketAddress);
+      const [price, highestBid, lowestAsk] = await crystal.getPrice.staticCall(marketAddress);
+
+      expect(reserveQuote).to.equal(77984727n);
+      expect(reserveBase).to.equal(3455000099459935032681n);
+      expect(price).to.equal(22515000n);
+      expect(highestBid).to.equal(22516000n);
+      expect(lowestAsk).to.equal(22514000n);
     });
   });
 
@@ -21902,7 +21935,7 @@ describe("CrystalMarket", function () {
         const Crystal = await ethers.getContractFactory("Crystal");
         const crystal = await Crystal.deploy(
           weth.target, owner.address, owner.address, 10, 86400,
-          [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
+          [false, 1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
         );
 
         await quote.mint(maker.address, ethers.parseUnits("10000000", 6));
@@ -22889,7 +22922,7 @@ describe("CrystalMarket", function () {
             owner.address,
             10,
             86400,
-            [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
+            [false, 1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
           );
 
           await quote.connect(maker).approve(crystal.target, MAX_UINT256);
@@ -23002,7 +23035,7 @@ describe("CrystalMarket", function () {
           const Crystal = await ethers.getContractFactory("Crystal");
           const crystal = await Crystal.deploy(
             weth.target, owner.address, owner.address, 10, 86400,
-            [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
+            [false, 1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
           );
 
           await quote.connect(maker).approve(crystal.target, MAX_UINT256);
@@ -25675,6 +25708,7 @@ describe("CrystalMarket", function () {
   describe("Comprehensive Branch Coverage Tests", function () {
 
     const LAUNCHPAD_PARAMS = [
+      false,
       1000000000000000000000n,
       99000,
       5,
@@ -27402,7 +27436,7 @@ describe("CrystalMarket", function () {
       const Crystal = await ethers.getContractFactory("Crystal");
       const crystal = await Crystal.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
-        [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
+        [false, 1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
       );
       await quote.mint(owner.address, ethers.parseUnits("100000000", 6));
       await base.mint(owner.address, ethers.parseEther("100000000"));
@@ -27447,7 +27481,7 @@ describe("CrystalMarket", function () {
       const Crystal = await ethers.getContractFactory("Crystal");
       const crystal = await Crystal.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
-        [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
+        [false, 1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
       );
       await quote.mint(owner.address, ethers.parseUnits("100000000", 6));
       await base.mint(owner.address, ethers.parseEther("100000000"));
@@ -27780,7 +27814,7 @@ describe("CrystalMarket", function () {
       const Crystal = await ethers.getContractFactory("Crystal");
       const crystal = await Crystal.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
-        [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
+        [false, 1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
       );
       await quote.mint(owner.address, ethers.parseUnits("100000000", 6));
       await base.mint(owner.address, ethers.parseEther("100000000"));
@@ -27820,7 +27854,7 @@ describe("CrystalMarket", function () {
       const Crystal = await ethers.getContractFactory("Crystal");
       const crystal = await Crystal.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
-        [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
+        [false, 1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
       );
       await quote.mint(owner.address, ethers.parseUnits("100000000", 6));
       await base.mint(owner.address, ethers.parseEther("100000000"));
@@ -27882,7 +27916,7 @@ describe("CrystalMarket", function () {
       const Crystal = await ethers.getContractFactory("Crystal");
       const crystal = await Crystal.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
-        [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
+        [false, 1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
       );
       await quote.mint(owner.address, ethers.parseUnits("100000000", 6));
       await base.mint(owner.address, ethers.parseEther("100000000"));
@@ -27922,7 +27956,7 @@ describe("CrystalMarket", function () {
       const Crystal = await ethers.getContractFactory("Crystal");
       const crystal = await Crystal.deploy(
         weth.target, owner.address, owner.address, 10, 86400,
-        [1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
+        [false, 1000000000000000000000n, 99000n, 5n, 1000000000000000000n, 99920, 99990, 40]
       );
       await quote.mint(owner.address, ethers.parseUnits("100000000", 6));
       await base.mint(owner.address, ethers.parseEther("100000000"));
@@ -28791,6 +28825,7 @@ describe("CrystalMarket", function () {
 
   describe("Catch Block Entry (FailingToken)", function () {
     const LAUNCHPAD_PARAMS = [
+      false,
       1000000000000000000000n,
       99000,
       5,
@@ -28926,6 +28961,7 @@ describe("CrystalMarket", function () {
 
   describe("Overflow Branch Coverage Tests", function () {
     const LAUNCHPAD_PARAMS = [
+      false,
       1000000000000000000000n,
       99000,
       5,
@@ -29188,6 +29224,7 @@ describe("CrystalMarket", function () {
   
   describe("Statement Coverage - Uncovered Lines", function () {
     const LAUNCHPAD_PARAMS = [
+      false,
       1000000000000000000000n,
       99000,
       5,
@@ -29358,7 +29395,7 @@ describe("CrystalMarket", function () {
         const Crystal = await ethers.getContractFactory("Crystal");
         const crystal = await Crystal.deploy(
           weth.target, owner.address, owner.address, 10, 86400,
-          [1000000000000000000000n, 99000, 5, 1000000000000000000n, 99920, 99990, 40]
+          [false, 1000000000000000000000n, 99000, 5, 1000000000000000000n, 99920, 99990, 40]
         );
 
         await quote.mint(owner.address, ethers.parseUnits("1000000", 6));
@@ -29408,7 +29445,7 @@ describe("CrystalMarket", function () {
         const Crystal = await ethers.getContractFactory("Crystal");
         const crystal = await Crystal.deploy(
           weth.target, owner.address, owner.address, 10, 86400,
-          [1000000000000000000000n, 99000, 5, 1000000000000000000n, 99920, 99990, 40]
+          [false, 1000000000000000000000n, 99000, 5, 1000000000000000000n, 99920, 99990, 40]
         );
 
         await quote.mint(owner.address, ethers.parseUnits("1000000", 6));
@@ -29487,7 +29524,7 @@ describe("CrystalMarket", function () {
         const Crystal = await ethers.getContractFactory("Crystal");
         const crystal = await Crystal.deploy(
           weth.target, owner.address, owner.address, 10, 86400,
-          [1000000000000000000000n, 99000, 5, 1000000000000000000n, 99920, 99990, 40]
+          [false, 1000000000000000000000n, 99000, 5, 1000000000000000000n, 99920, 99990, 40]
         );
 
         await failToken.mint(owner.address, ethers.parseEther("1000000"));
@@ -29540,7 +29577,7 @@ describe("CrystalMarket", function () {
         const Crystal = await ethers.getContractFactory("Crystal");
         const crystal = await Crystal.deploy(
           weth.target, owner.address, owner.address, 10, 86400,
-          [1000000000000000000000n, 99000, 5, 1000000000000000000n, 99920, 99990, 40]
+          [false, 1000000000000000000000n, 99000, 5, 1000000000000000000n, 99920, 99990, 40]
         );
 
         await quote.mint(owner.address, ethers.parseUnits("1000000", 6));
@@ -29588,7 +29625,7 @@ describe("CrystalMarket", function () {
         const Crystal = await ethers.getContractFactory("Crystal");
         const crystal = await Crystal.deploy(
           weth.target, owner.address, owner.address, 10, 86400,
-          [1000000000000000000000n, 99000, 5, 1000000000000000000n, 99920, 99990, 40]
+          [false, 1000000000000000000000n, 99000, 5, 1000000000000000000n, 99920, 99990, 40]
         );
 
         await quote.mint(owner.address, ethers.parseUnits("1000000", 6));
@@ -29638,7 +29675,7 @@ describe("CrystalMarket", function () {
         const Crystal = await ethers.getContractFactory("Crystal");
         const crystal = await Crystal.deploy(
           weth.target, owner.address, owner.address, 10, 86400,
-          [1000000000000000000000n, 99000, 5, 1000000000000000000n, 99920, 99990, 40]
+          [false, 1000000000000000000000n, 99000, 5, 1000000000000000000n, 99920, 99990, 40]
         );
 
         await quote.mint(owner.address, ethers.parseUnits("1000000", 6));
@@ -29685,7 +29722,7 @@ describe("CrystalMarket", function () {
         const Crystal = await ethers.getContractFactory("Crystal");
         const crystal = await Crystal.deploy(
           weth.target, owner.address, owner.address, 10, 86400,
-          [1000000000000000000000n, 99000, 5, 1000000000000000000n, 99920, 99990, 40]
+          [false, 1000000000000000000000n, 99000, 5, 1000000000000000000n, 99920, 99990, 40]
         );
 
         await quote.mint(owner.address, ethers.parseUnits("1000000", 6));
@@ -29720,3 +29757,4 @@ describe("CrystalMarket", function () {
     });
   });
 });
+

@@ -33,6 +33,7 @@ contract DeployCrystalScript is Script {
             feeCommission: uint8(vm.envUint("CRYSTAL_FEE_COMMISSION")),
             feeClaimDuration: vm.envUint("CRYSTAL_FEE_CLAIM_DURATION"),
             launchpadParams: ICrystal.LaunchpadParams({
+                isTokenCreationPaused: false,
                 launchpadInitialNativeSupply: uint112(vm.envUint("CRYSTAL_LAUNCHPAD_INITIAL_NATIVE_SUPPLY")),
                 launchpadFee: vm.envUint("CRYSTAL_LAUNCHPAD_FEE"),
                 launchpadCreatorFeeSplit: vm.envUint("CRYSTAL_LAUNCHPAD_CREATOR_FEE_SPLIT"),
