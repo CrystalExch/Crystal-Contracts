@@ -78,6 +78,12 @@ contract CrystalVaultFactory {
         _;
     }
 
+    /// @notice Reverts if called by any address other than the vault owner.
+    modifier onlyVaultOwner(address vault) {
+        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
+        _;
+    }
+
     /**
      * @notice Deploys the vault factory and initializes global parameters.
      *
@@ -369,8 +375,7 @@ contract CrystalVaultFactory {
      *
      * @param vault Vault address.
      */
-    function lock(address vault) external {
-        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
+    function lock(address vault) external onlyVaultOwner(vault) {
         ICrystalVault(vault).lock();
         getVault[vault].locked = true;
         emit ICrystalVaultFactory.Locked(vault);
@@ -381,8 +386,7 @@ contract CrystalVaultFactory {
      *
      * @param vault Vault address.
      */
-    function unlock(address vault) external {
-        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
+    function unlock(address vault) external onlyVaultOwner(vault) {
         ICrystalVault(vault).unlock();
         getVault[vault].locked = false;
         emit ICrystalVaultFactory.Unlocked(vault);
@@ -396,8 +400,7 @@ contract CrystalVaultFactory {
      * @return amountQuote Quote amount returned to owner.
      * @return amountBase Base amount returned to owner.
      */
-    function close(address vault) external returns (uint256 amountQuote, uint256 amountBase) {
-        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
+    function close(address vault) external onlyVaultOwner(vault) returns (uint256 amountQuote, uint256 amountBase) {
         ICrystalVaultFactory.Vault storage vaultInfo = getVault[vault];
         uint256 shares = ICrystalVault(vault).balanceOf(msg.sender);
         (amountQuote, amountBase) = ICrystalVault(vault).withdraw(msg.sender, shares, 0, 0);
@@ -421,8 +424,7 @@ contract CrystalVaultFactory {
      * @param vault Vault address.
      * @param newMaxShares New max share value.
      */
-    function changeMaxShares(address vault, uint256 newMaxShares) external {
-        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
+    function changeMaxShares(address vault, uint256 newMaxShares) external onlyVaultOwner(vault) {
         ICrystalVault(vault).changeMaxShares(newMaxShares);
         getVault[vault].maxShares = newMaxShares;
         emit ICrystalVaultFactory.MaxSharesChanged(vault, newMaxShares);
@@ -434,8 +436,7 @@ contract CrystalVaultFactory {
      * @param vault Vault address.
      * @param newLockup New lockup duration.
      */
-    function changeLockup(address vault, uint40 newLockup) external {
-        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
+    function changeLockup(address vault, uint40 newLockup) external onlyVaultOwner(vault) {
         ICrystalVault(vault).changeLockup(newLockup);
         getVault[vault].lockup = newLockup;
         emit ICrystalVaultFactory.LockupChanged(vault, newLockup);
@@ -447,8 +448,7 @@ contract CrystalVaultFactory {
      * @param vault Vault address.
      * @param newDecrease New decrease flag.
      */
-    function changeDecreaseOnWithdraw(address vault, bool newDecrease) external {
-        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
+    function changeDecreaseOnWithdraw(address vault, bool newDecrease) external onlyVaultOwner(vault) {
         ICrystalVault(vault).changeDecreaseOnWithdraw(newDecrease);
         getVault[vault].decreaseOnWithdraw  = newDecrease;
         emit ICrystalVaultFactory.DecreaseOnWithdrawChanged(vault, newDecrease);
@@ -460,8 +460,7 @@ contract CrystalVaultFactory {
      * @param vault Vault address.
      * @param newCap New order cap.
      */
-    function changeOrderCap(address vault, uint16 newCap) external {
-        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
+    function changeOrderCap(address vault, uint16 newCap) external onlyVaultOwner(vault) {
         ICrystalVault(vault).changeOrderCap(newCap);
     }
 
@@ -470,8 +469,7 @@ contract CrystalVaultFactory {
      *
      * @param vault Vault address.
      */
-    function changeMarket(address vault) external {
-        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
+    function changeMarket(address vault) external onlyVaultOwner(vault) {
         ICrystalVault(vault).changeMarket();
     }
 
@@ -483,8 +481,7 @@ contract CrystalVaultFactory {
      * @param vault Vault address.
      * @param tokens Token list to claim.
      */
-    function claimFees(address vault, address[] calldata tokens) external {
-        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
+    function claimFees(address vault, address[] calldata tokens) external onlyVaultOwner(vault) {
         ICrystalVault(vault).claimFees(tokens);
     }
 
@@ -495,8 +492,7 @@ contract CrystalVaultFactory {
      * @param userId Crystal user id.
      * @param ids Cloid slot ids to clear.
      */
-    function clearCloidSlots(address vault, uint256 userId, uint256[] calldata ids) external {
-        require(msg.sender == getVault[vault].owner, ICrystal.Unauthorized(msg.sender));
+    function clearCloidSlots(address vault, uint256 userId, uint256[] calldata ids) external onlyVaultOwner(vault) {
         ICrystalVault(vault).clearCloidSlots(userId, ids);
     }
 }

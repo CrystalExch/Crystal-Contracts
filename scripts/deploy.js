@@ -19,7 +19,7 @@ const MARKETS = [ // [Canonical, Quote Asset, Base Asset, Market Type, Scale Fac
     true,
     USDC,
     WETH,
-    2, // Dynamic Price Ticks, AMM Enabled
+    1, // Dynamic Price Ticks, AMM Enabled
     21, // USDC is 6 Decimals, WMON is 18, 21 - 18 + 6 = 9, Minimum Price Tick of 0.000000001
     1, // Tick size of 1
     1_000_000_000_000_000n, // 1,000,000 USDC per WMON

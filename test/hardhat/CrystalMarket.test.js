@@ -712,6 +712,60 @@ describe("CrystalMarket", function () {
       await harness.getPrice();
     });
 
+    it("getPrice uses the next exact-input AMM state across rounding", async function () {
+      const { harness: buy } = await deployHarness({
+        marketType: 0,
+        scaleFactor: 1,
+        maxPrice: 100,
+      });
+      await buy.setMarketState(
+        0n, 100n, 1n << 20n, 99970, 99995, true, 1n, 7n
+      );
+      const buyPrice = await buy.getPrice.staticCall();
+      expect(buyPrice[0]).to.equal(6n);
+      expect(buyPrice[2]).to.equal(6n);
+
+      const { harness: sell } = await deployHarness({
+        marketType: 0,
+        scaleFactor: 1,
+        maxPrice: 100,
+      });
+      await sell.setMarketState(
+        0n, 100n, 1n << 20n, 99970, 99995, true, 5n, 1n
+      );
+      const sellPrice = await sell.getPrice.staticCall();
+      expect(sellPrice[0]).to.equal(14n);
+      expect(sellPrice[1]).to.equal(14n);
+    });
+
+    it("places the exact-input buy limit remainder when one quote unit exceeds the target", async function () {
+      const { harness } = await deployHarness({
+        marketType: 0,
+        scaleFactor: 21,
+        maxPrice: 1_000_000_000,
+      });
+      const reserveQuote = 557n;
+      const reserveBase = 23_086_796_125_335_545n;
+      const price = 24_247_000n;
+      const size = 345_000_000n;
+      const userId = 3n;
+
+      await harness.setMarketState(
+        0n, 1_000_000_000n, 1n << 20n, 99970, 99995, true, reserveQuote, reserveBase
+      );
+
+      expect(await harness.exposed_exactInputBuySolve(
+        reserveQuote, reserveBase, price, 1_000_000_000_000_000_000_000n, 99995, 344_896_500n, 9975
+      )).to.equal(0n);
+
+      const result = await harness.exposed_limitOrder.staticCall(
+        true, true, price, size, userId, 0n
+      );
+
+      expect(result[0]).to.equal(size);
+      expect(result[1]).to.not.equal(0n);
+    });
+
     it("getQuote covers orderbook and AMM paths", async function () {
       const { harness, marketId } = await deployHarness({
         marketType: 0,
@@ -27308,6 +27362,50 @@ describe("CrystalMarket", function () {
       await expect(
         harness.exposed_limitOrder(true, true, price, 1n, userId, 0n)
       ).to.be.reverted;
+    });
+
+    it("Should accept an exact-input market-to-limit remainder across AMM rounding", async function () {
+      const { harness } = await deployHarnessOnly();
+      const userId = 3n;
+      const price = 5n;
+      const size = 10n;
+
+      await harness.setMarketState(
+        0n, 100n, 1n << 20n, 99970, 99995, true, 1n, 7n
+      );
+
+      expect(await harness.exposed_exactInputBuySolve(
+        1n, 7n, price, 10n, 99995, size, 9975
+      )).to.equal(0n);
+
+      const result = await harness.exposed_marketOrder.staticCall(
+        size, price, (2n << 252n) | (userId << 160n)
+      );
+
+      expect(result[2]).to.not.equal(0n);
+      expect(result[3] >> 128n).to.equal(size);
+    });
+
+    it("Should accept an exact-input sell market-to-limit remainder across AMM rounding", async function () {
+      const { harness } = await deployHarnessOnly();
+      const userId = 3n;
+      const price = 15n;
+      const size = 10n;
+
+      await harness.setMarketState(
+        0n, 100n, 1n << 20n, 99970, 99995, true, 5n, 1n
+      );
+
+      expect(await harness.exposed_exactInputSellSolve(
+        5n, 1n, price, 10n, 99995, size, 9975
+      )).to.equal(0n);
+
+      const result = await harness.exposed_marketOrder.staticCall(
+        size, price, (2n << 252n) | (1n << 244n) | (userId << 160n)
+      );
+
+      expect(result[2]).to.not.equal(0n);
+      expect(result[3] >> 128n).to.equal(size);
     });
 
     it("Should hit fallback decrease cancel path with low-bit size", async function () {

@@ -181,14 +181,26 @@ contract Crystal is ICrystal {
     /// @notice Launchpad token reserve to be migrated to graduated market.
     uint256 internal constant GRADUATED_TOKEN_SUPPLY = 200000000000000000000000000;
 
-    /// @notice Initial launchpad virtual token reserve.
-    uint256 internal constant VIRTUAL_TOKEN_SUPPLY = (GRADUATED_TOKEN_SUPPLY * GRADUATED_TOKEN_SUPPLY + (INITIAL_TOKEN_SUPPLY - 2 * GRADUATED_TOKEN_SUPPLY) - 1) / (INITIAL_TOKEN_SUPPLY - 2 * GRADUATED_TOKEN_SUPPLY);
+    /**
+     * @notice Initial launchpad virtual token reserve.
+     * 
+     * @dev Equivalent to (GRADUATED_TOKEN_SUPPLY * GRADUATED_TOKEN_SUPPLY + (INITIAL_TOKEN_SUPPLY - 2 * GRADUATED_TOKEN_SUPPLY) - 1) / (INITIAL_TOKEN_SUPPLY - 2 * GRADUATED_TOKEN_SUPPLY).
+     */
+    uint256 internal constant VIRTUAL_TOKEN_SUPPLY = 66666666666666666666666667;
 
-    /// @notice Initial launchpad virtual token reserve.
-    uint256 internal constant INITIAL_CURVE_TOKEN_SUPPLY = INITIAL_TOKEN_SUPPLY + VIRTUAL_TOKEN_SUPPLY;
+    /**
+     * @notice Initial launchpad virtual token reserve.
+     * 
+     * @dev Equivalent to INITIAL_TOKEN_SUPPLY + VIRTUAL_TOKEN_SUPPLY.
+     */
+    uint256 internal constant INITIAL_CURVE_TOKEN_SUPPLY = 1066666666666666666666666667;
 
-    /// @notice Initial launchpad virtual token reserve.
-    uint256 internal constant GRADUATED_CURVE_TOKEN_SUPPLY = GRADUATED_TOKEN_SUPPLY + VIRTUAL_TOKEN_SUPPLY;
+    /**
+     * @notice Launchpad virtual token reserve at graduation.
+     * 
+     * @dev Equivalent to GRADUATED_TOKEN_SUPPLY + VIRTUAL_TOKEN_SUPPLY.
+     */
+    uint256 internal constant GRADUATED_CURVE_TOKEN_SUPPLY = 266666666666666666666666667;
 
     /// @notice Graduated launchpad market default max price.
     uint256 internal constant GRADUATED_MAX_PRICE = 1000000000000000;

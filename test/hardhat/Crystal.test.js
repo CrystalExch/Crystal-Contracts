@@ -25115,5 +25115,3 @@ describe("Graduation sells exactly 800M", function () {
     await expectGraduatedExact(crystal, token, tokenAddr);
   });
 });
-
-

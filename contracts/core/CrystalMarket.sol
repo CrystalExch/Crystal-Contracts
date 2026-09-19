@@ -716,7 +716,8 @@ contract CrystalMarket is ERC20 {
             if (reserveQuote > 1 && reserveBase != 0) {
                 uint256 denominator = (reserveQuote - 1) * ammFee;
                 uint256 amountIn = (reserveBase * 10000 + denominator - 1) / denominator;
-                uint256 ammPrice = ((denominator * scaleFactor * 100000) / ((reserveBase + amountIn) * 10000 * makerRebate)); // AMM price after one marginal output unit
+                uint256 amountOut = (amountIn * ammFee * reserveQuote) / (reserveBase * 10000 + amountIn * ammFee); // Get maximum output amount for the input amount required for one marginal output unit
+                uint256 ammPrice = (((reserveQuote - amountOut) * ammFee * scaleFactor * 100000) / ((reserveBase + amountIn) * 10000 * makerRebate)); // AMM price after the minimum input required for nonzero output
                 ammPrice = marketType == 0 ? (ammPrice - (ammPrice % tickSize)) : CM._toValidPrice(ammPrice, tickSize, false); // Compute adjusted AMM bid price adjusted upwards for maker rebate
                 if (highestBid < ammPrice) {
                     highestBid = ammPrice;
@@ -725,8 +726,9 @@ contract CrystalMarket is ERC20 {
             if (reserveBase > 1 && reserveQuote != 0) {
                 uint256 denominator = (reserveBase - 1) * ammFee;
                 uint256 amountIn = (reserveQuote * 10000 + denominator - 1) / denominator;
-                denominator *= 100000;
-                uint256 ammPrice = (((reserveQuote + amountIn) * scaleFactor * 10000 * makerRebate + denominator - 1) / denominator); // AMM price after one marginal output unit
+                uint256 amountOut = (amountIn * ammFee * reserveBase) / (reserveQuote * 10000 + amountIn * ammFee); // Get maximum output amount for the input amount required for one marginal output unit
+                denominator = (reserveBase - amountOut) * ammFee * 100000;
+                uint256 ammPrice = (((reserveQuote + amountIn) * scaleFactor * 10000 * makerRebate + denominator - 1) / denominator); // AMM price after the minimum input required for nonzero output
                 if (ammPrice > maxPrice) {
                     ammPrice = maxPrice;
                 }
@@ -873,10 +875,13 @@ contract CrystalMarket is ERC20 {
                         }
                     } else {
                         amountOut += sizeLeft;
+                        uint256 denominator;
                         if (_isBuy) {
-                            sizeLeft = (sizeLeft * price * 100000 + (scaleFactor * uint256(m.makerRebate) - 1)) / (scaleFactor * uint256(m.makerRebate));
+                            denominator = scaleFactor * uint256(m.makerRebate);
+                            sizeLeft = (sizeLeft * price * 100000 + denominator - 1) / denominator;
                         } else {
-                            sizeLeft = (sizeLeft * scaleFactor * 100000 + (price * uint256(m.makerRebate) - 1)) / (price * uint256(m.makerRebate));
+                            denominator = price * uint256(m.makerRebate);
+                            sizeLeft = (sizeLeft * scaleFactor * 100000 + denominator - 1) / denominator;
                         }    
                     }
                     amountIn += sizeLeft;
@@ -1031,7 +1036,8 @@ contract CrystalMarket is ERC20 {
                                             eventPrice := mload(0x80)
                                         }
                                         uint256 makerRebate = m.makerRebate;
-                                        uint256 endPrice = ((reserveQuote * scaleFactor * 10000 * makerRebate + (reserveBase * ammFee * 100000 - 1)) / (reserveBase * ammFee * 100000)); // Adjust price as against the AMM takers do not pay the maker rebate
+                                        uint256 denominator = reserveBase * ammFee * 100000;
+                                        uint256 endPrice = (reserveQuote * scaleFactor * 10000 * makerRebate + denominator - 1) / denominator; // Adjust price as against the AMM takers do not pay the maker rebate
                                         if (endPrice > maxPrice) {
                                             endPrice = maxPrice;
                                         } else if (endPrice <= tickSize) {
@@ -1040,7 +1046,8 @@ contract CrystalMarket is ERC20 {
                                             endPrice = marketType == 0 ? (endPrice - (endPrice % tickSize)) : CM._toValidPrice(endPrice, tickSize, false); // Round down to valid price
                                         }
                                         if (eventPrice == 0) {
-                                            uint256 startPrice = (((reserveQuote - ammAmountIn) * scaleFactor * 10000 * makerRebate + ((reserveBase + ammAmountOut) * ammFee * 100000 - 1)) / ((reserveBase + ammAmountOut) * ammFee * 100000));
+                                            denominator = (reserveBase + ammAmountOut) * ammFee * 100000;
+                                            uint256 startPrice = ((reserveQuote - ammAmountIn) * scaleFactor * 10000 * makerRebate + denominator - 1) / denominator;
                                             if (startPrice > maxPrice) {
                                                 startPrice = maxPrice;
                                             } else if (startPrice <= tickSize) {
@@ -1241,10 +1248,13 @@ contract CrystalMarket is ERC20 {
                                     } else {
                                         currentFillAmountOut = sizeLeft;
                                         uint256 makerRebate = m.makerRebate;
+                                        uint256 denominator;
                                         if (isBuy) { // Maker transfer amount (rounded up)
-                                            sizeLeft = (sizeLeft * price * 100000 + (scaleFactor * makerRebate - 1)) / (scaleFactor * makerRebate);
+                                            denominator = scaleFactor * makerRebate;
+                                            sizeLeft = (sizeLeft * price * 100000 + (denominator - 1)) / denominator;
                                         } else {
-                                            sizeLeft = (sizeLeft * scaleFactor * 100000 + (price * makerRebate - 1)) / (price * makerRebate);
+                                            denominator = price * makerRebate;
+                                            sizeLeft = (sizeLeft * scaleFactor * 100000 + (denominator - 1)) / denominator;
                                         }
                                     }
                                 }
@@ -1507,15 +1517,19 @@ contract CrystalMarket is ERC20 {
                     isExistingCloidOrder = (CS._readMapping(key, offset, CS.ORDERS_KEY) & MASK_OUT_113_154) != 0;
                 }
                 if (isBuy) {
-                    bool isBelowMinSize = size < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20));
-                    if (isExistingCloidOrder || price >= lowestAsk || price == 0 || isBelowMinSize) {
+                    if (isExistingCloidOrder || price >= lowestAsk || price == 0 || (size < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20)))) {
                         return (0, 0);
                     }
-                    if (m.isAMMEnabled && m.reserveBase > 1 && m.reserveQuote != 0) {
-                        uint256 denominator = (uint256(m.reserveBase) - 1) * ammFee; // AMM price after one marginal output unit
-                        uint256 amountIn = (uint256(m.reserveQuote) * 10000 + denominator - 1) / denominator;
-                        denominator *= uint256(m.makerRebate);
-                        uint256 adjustedAMMPrice = ((uint256(m.reserveQuote) + amountIn) * scaleFactor * 10000 * 100000 + denominator - 1) / denominator;
+                    (bool isAMMEnabled, uint256 reserveQuote, uint256 reserveBase) = (m.isAMMEnabled, m.reserveQuote, m.reserveBase);
+                    if (isAMMEnabled && reserveBase > 1 && reserveQuote != 0) {
+                        uint256 adjustedAMMPrice;
+                        {
+                            uint256 denominator = (reserveBase - 1) * ammFee;
+                            uint256 amountIn = (reserveQuote * 10000 + denominator - 1) / denominator;
+                            uint256 amountOut = (amountIn * ammFee * reserveBase) / (reserveQuote * 10000 + amountIn * ammFee); // Get maximum output amount for the input amount required for one marginal output unit
+                            denominator = (reserveBase - amountOut) * ammFee * uint256(m.makerRebate);
+                            adjustedAMMPrice = ((reserveQuote + amountIn) * scaleFactor * 10000 * 100000 + denominator - 1) / denominator; // AMM price after the minimum input required for nonzero output
+                        }
                         if (price > adjustedAMMPrice) { // Reverts if the buy order price is greater than the AMM limit ask adjusted upward for maker rebate to prevent a crossed book
                             return (0, 0);
                         }
@@ -1528,14 +1542,18 @@ contract CrystalMarket is ERC20 {
                         tokenBalances[userId][quoteAsset] += (size << 128); // Lock tokens for internal balance orders
                     }
                 } else {
-                    bool isBelowMinSize = ((size * price) / scaleFactor) < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20));
-                    if (isExistingCloidOrder || price <= highestBid || price >= maxPrice || isBelowMinSize) {
+                    if (isExistingCloidOrder || price <= highestBid || price >= maxPrice || ((size * price) / scaleFactor) < ((m.minSize >> 20) * 10 ** (m.minSize & MASK_KEEP_0_20))) {
                         return (0, 0);
                     }
-                    if (m.isAMMEnabled && m.reserveQuote > 1 && m.reserveBase != 0) {
-                        uint256 denominator = (uint256(m.reserveQuote) - 1) * ammFee; // AMM price after one marginal output unit
-                        uint256 amountIn = (uint256(m.reserveBase) * 10000 + denominator - 1) / denominator;
-                        uint256 adjustedAMMPrice = (denominator * scaleFactor * uint256(m.makerRebate)) / ((uint256(m.reserveBase) + amountIn) * 10000 * 100000);
+                    (bool isAMMEnabled, uint256 reserveQuote, uint256 reserveBase) = (m.isAMMEnabled, m.reserveQuote, m.reserveBase);
+                    if (isAMMEnabled && reserveQuote > 1 && reserveBase != 0) {
+                        uint256 adjustedAMMPrice;
+                        {
+                            uint256 denominator = (reserveQuote - 1) * ammFee;
+                            uint256 amountIn = (reserveBase * 10000 + denominator - 1) / denominator;
+                            uint256 amountOut = (amountIn * ammFee * reserveQuote) / (reserveBase * 10000 + amountIn * ammFee); // Get maximum output amount for the input amount required for one marginal output unit
+                            adjustedAMMPrice = ((reserveQuote - amountOut) * scaleFactor * ammFee * uint256(m.makerRebate)) / ((reserveBase + amountIn) * 10000 * 100000); // AMM price after the minimum input required for nonzero output
+                        }
                         if (price < adjustedAMMPrice) { // Reverts if the sell order price is greater than the AMM limit bid adjusted downwards for maker rebate to prevent a crossed book
                             return (0, 0);
                         }
@@ -2239,7 +2257,7 @@ contract CrystalMarket is ERC20 {
      */
     function addLiquidity(address to, uint256 amountQuoteDesired, uint256 amountBaseDesired, uint256 amountQuoteMin, uint256 amountBaseMin, uint256 options) external payable returns (uint256 liquidity) {
         ICrystal.Market storage m = _getMarket[market];
-        (uint256 reserveQuote, uint256 reserveBase) = (m.reserveQuote, m.reserveBase);
+        (bool isAMMEnabled, uint256 reserveQuote, uint256 reserveBase) = (m.isAMMEnabled, m.reserveQuote, m.reserveBase);
         uint256 amountQuote;
         uint256 amountBase;
         uint256 totalSupply = IERC20(market).totalSupply();
@@ -2259,7 +2277,7 @@ contract CrystalMarket is ERC20 {
         }
         reserveQuote += amountQuote;
         reserveBase += amountBase;
-        require(reserveQuote != 0 && reserveBase != 0 && m.isAMMEnabled, ICrystal.SlippageExceeded());
+        require(reserveQuote != 0 && reserveBase != 0 && isAMMEnabled, ICrystal.SlippageExceeded());
         {
             uint256 denominator = reserveBase * ammFee * uint256(m.makerRebate);
             uint256 ammAsk = ((reserveQuote * scaleFactor * 10000 * 100000 + (denominator - 1)) / denominator);
@@ -2320,14 +2338,14 @@ contract CrystalMarket is ERC20 {
     function removeLiquidity(address to, uint256 liquidity, uint256 amountQuoteMin, uint256 amountBaseMin, uint256 options) external payable returns (uint256 amountQuote, uint256 amountBase) {
         ICrystal.Market storage m = _getMarket[market];
         uint256 totalSupply = IERC20(market).totalSupply();
-        (uint256 reserveQuote, uint256 reserveBase) = (m.reserveQuote, m.reserveBase);
+        (bool isAMMEnabled, uint256 reserveQuote, uint256 reserveBase) = (m.isAMMEnabled, m.reserveQuote, m.reserveBase);
         IERC20(market).transferFrom(msg.sender, address(this), liquidity);
         IERC20(market).burn(address(this), liquidity);
         amountQuote = (liquidity * reserveQuote) / totalSupply;
         amountBase = (liquidity * reserveBase) / totalSupply;
         reserveQuote -= uint112(amountQuote);
         reserveBase -= uint112(amountBase);
-        if (m.isAMMEnabled) {
+        if (isAMMEnabled) {
             uint256 denominator = reserveBase * ammFee * uint256(m.makerRebate);
             uint256 ammAsk = ((reserveQuote * scaleFactor * 10000 * 100000 + (denominator - 1)) / denominator);
             uint256 ammBid = ((reserveQuote * scaleFactor * ammFee * uint256(m.makerRebate)) / (reserveBase * 10000 * 100000));

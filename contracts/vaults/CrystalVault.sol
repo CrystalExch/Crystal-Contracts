@@ -77,6 +77,12 @@ contract CrystalVault is ERC20 {
         _;
     }
 
+    /// @notice Reverts if called by any address other than the vault owner.
+    modifier onlyOwner() {
+        require(msg.sender == owner, ICrystal.Unauthorized(msg.sender));
+        _;
+    }
+
     /**
      * @notice Initializes a new CrystalVault.
      *
@@ -445,8 +451,7 @@ contract CrystalVault is ERC20 {
     /**
      * @notice Withdraws any ETH balance held by the vault to the owner.
      */
-    function sweep() external {
-        require(msg.sender == owner, ICrystal.Unauthorized(msg.sender));
+    function sweep() external onlyOwner {
         (bool success, ) = msg.sender.call{value: address(this).balance}("");
         require(success, ICrystal.TransferFailed(msg.sender));
     }
@@ -457,8 +462,7 @@ contract CrystalVault is ERC20 {
      * @param actions Array of encoded trading actions.
      * @param bid ETH value forwarded to Crystal.
      */
-    function execute(ICrystalVault.Action[] calldata actions, uint256 bid) external payable {
-        require(msg.sender == owner, ICrystal.Unauthorized(msg.sender));
+    function execute(ICrystalVault.Action[] calldata actions, uint256 bid) external payable onlyOwner {
         require(actions.length < 0xFFF && !closed && bid < 0xFFFFFFFFFFFFFFFFFFFF, ICrystal.InvalidParams());
         bytes32[] memory data = new bytes32[](actions.length + 1);
         ICrystalVault.Action memory action;

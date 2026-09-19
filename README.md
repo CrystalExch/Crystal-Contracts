@@ -372,7 +372,7 @@ Decrease by cloid:
 
 All unused bits should be zeroed.
 
-Crystal does not support non-standard ERC-20 tokens, including fee-on-transfer tokens and tokens that do not revert on failure.
+Crystal does not support non-standard ERC-20 tokens, including fee-on-transfer tokens and tokens that return false rather than reverting when a transfer fails.
 
 Further documentation is available at [docs.crystal.exchange](https://docs.crystal.exchange)
 
